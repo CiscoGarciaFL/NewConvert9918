@@ -1,0 +1,20 @@
+# Build output
+/build*/
+/out/
+
+# Qt Creator and CMake user state
+CMakeLists.txt.user*
+CMakeUserPresets.json
+.qtcreator/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Generated files
+*.user
+*.autosave
+compile_commands.json
+
