@@ -1,0 +1,68 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows (MinGW x64)
+            os: windows-latest
+            compiler: g++
+          - name: Ubuntu (GCC x64)
+            os: ubuntu-latest
+            compiler: g++
+          - name: macOS (AppleClang Intel)
+            os: macos-15-intel
+            compiler: clang++
+          - name: macOS (AppleClang ARM64)
+            os: macos-15
+            compiler: clang++
+
+    env:
+      CXX: ${{ matrix.compiler }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Qt (Windows MinGW)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.10.3
+          arch: win64_mingw
+          tools: tools_mingw1310
+          cache: true
+
+      - name: Install Qt
+        if: runner.os != 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.10.3
+          cache: true
+
+      - name: Configure
+        run: cmake --preset ci-release
+
+      - name: Build
+        run: cmake --build --preset ci-release
+
+      - name: Test
+        run: ctest --preset ci-release

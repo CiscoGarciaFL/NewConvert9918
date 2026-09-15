@@ -49,6 +49,14 @@ Zed users can run the matching configure, build, and test entries from the
 task picker. CMake writes `compile_commands.json` into each build directory so
 Zed's `clangd` language server receives the project's actual compile flags.
 
+## Development checks
+
+The repository includes `.editorconfig`, `.clang-format`, and `.qmlformat.ini`
+so C++, QML, and basic text formatting remain consistent across editors and
+operating systems. GitHub Actions configures, builds, and tests every change on
+Windows with MinGW, Ubuntu with GCC, and both Intel and Apple Silicon macOS
+runners with AppleClang.
+
 ## Project structure
 
 - `app/` — Qt application shell and QML interface

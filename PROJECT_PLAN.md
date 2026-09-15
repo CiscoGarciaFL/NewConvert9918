@@ -72,6 +72,9 @@ improvement.
 - [x] Configured and built the application shell with MinGW Makefiles.
 - [x] Ran the validation suite successfully (1/1 tests passing).
 - [x] Added cross-platform CMake presets and Zed build/test tasks.
+- [x] Added shared C++ and QML formatting configuration.
+- [x] Added a GitHub Actions build/test matrix for Windows, Ubuntu, Intel macOS,
+  and Apple Silicon macOS.
 
 ### Development environment
 
@@ -149,8 +152,9 @@ a clean repository, and written dependency rules.
 - [x] Build the application shell.
 - [x] Run the validation tests.
 - [x] Resolve all compiler and QML warnings in the current shell.
-- [ ] Add formatting configuration for C++ and QML.
-- [ ] Add a GitHub Actions matrix for Windows, Ubuntu, and macOS.
+- [x] Add formatting configuration for C++ and QML.
+- [x] Add a GitHub Actions matrix for Windows, Ubuntu, Intel macOS, and Apple
+  Silicon macOS.
 - [ ] Require the CI build and tests to pass before merging.
 
 **Exit criterion:** a clean checkout configures, builds, and tests on all three
@@ -387,6 +391,7 @@ A task is not complete merely because it compiles. Apply the relevant gates:
 | 2026-09-14 | Keep Zed optional and drive builds with CMake presets | The same repository workflow must work from Zed, another editor, or a terminal. |
 | 2026-09-14 | Use native open toolchains on each platform | Qt MinGW avoids an MSVC dependency on Windows; GCC/Clang and AppleClang fit Linux and macOS. |
 | 2026-09-14 | Use MinGW Makefiles for the current Windows VM | Both available Ninja binaries stall during CMake's compiler probe in this VM. |
+| 2026-09-15 | Test Intel and Apple Silicon macOS separately in CI | Native jobs catch architecture-specific failures before universal release packaging. |
 
 ## Next session checklist
 

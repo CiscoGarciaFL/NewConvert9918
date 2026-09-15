@@ -55,6 +55,17 @@
         "lhs": "${hostSystemName}",
         "rhs": "Darwin"
       }
+    },
+    {
+      "name": "ci-release",
+      "displayName": "Continuous Integration Release",
+      "description": "Portable Ninja build using the compiler and Qt selected by the CI runner",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ci-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTING": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -71,6 +82,11 @@
     {
       "name": "macos-debug",
       "configurePreset": "macos-debug",
+      "jobs": 4
+    },
+    {
+      "name": "ci-release",
+      "configurePreset": "ci-release",
       "jobs": 4
     }
   ],
@@ -95,6 +111,13 @@
     {
       "name": "macos-debug",
       "configurePreset": "macos-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "ci-release",
+      "configurePreset": "ci-release",
       "output": {
         "outputOnFailure": true
       }
