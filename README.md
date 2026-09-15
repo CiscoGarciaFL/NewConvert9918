@@ -15,6 +15,9 @@ The project is in its initial architecture and parity-testing phase. The Qt
 shell currently contains only the proposed application workflow; conversion
 algorithms and file-format codecs have not yet been ported.
 
+See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current
+status, acceptance criteria, and next-session checklist.
+
 ## Technology
 
 - C++20 conversion and file-format core
