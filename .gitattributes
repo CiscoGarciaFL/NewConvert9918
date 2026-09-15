@@ -1,0 +1,3 @@
+# Preserve golden-test bytes identically on every operating system. This also
+# covers intentionally malformed .png fixtures that Git might classify as text.
+tests/golden/**/*.png -text -diff
