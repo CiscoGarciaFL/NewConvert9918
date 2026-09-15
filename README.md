@@ -24,17 +24,30 @@ status, acceptance criteria, and next-session checklist.
 - Qt 6.8 or newer
 - Qt Quick Controls 2 user interface
 - CMake build system
+- Zed-friendly C++ development through `clangd` and CMake compilation data
 - Qt Test and golden-file compatibility tests
 
 ## Build
 
-Install Qt 6.8 or newer with Qt Quick and a supported C++ toolchain, then run:
+Install Qt 6.8 or newer with Qt Quick, CMake, and a native C++20 toolchain.
+The committed presets use Qt MinGW on Windows, GCC or Clang on Linux, and
+AppleClang on macOS:
 
 ```shell
-cmake -S . -B build
-cmake --build build
-ctest --test-dir build --output-on-failure
+cmake --preset <platform-preset>
+cmake --build --preset <platform-preset>
+ctest --preset <platform-preset>
 ```
+
+Choose `windows-mingw-debug`, `linux-debug`, or `macos-debug` for
+`<platform-preset>`. The Windows preset matches the toolchain installed at
+`C:\Qt` on the current development machine. Linux and macOS expect Qt, CMake,
+and Ninja to be discoverable in the shell environment. Machine-specific
+overrides belong in the ignored `CMakeUserPresets.json` file.
+
+Zed users can run the matching configure, build, and test entries from the
+task picker. CMake writes `compile_commands.json` into each build directory so
+Zed's `clangd` language server receives the project's actual compile flags.
 
 ## Project structure
 

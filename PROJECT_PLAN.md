@@ -36,6 +36,9 @@ improvement.
 - [x] Use Qt 6.8 or newer; develop against the current Qt 6 release.
 - [x] Use Qt Quick Controls 2 for the redesigned interface.
 - [x] Use CMake as the build system.
+- [x] Keep the editor optional; use Zed tasks and CMake presets without making
+  project builds depend on an IDE.
+- [x] Use Qt MinGW on Windows, GCC or Clang on Linux, and AppleClang on macOS.
 - [x] Keep conversion behavior independent of QML and operating-system APIs.
 - [x] Replace ImgSource completely rather than redistributing it.
 - [x] Use the original Convert9918 license terms with the original author's
@@ -62,28 +65,32 @@ improvement.
 - [x] Added `LICENSE` with the original license text preserved unchanged.
 - [x] Added `NOTICE.md` with original and new-work attribution.
 - [x] Added controlled-contribution guidance.
-- [x] Recorded two initial local commits:
-  - `e34be50 Initial Qt/C++ project scaffold`
-  - `ba7b860 Initial Qt/C++ project scaffold`
+- [x] Created and pushed the public GitHub repository at
+  <https://github.com/CiscoGarciaFL/NewConvert9918>.
+- [x] Installed Qt 6.10.3, MinGW 13.1, CMake 3.30.5, and Ninja 1.12.1.
+- [x] Installed Zed 1.19.2 on the Windows development VM.
+- [x] Configured and built the application shell with MinGW Makefiles.
+- [x] Ran the validation suite successfully (1/1 tests passing).
+- [x] Added cross-platform CMake presets and Zed build/test tasks.
 
-### Environment still needed
+### Development environment
 
-- [ ] Add `C:\Users\Cisco\projects\NewConvert9918` as a local project in the
+- [x] Add `C:\Users\Cisco\projects\NewConvert9918` as a local project in the
   Codex desktop app.
-- [ ] Start future Codex tasks from that project in **Local** mode.
-- [ ] Select **Ask for approval** or **Full access** for tasks that must write
+- [x] Start future Codex tasks from that project in **Local** mode.
+- [x] Select **Ask for approval** or **Full access** for tasks that must write
   Git metadata.
-- [ ] Install a Qt 6 desktop development kit.
-- [ ] Install or expose CMake on `PATH`.
-- [ ] Install or expose Ninja on `PATH`.
-- [ ] Install a Windows C++20 compiler; MSVC 2022 is the preferred Windows
-  baseline.
-- [ ] Install and authenticate GitHub CLI, or create the remote repository
-  through GitHub's interface.
-- [ ] Run the first configure, build, and test cycle.
+- [x] Install a Qt 6 desktop development kit.
+- [x] Install a Windows C++20 compiler (Qt MinGW 13.1).
+- [x] Install CMake and Ninja with the Qt development tools.
+- [x] Create the remote repository through GitHub's interface.
+- [x] Run the first configure, build, and test cycle.
 
-At the time of this update, Git is installed, but Qt, CMake, a detected C++
-compiler, and GitHub CLI were not available on `PATH`.
+The Windows development kit is rooted at `C:\Qt`. The repository's Windows
+preset uses MinGW Makefiles because Ninja process orchestration stalls in this
+VM even though compilation itself succeeds. Linux and macOS retain Ninja as
+the preferred generator. Zed remains optional: the build is defined entirely
+by CMake and can run from any editor or terminal.
 
 ## Target architecture
 
@@ -130,18 +137,18 @@ NewConvert9918/
 - [x] Document that ImgSource will not be reused.
 - [ ] Confirm the preferred display/copyright spelling for Cisco Garcia.
 - [ ] Add `CODEOWNERS` after the GitHub owner/team names are known.
-- [ ] Create the public GitHub repository only after the local scaffold builds.
+- [x] Create the public GitHub repository and push the scaffold.
 
 **Exit criterion:** the project has an agreed license, traceable attribution,
 a clean repository, and written dependency rules.
 
 ### Phase 1 — Buildable shell and development pipeline
 
-- [ ] Install Qt, CMake, Ninja, and the Windows compiler.
-- [ ] Configure the project with CMake.
-- [ ] Build the application shell.
-- [ ] Run the validation tests.
-- [ ] Resolve all compiler and QML warnings.
+- [x] Install Qt, CMake, Ninja, and the Windows compiler.
+- [x] Configure the project with CMake.
+- [x] Build the application shell.
+- [x] Run the validation tests.
+- [x] Resolve all compiler and QML warnings in the current shell.
 - [ ] Add formatting configuration for C++ and QML.
 - [ ] Add a GitHub Actions matrix for Windows, Ubuntu, and macOS.
 - [ ] Require the CI build and tests to pass before merging.
@@ -293,8 +300,8 @@ export without installing a development environment.
 
 ### Phase 9 — GitHub governance
 
-- [ ] Create `CiscoGarciaFL/NewConvert9918` as a public repository.
-- [ ] Add the local remote and push `main`.
+- [x] Create `CiscoGarciaFL/NewConvert9918` as a public repository.
+- [x] Add the local remote and push `main`.
 - [ ] Keep organization base permissions read-only.
 - [ ] Grant Write or Maintain access only to approved people or teams.
 - [ ] Protect `main` with a repository ruleset:
@@ -377,6 +384,9 @@ A task is not complete merely because it compiles. Apply the relevant gates:
 | 2026-09-14 | Replace ImgSource | The product is retired and its redistribution position is unsuitable. |
 | 2026-09-14 | Preserve the original custom license | Agreed with the original author; full attribution remains mandatory. |
 | 2026-09-14 | Use golden-output testing | The original application's output quality is the compatibility baseline. |
+| 2026-09-14 | Keep Zed optional and drive builds with CMake presets | The same repository workflow must work from Zed, another editor, or a terminal. |
+| 2026-09-14 | Use native open toolchains on each platform | Qt MinGW avoids an MSVC dependency on Windows; GCC/Clang and AppleClang fit Linux and macOS. |
+| 2026-09-14 | Use MinGW Makefiles for the current Windows VM | Both available Ninja binaries stall during CMake's compiler probe in this VM. |
 
 ## Next session checklist
 
@@ -387,8 +397,8 @@ When opening this project again:
 3. [ ] Select **Ask for approval** or **Full access** if Codex should commit.
 4. [ ] Read this file and `docs/ARCHITECTURE.md`.
 5. [ ] Run `git status --short --branch` and `git log --oneline -5`.
-6. [ ] Confirm Qt, CMake, Ninja, and the compiler are installed.
-7. [ ] Configure, build, and run the existing validation tests.
+6. [ ] Confirm the platform preset and required Qt toolchain are available.
+7. [ ] Configure, build, and test with the matching CMake preset.
 8. [ ] Update the Current Status section with any environment changes.
 9. [ ] Begin Phase 2's feature inventory and golden-output corpus.
 
@@ -397,4 +407,3 @@ Suggested opening prompt:
 > Continue New Convert 9918 from PROJECT_PLAN.md. Verify the repository and
 > toolchain state, update the checklist, and complete the next unchecked task
 > without changing established architecture or license decisions.
-

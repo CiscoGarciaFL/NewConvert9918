@@ -1,0 +1,83 @@
+[
+  {
+    "label": "CMake: Configure (Windows MinGW)",
+    "command": "C:/Qt/Tools/CMake_64/bin/cmake.exe",
+    "args": ["--preset", "windows-mingw-debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "CMake: Build (Windows MinGW)",
+    "command": "C:/Qt/Tools/CMake_64/bin/cmake.exe",
+    "args": ["--build", "--preset", "windows-mingw-debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "CTest: Test (Windows MinGW)",
+    "command": "C:/Qt/Tools/CMake_64/bin/ctest.exe",
+    "args": ["--preset", "windows-mingw-debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "CMake: Configure (Linux)",
+    "command": "cmake",
+    "args": ["--preset", "linux-debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "CMake: Build (Linux)",
+    "command": "cmake",
+    "args": ["--build", "--preset", "linux-debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "CTest: Test (Linux)",
+    "command": "ctest",
+    "args": ["--preset", "linux-debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "CMake: Configure (macOS)",
+    "command": "cmake",
+    "args": ["--preset", "macos-debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "CMake: Build (macOS)",
+    "command": "cmake",
+    "args": ["--build", "--preset", "macos-debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "CTest: Test (macOS)",
+    "command": "ctest",
+    "args": ["--preset", "macos-debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  }
+]
