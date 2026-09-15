@@ -1,15 +1,21 @@
 # Golden-test corpus
 
-This directory contains the approved source-image corpus for behavioral
-comparison with the original Convert9918 executable. Expected previews and
-binary exports will be added under per-case result directories after they are
-captured from the pinned original build.
+This directory contains the approved source-image corpus and captured outputs
+for behavioral comparison with the original Convert9918 executable. Expected
+previews and binary exports live under per-case result directories.
 
 `corpus.json` is the machine-readable inventory. It records each file's
 purpose, dimensions, color representation, provenance, and SHA-256 digest.
 The `core_validation` test suite verifies those digests, confirms that every
 valid PNG decodes at its recorded dimensions, and confirms that malformed
 cases fail.
+
+`reference/original-1_9_1/capture.json` records the first approved original
+capture. Each valid source was converted in default Bitmap 9918A mode through
+the executable's command-line path. Each case contains the original 256×192
+BMP preview and its TIFILES pattern (`TIAP`) and color (`TIAC`) tables. The
+directory name deliberately avoids dots because the original save code
+mistakes a dot anywhere in the full path for a filename extension.
 
 ## Coverage
 
@@ -43,6 +49,11 @@ The other fixtures are deterministic outputs of
 license. Run that script from the repository root whenever the procedural
 fixtures or manifest need to be regenerated. The three image-generated files
 must already be present because their exact bytes are intentionally pinned.
+
+On Windows, `tools/capture_original_baseline.ps1 -Executable <path>` recreates
+the default Bitmap 9918A capture from the verified original 1.9.1 executable.
+It refuses a different executable hash and refuses to overwrite a nonempty
+capture directory.
 
 No original Convert9918 images, ImgSource material, or third-party stock media
 are included in this corpus.

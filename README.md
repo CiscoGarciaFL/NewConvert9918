@@ -19,6 +19,8 @@ See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current
 status, acceptance criteria, and next-session checklist. The original
 application's audited behavior, formats, controls, and portability boundaries
 are recorded in [`docs/BEHAVIORAL_BASELINE.md`](docs/BEHAVIORAL_BASELINE.md).
+Confirmed original defects and compatibility policy are tracked separately in
+[`docs/ORIGINAL_DEFECTS.md`](docs/ORIGINAL_DEFECTS.md).
 The approved, redistribution-safe source-image corpus and its provenance are
 documented in [`tests/golden/README.md`](tests/golden/README.md).
 

@@ -83,6 +83,8 @@ improvement.
   deterministic, malformed, and cross-dimensional fixtures.
 - [x] Added automated corpus digest, decode, dimension, alpha, and rejection
   checks.
+- [x] Captured the original 1.9.1 default Bitmap 9918A preview and TIFILES
+  tables for all eight valid source fixtures.
 
 ### Development environment
 
@@ -183,11 +185,13 @@ target operating systems.
   - [x] Portrait and landscape aspect ratios
   - [x] Very small and very large sources
   - [x] Transparency and malformed-file cases
-- [ ] Run each representative image through the original Windows executable.
+- [x] Run each representative image through the original Windows executable.
 - [ ] Capture original preview images and every applicable binary export.
-- [ ] Record the original settings alongside each expected output.
+- [x] Capture default Bitmap 9918A previews plus TIFILES pattern and color
+  tables for every valid source image.
+- [x] Record the original settings alongside each expected output.
 - [x] Decide whether golden assets may be committed publicly.
-- [ ] Document known original defects separately from compatibility behavior.
+- [x] Document known original defects separately from compatibility behavior.
 
 **Exit criterion:** conversion correctness can be measured without relying on
 visual memory or subjective comparison.
@@ -403,6 +407,7 @@ A task is not complete merely because it compiles. Apply the relevant gates:
 | 2026-09-15 | Protect `main` with reviews and four platform CI checks | Keeps direct changes off the release branch and makes the cross-platform promise enforceable. |
 | 2026-09-15 | Keep the audited original at commit `edbdf0f` in an external sibling checkout | Provides a stable behavioral reference without bringing original or ImgSource-related files into the clean implementation. |
 | 2026-09-15 | Use project-created image-generation output and deterministic procedural fixtures for the public corpus | Covers photographic and synthetic edge cases without copying upstream, ImgSource, or third-party stock assets. |
+| 2026-09-15 | Preserve default original outputs by hash and fix unsafe behavior intentionally | Byte-level output is the parity baseline, while confirmed path handling and misleading broken-format behavior are not copied. |
 
 ## Next session checklist
 
@@ -418,8 +423,10 @@ When opening this project again:
 8. [ ] Update the Current Status section with any environment changes.
 9. [x] Begin Phase 2's feature inventory and golden-output corpus.
 10. [x] Select and license the representative Phase 2 source-image corpus.
-11. [ ] Capture previews and applicable binary exports from the original
-    Windows executable for each corpus image.
+11. [x] Capture default Bitmap 9918A previews and TIFILES exports from the
+    original Windows executable for each valid corpus image.
+12. [ ] Expand reference capture across the remaining conversion modes and
+    applicable export formats.
 
 Suggested opening prompt:
 

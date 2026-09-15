@@ -223,21 +223,28 @@ is coupled to Windows in the following areas:
   code
 - Dynamic `user32.dll` loading for DPI handling
 - Absolute developer-machine ImgSource include and library paths in source and
-  project files
+  project files, including references to the obsolete `ISLibMS40.lib` static
+  library
+
+The distributed 1.9.1 executable runs without a separate ImgSource DLL, which
+is consistent with that dependency having been linked into the original
+binary. The clean implementation uses that executable only as a behavioral
+oracle: it does not need to rebuild, extract, redistribute, or link the old
+library or its object code.
 
 Portable replacements must keep all of these concerns at the application or
 Qt adapter boundary. Core conversion calls must operate on explicit standard
 C++ request/result values with owned or clearly viewed buffers, deterministic
 settings, diagnostics, and no drawing or dialog side effects.
 
-## Suspected original defects and compatibility questions
+## Original defects and compatibility questions
 
-These items need executable tests before deciding whether to preserve or fix
-them:
+Confirmed defects and their intentional-compatibility policy are tracked in
+[`ORIGINAL_DEFECTS.md`](ORIGINAL_DEFECTS.md). The remaining questions need
+executable tests before deciding whether to preserve or fix them:
 
 - The save code itself questions whether RLE TIFILES headers contain the wrong
   file size.
-- ColecoVision RLE cartridge output is labeled broken in the save dialog.
 - `.jpc` files are indexed by slideshow mode but have no matching reader in
   the audited dispatch.
 - Documentation and initialized state disagree about Average versus Accumulate
@@ -251,7 +258,7 @@ them:
 - Save validity depends on a manual Reload and can refer to the prior mode.
 
 Compatibility fixtures should preserve proven byte-level output even when the
-UI or API becomes safer. Confirmed defects should be documented and tested as
+UI or API becomes safer. Confirmed defects are documented and tested as
 intentional differences rather than copied accidentally.
 
 ## Golden-corpus metadata

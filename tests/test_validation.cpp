@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
 #include <QImageReader>
 #include <QJsonArray>
@@ -38,6 +39,17 @@ private:
 QJsonObject loadCorpusManifest()
 {
     QFile file(corpusDirectory + QStringLiteral("/corpus.json"));
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
+    return document.isObject() ? document.object() : QJsonObject{};
+}
+
+QJsonObject loadCaptureManifest()
+{
+    QFile file(corpusDirectory + QStringLiteral("/reference/original-1_9_1/capture.json"));
     if (!file.open(QIODevice::ReadOnly)) {
         return {};
     }
@@ -145,6 +157,50 @@ void testMalformedInputs(TestContext &test, const QJsonObject &manifest)
     }
 }
 
+void testOriginalCapture(TestContext &test)
+{
+    const QJsonObject capture = loadCaptureManifest();
+    test.expect(capture.value(QStringLiteral("schema_version")).toInt() == 1,
+                "original capture schema version should be 1");
+    const QJsonObject original = capture.value(QStringLiteral("original")).toObject();
+    test.expect(original.value(QStringLiteral("version")).toString() == QStringLiteral("1.9.1.0"),
+                "original capture should identify Convert9918 1.9.1.0");
+
+    const QJsonArray captures = capture.value(QStringLiteral("captures")).toArray();
+    test.expect(captures.size() == 8, "original capture should contain all eight valid sources");
+    for (const QJsonValue &captureValue : captures) {
+        const QJsonObject captureEntry = captureValue.toObject();
+        const QJsonArray outputs = captureEntry.value(QStringLiteral("outputs")).toArray();
+        test.expect(outputs.size() == 3, "each original capture should contain three outputs");
+        for (const QJsonValue &outputValue : outputs) {
+            const QJsonObject output = outputValue.toObject();
+            const QString path = corpusPath(output);
+            const QFileInfo file(path);
+            test.expect(file.exists(), "each recorded original output should exist");
+            test.expect(file.size() == output.value(QStringLiteral("size")).toInteger(),
+                        "original output size should match its capture manifest");
+            test.expect(sha256(path) == output.value(QStringLiteral("sha256")).toString().toLatin1(),
+                        "original output SHA-256 should match its capture manifest");
+
+            const QString suffix = file.suffix().toUpper();
+            if (suffix == QStringLiteral("BMP")) {
+                const QImage preview(path);
+                test.expect(preview.size() == QSize(256, 192),
+                            "original BMP preview should be 256 by 192 pixels");
+            } else {
+                test.expect(suffix == QStringLiteral("TIAP") || suffix == QStringLiteral("TIAC"),
+                            "original binary output should be a TIAP or TIAC table");
+                test.expect(file.size() == 6272,
+                            "TIFILES table should contain a 128-byte header and 6144-byte payload");
+                QFile input(path);
+                test.expect(input.open(QIODevice::ReadOnly), "TIFILES output should be readable");
+                test.expect(input.read(8) == QByteArray("\x07TIFILES", 8),
+                            "TIFILES output should contain the expected signature");
+            }
+        }
+    }
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -156,5 +212,6 @@ int main(int argc, char *argv[])
     testCorpusManifest(test, manifest);
     testCorpusImages(test, manifest);
     testMalformedInputs(test, manifest);
+    testOriginalCapture(test);
     return test.result();
 }
