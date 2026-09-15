@@ -2,6 +2,10 @@ qt_add_executable(NewConvert9918
     main.cpp
 )
 
+set_target_properties(NewConvert9918 PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+
 qt_add_qml_module(NewConvert9918
     URI NewConvert9918
     VERSION 1.0
@@ -22,4 +26,3 @@ install(TARGETS NewConvert9918
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )
-
