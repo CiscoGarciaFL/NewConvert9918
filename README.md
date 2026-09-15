@@ -16,7 +16,9 @@ shell currently contains only the proposed application workflow; conversion
 algorithms and file-format codecs have not yet been ported.
 
 See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current
-status, acceptance criteria, and next-session checklist.
+status, acceptance criteria, and next-session checklist. The original
+application's audited behavior, formats, controls, and portability boundaries
+are recorded in [`docs/BEHAVIORAL_BASELINE.md`](docs/BEHAVIORAL_BASELINE.md).
 
 ## Technology
 
@@ -64,6 +66,10 @@ runners with AppleClang.
 - `src/core/` — conversion-core implementation
 - `tests/` — unit and future golden-output tests
 - `docs/` — architecture and migration decisions
+
+The untouched upstream reference checkout is kept outside this repository so
+original and ImgSource-related material cannot enter the new implementation.
+Its exact audited commit is pinned in the behavioral-baseline document.
 
 ## Attribution
 

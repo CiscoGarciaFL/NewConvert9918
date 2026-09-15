@@ -1,6 +1,6 @@
 # New Convert 9918 — Project Plan and Checklist
 
-Last updated: 2026-09-14
+Last updated: 2026-09-15
 
 This document is the durable handoff for future development sessions. Read it
 before starting work, update the checkboxes as milestones are completed, and
@@ -75,6 +75,10 @@ improvement.
 - [x] Added shared C++ and QML formatting configuration.
 - [x] Added a GitHub Actions build/test matrix for Windows, Ubuntu, Intel macOS,
   and Apple Silicon macOS.
+- [x] Protected `main` with pull-request review and cross-platform CI checks.
+- [x] Preserved and pinned an isolated original-project reference checkout.
+- [x] Inventoried the original controls, modes, formats, global state, and MFC
+  coupling in `docs/BEHAVIORAL_BASELINE.md`.
 
 ### Development environment
 
@@ -155,17 +159,17 @@ a clean repository, and written dependency rules.
 - [x] Add formatting configuration for C++ and QML.
 - [x] Add a GitHub Actions matrix for Windows, Ubuntu, Intel macOS, and Apple
   Silicon macOS.
-- [ ] Require the CI build and tests to pass before merging.
+- [x] Require the CI build and tests to pass before merging.
 
 **Exit criterion:** a clean checkout configures, builds, and tests on all three
 target operating systems.
 
 ### Phase 2 — Behavioral baseline
 
-- [ ] Preserve an untouched reference checkout of the original project.
-- [ ] Inventory every original control, option, conversion mode, input format,
+- [x] Preserve an untouched reference checkout of the original project.
+- [x] Inventory every original control, option, conversion mode, input format,
   and output format.
-- [ ] Identify global state and Windows/MFC coupling in the original code.
+- [x] Identify global state and Windows/MFC coupling in the original code.
 - [ ] Select representative test images:
   - [ ] Photographic image with broad color range
   - [ ] Pixel art with hard edges
@@ -308,13 +312,13 @@ export without installing a development environment.
 - [x] Add the local remote and push `main`.
 - [ ] Keep organization base permissions read-only.
 - [ ] Grant Write or Maintain access only to approved people or teams.
-- [ ] Protect `main` with a repository ruleset:
-  - [ ] Require pull requests
-  - [ ] Require at least one approval
-  - [ ] Dismiss stale approvals after new changes
-  - [ ] Require Windows, Linux, macOS, and test status checks
-  - [ ] Block force pushes
-  - [ ] Block branch deletion
+- [x] Protect `main` with a repository ruleset:
+  - [x] Require pull requests
+  - [x] Require at least one approval
+  - [x] Dismiss stale approvals after new changes
+  - [x] Require Windows, Linux, macOS, and test status checks
+  - [x] Block force pushes
+  - [x] Block branch deletion
 - [ ] Add issue and pull-request templates.
 - [ ] Add `CODE_OF_CONDUCT.md` if outside discussion is enabled.
 - [ ] Document how uninvited contributions will be handled.
@@ -392,6 +396,8 @@ A task is not complete merely because it compiles. Apply the relevant gates:
 | 2026-09-14 | Use native open toolchains on each platform | Qt MinGW avoids an MSVC dependency on Windows; GCC/Clang and AppleClang fit Linux and macOS. |
 | 2026-09-14 | Use MinGW Makefiles for the current Windows VM | Both available Ninja binaries stall during CMake's compiler probe in this VM. |
 | 2026-09-15 | Test Intel and Apple Silicon macOS separately in CI | Native jobs catch architecture-specific failures before universal release packaging. |
+| 2026-09-15 | Protect `main` with reviews and four platform CI checks | Keeps direct changes off the release branch and makes the cross-platform promise enforceable. |
+| 2026-09-15 | Keep the audited original at commit `edbdf0f` in an external sibling checkout | Provides a stable behavioral reference without bringing original or ImgSource-related files into the clean implementation. |
 
 ## Next session checklist
 
@@ -405,7 +411,8 @@ When opening this project again:
 6. [ ] Confirm the platform preset and required Qt toolchain are available.
 7. [ ] Configure, build, and test with the matching CMake preset.
 8. [ ] Update the Current Status section with any environment changes.
-9. [ ] Begin Phase 2's feature inventory and golden-output corpus.
+9. [x] Begin Phase 2's feature inventory and golden-output corpus.
+10. [ ] Select and license the representative Phase 2 source-image corpus.
 
 Suggested opening prompt:
 
