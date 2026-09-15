@@ -41,12 +41,17 @@ ctest --test-dir build --output-on-failure
 - `tests/` — unit and future golden-output tests
 - `docs/` — architecture and migration decisions
 
-## Attribution and licensing
+## Attribution
 
 Convert9918 was created by Mike Brent (Tursi/HarmlessLion.com). New Convert
-9918 will retain visible attribution and a link to the original project.
+9918 retains his original copyright, license terms, visible attribution, and
+a link to the original project.
 
-Distribution terms for this port are being confirmed with the original
-author. Until a license is added, no permission is granted to copy,
-redistribute, or publish this repository's contents.
+The New Convert 9918 cross-platform architecture, Qt interface, user
+experience, and new features are created by Cisco Garcia / CiscoGarciaFL.
 
+See [`NOTICE.md`](NOTICE.md) for full attribution and [`LICENSE`](LICENSE) for
+the governing terms. This project uses the same license terms as the original
+Convert9918 project with the original author's permission. Commercial use and
+distribution under different terms require prior permission from the original
+author.

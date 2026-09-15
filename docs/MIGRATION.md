@@ -2,8 +2,12 @@
 
 ## Phase 0 — Rights and provenance
 
-- Record written permission and the agreed distribution license.
-- Preserve attribution for Convert9918 and separately licensed components.
+- Use the original Convert9918 license terms with the original author's
+  permission.
+- Preserve full attribution for Mike Brent/Tursi and separately licensed
+  components.
+- Credit Cisco Garcia/CiscoGarciaFL for the new cross-platform architecture,
+  Qt interface, user experience, and features.
 - Do not reuse the retired ImgSource library or its implementation.
 
 ## Phase 1 — Behavioral baseline
@@ -40,4 +44,3 @@
   macOS.
 - Package shared Qt libraries and required image-format plugins.
 - Publish signed release artifacts after platform smoke testing.
-
