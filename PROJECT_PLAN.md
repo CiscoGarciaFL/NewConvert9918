@@ -79,6 +79,10 @@ improvement.
 - [x] Preserved and pinned an isolated original-project reference checkout.
 - [x] Inventoried the original controls, modes, formats, global state, and MFC
   coupling in `docs/BEHAVIORAL_BASELINE.md`.
+- [x] Added a redistribution-safe golden-test source corpus with generated,
+  deterministic, malformed, and cross-dimensional fixtures.
+- [x] Added automated corpus digest, decode, dimension, alpha, and rejection
+  checks.
 
 ### Development environment
 
@@ -170,19 +174,19 @@ target operating systems.
 - [x] Inventory every original control, option, conversion mode, input format,
   and output format.
 - [x] Identify global state and Windows/MFC coupling in the original code.
-- [ ] Select representative test images:
-  - [ ] Photographic image with broad color range
-  - [ ] Pixel art with hard edges
-  - [ ] Cartoon/illustration with large flat regions
-  - [ ] Greyscale image
-  - [ ] Black-and-white image
-  - [ ] Portrait and landscape aspect ratios
-  - [ ] Very small and very large sources
-  - [ ] Transparency and malformed-file cases
+- [x] Select representative test images:
+  - [x] Photographic image with broad color range
+  - [x] Pixel art with hard edges
+  - [x] Cartoon/illustration with large flat regions
+  - [x] Greyscale image
+  - [x] Black-and-white image
+  - [x] Portrait and landscape aspect ratios
+  - [x] Very small and very large sources
+  - [x] Transparency and malformed-file cases
 - [ ] Run each representative image through the original Windows executable.
 - [ ] Capture original preview images and every applicable binary export.
 - [ ] Record the original settings alongside each expected output.
-- [ ] Decide whether golden assets may be committed publicly.
+- [x] Decide whether golden assets may be committed publicly.
 - [ ] Document known original defects separately from compatibility behavior.
 
 **Exit criterion:** conversion correctness can be measured without relying on
@@ -398,6 +402,7 @@ A task is not complete merely because it compiles. Apply the relevant gates:
 | 2026-09-15 | Test Intel and Apple Silicon macOS separately in CI | Native jobs catch architecture-specific failures before universal release packaging. |
 | 2026-09-15 | Protect `main` with reviews and four platform CI checks | Keeps direct changes off the release branch and makes the cross-platform promise enforceable. |
 | 2026-09-15 | Keep the audited original at commit `edbdf0f` in an external sibling checkout | Provides a stable behavioral reference without bringing original or ImgSource-related files into the clean implementation. |
+| 2026-09-15 | Use project-created image-generation output and deterministic procedural fixtures for the public corpus | Covers photographic and synthetic edge cases without copying upstream, ImgSource, or third-party stock assets. |
 
 ## Next session checklist
 
@@ -412,7 +417,9 @@ When opening this project again:
 7. [ ] Configure, build, and test with the matching CMake preset.
 8. [ ] Update the Current Status section with any environment changes.
 9. [x] Begin Phase 2's feature inventory and golden-output corpus.
-10. [ ] Select and license the representative Phase 2 source-image corpus.
+10. [x] Select and license the representative Phase 2 source-image corpus.
+11. [ ] Capture previews and applicable binary exports from the original
+    Windows executable for each corpus image.
 
 Suggested opening prompt:
 

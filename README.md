@@ -19,6 +19,8 @@ See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current
 status, acceptance criteria, and next-session checklist. The original
 application's audited behavior, formats, controls, and portability boundaries
 are recorded in [`docs/BEHAVIORAL_BASELINE.md`](docs/BEHAVIORAL_BASELINE.md).
+The approved, redistribution-safe source-image corpus and its provenance are
+documented in [`tests/golden/README.md`](tests/golden/README.md).
 
 ## Technology
 
@@ -27,7 +29,7 @@ are recorded in [`docs/BEHAVIORAL_BASELINE.md`](docs/BEHAVIORAL_BASELINE.md).
 - Qt Quick Controls 2 user interface
 - CMake build system
 - Zed-friendly C++ development through `clangd` and CMake compilation data
-- Qt Test and golden-file compatibility tests
+- CTest-driven validation and golden-file compatibility tests
 
 ## Build
 
