@@ -150,6 +150,7 @@ ApplicationWindow {
                 Label { text: qsTr("Target mode") }
                 ComboBox {
                     Layout.fillWidth: true
+                    currentIndex: 1
                     model: [
                         qsTr("Bitmap 9918A"),
                         qsTr("Greyscale Bitmap 9918A"),
@@ -197,4 +198,3 @@ ApplicationWindow {
         }
     }
 }
-

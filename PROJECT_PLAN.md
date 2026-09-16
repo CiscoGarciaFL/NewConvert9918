@@ -106,6 +106,8 @@ improvement.
   RGB444 popularity palette selection.
 - [x] Added the original six-cell error-distribution kernels, bounded error
   buffer, Average/Accumulate behavior, and 2x2/4x4 ordered threshold maps.
+- [x] Ported Bitmap 9918A / Graphics II block quantization with the original
+  working palette, color-index remapping, preview, and 6 KiB target tables.
 
 ### Development environment
 
@@ -230,9 +232,9 @@ visual memory or subjective comparison.
 - [x] Implement color-space and distance calculations.
 - [x] Implement histogram stretching and gamma correction.
 - [x] Implement palette selection and median-cut behavior.
-- [ ] Implement error-distribution kernels and ordered dithering.
+- [x] Implement error-distribution kernels and ordered dithering.
 - [ ] Port conversion modes in this order:
-  - [ ] Bitmap 9918A / Graphics II
+  - [x] Bitmap 9918A / Graphics II
   - [ ] Greyscale Bitmap 9918A
   - [ ] Black-and-White Bitmap 9918A
   - [ ] Bitmap Color Only 9918A
@@ -461,7 +463,8 @@ When opening this project again:
 19. [x] Implement histogram stretching and gamma correction.
 20. [x] Implement palette selection and median-cut behavior.
 21. [x] Implement error-distribution kernels and ordered dithering.
-22. [ ] Port Bitmap 9918A / Graphics II conversion mode.
+22. [x] Port Bitmap 9918A / Graphics II conversion mode.
+23. [ ] Port Greyscale Bitmap 9918A conversion mode.
 
 Suggested opening prompt:
 

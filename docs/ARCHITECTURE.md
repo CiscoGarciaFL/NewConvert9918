@@ -100,6 +100,16 @@ Near-black and near-white samples bypass ordered adjustment, matching the
 original converter. Samples remain double precision and unclamped until color
 matching.
 
+The Bitmap 9918A converter is the first complete target mode. It consumes an
+already scaled and preprocessed 256x192 RGB/RGBA image plus the original
+fifteen-color working palette. Each eight-pixel scanline block is searched for
+the best foreground, background, and pattern combination while preserving
+candidate-dependent horizontal error. Selected errors then flow into the
+bounded diffusion buffer. The result contains a rendered RGB preview and
+validated 6 KiB pattern and color tables in Graphics II memory order. Working
+palette indexes are remapped to hardware color codes only when encoding the
+color table.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,
