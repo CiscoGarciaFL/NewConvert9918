@@ -110,6 +110,14 @@ validated 6 KiB pattern and color tables in Graphics II memory order. Working
 palette indexes are remapped to hardware color codes only when encoding the
 color table.
 
+Greyscale Bitmap 9918A reuses that complete Graphics II path after converting
+source samples to luminance. For compatibility, the normal matching path uses
+the original Rec.601 coefficients and truncation, while perceptual matching
+uses its configured RGB weights and nearest-integer rounding. The working
+palette is converted separately with Rec.709 coefficients and truncation, as
+in the original application. The resulting preview has equal RGB channels but
+retains the same pattern and color-table memory contract as color bitmap mode.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,

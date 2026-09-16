@@ -69,9 +69,11 @@ using newconvert9918::core::adjustImage;
 using newconvert9918::core::applyOrderedDither;
 using newconvert9918::core::colorDistanceSquared;
 using newconvert9918::core::convertBitmap9918;
+using newconvert9918::core::convertGreyscaleBitmap9918;
 using newconvert9918::core::defaultBitmap9918Palette;
 using newconvert9918::core::ditherConfiguration;
 using newconvert9918::core::expectedTargetTables;
+using newconvert9918::core::greyscaleBitmap9918Palette;
 using newconvert9918::core::orderedDitherThreshold;
 using newconvert9918::core::planImageTransform;
 using newconvert9918::core::perceptualRgbDistanceSquared;
@@ -457,6 +459,61 @@ void testBitmap9918Conversion(TestContext &test)
     test.expect(!wrongModeResult.succeeded()
                     && wrongModeResult.diagnostics.front().code == "bitmap9918-wrong-mode",
                 "Bitmap 9918A conversion should reject another conversion mode");
+}
+
+void testGreyscaleBitmap9918Conversion(TestContext &test)
+{
+    const Palette colorPalette = defaultBitmap9918Palette();
+    const Palette greyPalette = greyscaleBitmap9918Palette(colorPalette);
+    test.expect(greyPalette.size() == 15
+                    && greyPalette.at(0) == RgbColor{248, 248, 248}
+                    && greyPalette.at(1) == RgbColor{0, 0, 0}
+                    && greyPalette.at(3) == RgbColor{154, 154, 154}
+                    && greyPalette.at(5) == RgbColor{90, 90, 90},
+                "greyscale mode should use the original Rec.709 palette conversion");
+
+    auto source = RgbImage::createTightlyPacked(256, 192, PixelFormat::Rgb888);
+    test.expect(source.has_value(), "the greyscale Bitmap test source should be allocated");
+    for (std::uint32_t y = 0; y < source->height(); ++y) {
+        std::span<std::uint8_t> row = source->row(y);
+        for (std::uint32_t x = 0; x < source->width(); ++x) {
+            const std::size_t offset = static_cast<std::size_t>(x) * 3;
+            row[offset] = 0;
+            row[offset + 1] = 154;
+            row[offset + 2] = 0;
+        }
+    }
+
+    ConversionSettings settings;
+    settings.mode = ConversionMode::GreyscaleBitmap9918;
+    settings.dither = DitherMode::None;
+    settings.maximumColorShiftPercent = 0.0;
+    const ConversionResult result = convertGreyscaleBitmap9918(
+        *source, colorPalette, settings);
+    test.expect(result.succeeded() && result.preview && result.target,
+                "a valid image should convert to Greyscale Bitmap 9918A");
+    test.expect(result.target->mode == ConversionMode::GreyscaleBitmap9918
+                    && validateTargetTables(*result.target),
+                "greyscale conversion should return valid Graphics II tables");
+    test.expect(std::ranges::all_of(
+                    result.target->tables[0].bytes,
+                    [](std::uint8_t value) { return value == 0x00; })
+                    && std::ranges::all_of(
+                        result.target->tables[1].bytes,
+                        [](std::uint8_t value) { return value == 0x14; }),
+                "a uniform 90-luma source should encode as solid dark-blue luminance");
+
+    const std::span<const std::uint8_t> previewRow = result.preview->row(0);
+    test.expect(previewRow[0] == 90 && previewRow[1] == 90 && previewRow[2] == 90,
+                "greyscale conversion should emit equal preview channels");
+
+    settings.mode = ConversionMode::Bitmap9918;
+    const ConversionResult wrongMode = convertGreyscaleBitmap9918(
+        *source, colorPalette, settings);
+    test.expect(!wrongMode.succeeded()
+                    && wrongMode.diagnostics.front().code
+                        == "greyscale-bitmap9918-wrong-mode",
+                "greyscale conversion should reject another selected mode");
 }
 
 void testColorMath(TestContext &test)
@@ -1448,6 +1505,7 @@ int main(int argc, char *argv[])
     testColorMath(test);
     testDithering(test);
     testBitmap9918Conversion(test);
+    testGreyscaleBitmap9918Conversion(test);
     testImageAdjustments(test);
     testPaletteSelection(test);
     testRgbImage(test);
