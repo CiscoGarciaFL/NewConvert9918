@@ -75,6 +75,7 @@ using newconvert9918::core::convertBitmapColorOnly9918;
 using newconvert9918::core::convertBitmap9918;
 using newconvert9918::core::convertDualMulticolor9918;
 using newconvert9918::core::convertPalettedBitmapF18A;
+using newconvert9918::core::convertScanlinePaletteBitmapF18A;
 using newconvert9918::core::convertGreyscaleBitmap9918;
 using newconvert9918::core::convertHalfMulticolor9918;
 using newconvert9918::core::convertMulticolor9918;
@@ -835,6 +836,54 @@ void testPalettedBitmapF18AConversion(TestContext &test)
                     && wrongMode.diagnostics.front().code
                         == "paletted-bitmap-f18a-wrong-mode",
                 "Paletted Bitmap F18A should reject another selected mode");
+}
+
+void testScanlinePaletteBitmapF18AConversion(TestContext &test)
+{
+    auto source = RgbImage::createTightlyPacked(256, 192, PixelFormat::Rgb888);
+    test.expect(source.has_value(),
+                "the Scanline Palette Bitmap F18A test source should be allocated");
+    for (std::uint32_t y = 0; y < source->height(); ++y) {
+        std::ranges::fill(source->row(y), std::uint8_t{0});
+    }
+
+    ConversionSettings settings;
+    settings.mode = ConversionMode::ScanlinePaletteBitmapF18A;
+    settings.dither = DitherMode::None;
+    settings.maximumColorShiftPercent = 0.0;
+    const ConversionResult result = convertScanlinePaletteBitmapF18A(
+        *source, settings);
+    test.expect(result.succeeded() && result.preview && result.target,
+                "a valid image should convert to Scanline Palette Bitmap F18A");
+    test.expect(result.target->mode == ConversionMode::ScanlinePaletteBitmapF18A
+                    && !result.target->palette
+                    && result.target->tables.size() == 3
+                    && validateTargetTables(*result.target),
+                "Scanline Palette F18A should emit bitmap and 6 KiB palette tables");
+    test.expect(std::ranges::all_of(
+                    result.target->tables[0].bytes,
+                    [](std::uint8_t value) { return value == 0x00; })
+                    && std::ranges::all_of(
+                        result.target->tables[1].bytes,
+                        [](std::uint8_t value) { return value == 0x11; })
+                    && result.target->tables[2].role
+                        == TargetTableRole::ScanlinePalettes
+                    && std::ranges::all_of(
+                        result.target->tables[2].bytes,
+                        [](std::uint8_t value) { return value == 0x00; }),
+                "uniform black should produce black bitmap and per-line palette data");
+    test.expect(result.diagnostics.size() == 1
+                    && result.diagnostics.front().code
+                        == "scanline-palette-deterministic-selection",
+                "scanline conversion should disclose its deterministic selection difference");
+
+    settings.mode = ConversionMode::PalettedBitmapF18A;
+    const ConversionResult wrongMode = convertScanlinePaletteBitmapF18A(
+        *source, settings);
+    test.expect(!wrongMode.succeeded()
+                    && wrongMode.diagnostics.front().code
+                        == "scanline-palette-f18a-wrong-mode",
+                "Scanline Palette F18A should reject another selected mode");
 }
 
 void testColorMath(TestContext &test)
@@ -1833,6 +1882,7 @@ int main(int argc, char *argv[])
     testDualMulticolor9918Conversion(test);
     testHalfMulticolor9918Conversion(test);
     testPalettedBitmapF18AConversion(test);
+    testScanlinePaletteBitmapF18AConversion(test);
     testImageAdjustments(test);
     testPaletteSelection(test);
     testRgbImage(test);
