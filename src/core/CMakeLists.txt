@@ -3,6 +3,7 @@ add_library(newconvert9918_core STATIC
     ConversionTypes.cpp
     ImageAdjustments.cpp
     ImageTransform.cpp
+    PaletteSelection.cpp
     RgbImage.cpp
     TargetData.cpp
     Validation.cpp

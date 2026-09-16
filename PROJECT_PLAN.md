@@ -102,6 +102,8 @@ improvement.
   distances with configurable, validated weights and luma emphasis.
 - [x] Added deterministic brightness-histogram stretching and legacy-formula
   gamma correction while preserving alpha and padded row bytes.
+- [x] Added deterministic RGB444/RGB888 median cut and legacy-style weighted
+  RGB444 popularity palette selection.
 
 ### Development environment
 
@@ -225,7 +227,7 @@ visual memory or subjective comparison.
 - [x] Implement scaling/crop positioning independently from conversion.
 - [x] Implement color-space and distance calculations.
 - [x] Implement histogram stretching and gamma correction.
-- [ ] Implement palette selection and median-cut behavior.
+- [x] Implement palette selection and median-cut behavior.
 - [ ] Implement error-distribution kernels and ordered dithering.
 - [ ] Port conversion modes in this order:
   - [ ] Bitmap 9918A / Graphics II
@@ -455,7 +457,8 @@ When opening this project again:
 17. [x] Implement scaling and crop positioning independently from conversion.
 18. [x] Implement color-space and distance calculations.
 19. [x] Implement histogram stretching and gamma correction.
-20. [ ] Implement palette selection and median-cut behavior.
+20. [x] Implement palette selection and median-cut behavior.
+21. [ ] Implement error-distribution kernels and ordered dithering.
 
 Suggested opening prompt:
 
