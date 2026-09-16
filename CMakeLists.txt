@@ -19,6 +19,5 @@ add_subdirectory(app)
 
 include(CTest)
 if(BUILD_TESTING)
-    find_package(Qt6 6.8 REQUIRED COMPONENTS Test)
     add_subdirectory(tests)
 endif()

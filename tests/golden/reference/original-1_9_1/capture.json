@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "original": {
+    "application": "Convert9918",
+    "version": "1.9.1.0",
+    "repository_commit": "edbdf0f978d93ad4493e0a91ac1380752e8a082c",
+    "executable_sha256": "7a97a25cf58adcf55e81d714a62a51d1f65ff2298bd3ea6b05348415f17f0c9a"
+  },
+  "invocation": {
+    "syntax": "convert9918.exe <input> <output-base> /CtrlList=0",
+    "conversion_mode_index": 0,
+    "conversion_mode": "Bitmap 9918A",
+    "export": "TIFILES pattern and color tables plus command-line BMP preview"
+  },
+  "settings": {
+    "PIXA": 2,
+    "PIXB": 2,
+    "PIXC": 2,
+    "PIXD": 2,
+    "PIXE": 1,
+    "PIXF": 1,
+    "order_slide": 0,
+    "filter": 4,
+    "power_paint": 0,
+    "portrait_mode": 0,
+    "perceptual": 0,
+    "cartoon": 0,
+    "accumulate_errors": 1,
+    "maximum_multicolor_difference": 95,
+    "maximum_color_shift_percent": 1,
+    "ordered_dither": 0,
+    "ordered_map_size": 2,
+    "perceptual_red": 0.3,
+    "perceptual_green": 0.52,
+    "perceptual_blue": 0.18,
+    "luma_emphasis": 1.2,
+    "gamma": 1.0,
+    "stretch_histogram": false,
+    "pixel_offset": 0,
+    "height_offset": 0
+  },
+  "captures": [
+    {
+      "source": "tests/golden/source/photo-landscape.png",
+      "source_sha256": "44e858cf043538125bbab7a817fb07bde3e1dcdd36720696b544c6774a8df8d7",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/photo-landscape/photo-landscape.BMP",
+          "size": 50230,
+          "sha256": "4f79bbd9e0e67abc2e4a212f79f46d9556fddb09e33ef50e42271b26c64dda35"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/photo-landscape/PHOTO-LANDSCAPE.TIAC",
+          "size": 6272,
+          "sha256": "fc9d3d80c9c763ec16d415e4d629247c25bdd56722d0316845f1d1f249d6012d"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/photo-landscape/PHOTO-LANDSCAPE.TIAP",
+          "size": 6272,
+          "sha256": "b03e63814184018383feee171941373366d208ed7ce66bbfaa0c271f0442102f"
+        }
+      ]
+    },
+    {
+      "source": "tests/golden/source/pixel-art-portrait.png",
+      "source_sha256": "5f1102b1953a5ea29e01d9e4ddc3e7aa93ae2839d6db3df089725e4b9fac3ddc",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/pixel-art-portrait/pixel-art-portrait.BMP",
+          "size": 50230,
+          "sha256": "3c42450eb62260138b134b9d840bd351db5d2b8ceb4d5f66824a6da225006fbd"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAC",
+          "size": 6272,
+          "sha256": "d21cb28862701738ceeaaa4bcd2dd8dde48559a1d23d3616c7fe038cd21e6673"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAP",
+          "size": 6272,
+          "sha256": "c74588aac5fdf0eacd0ce2aa6ddc20902ada8ad5dea319b622f3980a5375f3d6"
+        }
+      ]
+    },
+    {
+      "source": "tests/golden/source/flat-cartoon-square.png",
+      "source_sha256": "32a76eaa5516044c925e9205d61f4ded09547e68ec16bb45e483d4a64b08c352",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/flat-cartoon-square/flat-cartoon-square.BMP",
+          "size": 50230,
+          "sha256": "b12544bc9fafd75f36d207835e7343a2e05ae61da018349b6c67f2179c9e30e1"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAC",
+          "size": 6272,
+          "sha256": "a740ab8b1c3760a8b353450fd34e8b185139ec1cd71bbc010a834e7a0f417c56"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAP",
+          "size": 6272,
+          "sha256": "25189d33d50ed69c1cc5b42226e1e5559692a424466fb86112180f191d106ba4"
+        }
+      ]
+    },
+    {
+      "source": "tests/golden/source/greyscale-gradient.png",
+      "source_sha256": "c1d4b1233021233392b7b4763fc8daa2bddfff5270885578fa6d430c510a4b57",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/greyscale-gradient/greyscale-gradient.BMP",
+          "size": 50230,
+          "sha256": "004b4a2b0dd74a5ecb79a60c4e1af1cab8e754db2d2588c5fdff3c4a8f224bc4"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAC",
+          "size": 6272,
+          "sha256": "3ad8f3a04c9044a20293925e840d1f2a7960c49f5a43a96a43fb8f3b5997f688"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAP",
+          "size": 6272,
+          "sha256": "149815ef3b7b4e982d87c99a999a6008a2ebc134dfd2d00a7fb0a01b1c66a720"
+        }
+      ]
+    },
+    {
+      "source": "tests/golden/source/black-white-pattern.png",
+      "source_sha256": "ab2998d9699132b2e9e238e9f93c6157b1834b5b659aa70091eb1dc10e5139d4",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/black-white-pattern/black-white-pattern.BMP",
+          "size": 50230,
+          "sha256": "24b02390e3b4ea6288d110fb1123363933491e1a04d7f21742440315271a33ac"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAC",
+          "size": 6272,
+          "sha256": "6c442c705c1f7dcc74f9488581d70c7ced5c380905e80c3228f8d7da4ec6df7b"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAP",
+          "size": 6272,
+          "sha256": "9f74088a6f98fb31071c1a1c208b5290eb999f91756b41143c6a50ab70a24e49"
+        }
+      ]
+    },
+    {
+      "source": "tests/golden/source/tiny-rgba.png",
+      "source_sha256": "bf9e02d079280ea9740c7c2a2e106230ec5e62454f85ca82c72b1536f4c44584",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/tiny-rgba/tiny-rgba.BMP",
+          "size": 50230,
+          "sha256": "740c6427ea01f0de76ef3d35d7b3f2336f7b0478ad84e87d12b278cbffaf3245"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/tiny-rgba/TINY-RGBA.TIAC",
+          "size": 6272,
+          "sha256": "3ae192f538077c86a1816b55fff1b7c658dfd2aec70c1d90aa5485badff5f0d5"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/tiny-rgba/TINY-RGBA.TIAP",
+          "size": 6272,
+          "sha256": "052e918f822e9b9d644cad41bfd35eb074ce6327d92ce926a553975e5337b8d4"
+        }
+      ]
+    },
+    {
+      "source": "tests/golden/source/transparency-rgba.png",
+      "source_sha256": "fbd066d449d25e618dffcc5127561e1242fb50dfe880f97d50a0ffbdd21e6346",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/transparency-rgba/transparency-rgba.BMP",
+          "size": 50230,
+          "sha256": "00f21e727fbba9b37bff8e0c88c88fa3db4c5a9733fcbe3311dc215bcb6cf3aa"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAC",
+          "size": 6272,
+          "sha256": "3a4bde3c2dd73ae644e64600e17c94ced0a1ee86d45fbc426d2dc6dfe08f4256"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAP",
+          "size": 6272,
+          "sha256": "682dfebaa585d3b6eb667692382a4ce3254e1a491b9b327723350e9b2a43f496"
+        }
+      ]
+    },
+    {
+      "source": "tests/golden/source/large-pattern.png",
+      "source_sha256": "9c098b0d522b3ff7ecbf9a697c3324e8ab7b7fce7002c27819fd77331bc09447",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/large-pattern/large-pattern.BMP",
+          "size": 50230,
+          "sha256": "42795d574e6dc6646ac66b0501a2bfaf1bd37fecb0d2e865135905d1d1e520d3"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/large-pattern/LARGE-PATTERN.TIAC",
+          "size": 6272,
+          "sha256": "98678999b36817cada196550c47c525d3d08bbd9fd93033954b6dcb3514c1e32"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/bitmap-9918a/default/large-pattern/LARGE-PATTERN.TIAP",
+          "size": 6272,
+          "sha256": "4cafc14e38559b19ce142e8933a86310403b4e4264788a8f841bd64084c0842c"
+        }
+      ]
+    }
+  ]
+}
