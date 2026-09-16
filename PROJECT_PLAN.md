@@ -90,6 +90,8 @@ improvement.
 - [x] Captured all eleven applicable non-TIFILES Save Pic choices through the
   original Windows UI, pinned fourteen output files, and documented the
   explicitly broken ColecoVision RLE cartridge writer as excluded.
+- [x] Added the portable `RgbImage` buffer contract with RGB/RGBA formats,
+  explicit stride semantics, checked size arithmetic, and allocation limits.
 
 ### Development environment
 
@@ -207,7 +209,7 @@ visual memory or subjective comparison.
 
 - [x] Define the initial conversion-mode and dither-mode enums.
 - [x] Define initial conversion settings and validation.
-- [ ] Define `RgbImage`, pixel format, row stride, and size-limit rules.
+- [x] Define `RgbImage`, pixel format, row stride, and size-limit rules.
 - [ ] Define `ConversionRequest`, `ConversionResult`, and diagnostic types.
 - [ ] Define palette and target-memory-table types.
 - [ ] Implement scaling/crop positioning independently from conversion.
@@ -436,8 +438,9 @@ When opening this project again:
     modes and their applicable TIFILES outputs.
 13. [x] Capture applicable non-TIFILES export formats through a controlled,
     reproducible Windows UI workflow.
-14. [ ] Begin Phase 3 by defining the common export request and generated-file
-    manifest used by GUI and CLI front ends.
+14. [x] Begin Phase 3 with the portable `RgbImage` model, explicit row-stride
+    semantics, and checked image-allocation limits.
+15. [ ] Define `ConversionRequest`, `ConversionResult`, and diagnostic types.
 
 Suggested opening prompt:
 

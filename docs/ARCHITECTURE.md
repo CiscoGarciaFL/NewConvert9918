@@ -28,9 +28,16 @@ The core will own scaling policy, palette selection, color matching,
 dithering, TMS9918A constraints, F18A extensions, and conversion diagnostics.
 It must be callable from the GUI, tests, and a future command-line frontend.
 
+The portable `RgbImage` boundary uses interleaved 8-bit RGB or RGBA channels.
+Its row stride is explicit and includes any padding at the end of each stored
+row. A valid buffer therefore contains exactly `rowStride × height` bytes,
+while `width × bytesPerPixel` is the minimum permitted stride. Layout
+validation checks every multiplication before allocation. Default limits are
+16,384 pixels per dimension, 64 Mi pixels, and 256 MiB of stored bytes; callers
+may supply tighter limits at trust boundaries.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,
 TIFILES, V9T9, MSX SC2, Coleco/Adam, Extended BASIC, ROM, and preview-image
 outputs as applicable.
-
