@@ -34,8 +34,11 @@ struct ConversionSettings {
     double gamma{1.0};
     double maximumColorShiftPercent{1.0};
     bool perceptualColorMatching{false};
+    double perceptualRedWeight{0.30};
+    double perceptualGreenWeight{0.52};
+    double perceptualBlueWeight{0.18};
+    double lumaEmphasis{1.2};
     bool stretchHistogram{false};
 };
 
 } // namespace newconvert9918::core
-

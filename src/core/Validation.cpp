@@ -1,5 +1,7 @@
 #include "newconvert9918/core/Validation.hpp"
 
+#include <cmath>
+
 namespace newconvert9918::core {
 
 std::vector<ValidationIssue> validate(const ConversionSettings& settings)
@@ -14,15 +16,56 @@ std::vector<ValidationIssue> validate(const ConversionSettings& settings)
         issues.push_back({"targetHeight", "Target height must be positive."});
     }
 
-    if (settings.gamma <= 0.0) {
+    if (!std::isfinite(settings.gamma) || settings.gamma <= 0.0) {
         issues.push_back({"gamma", "Gamma must be greater than zero."});
     }
 
-    if (settings.maximumColorShiftPercent < 0.0
+    if (!std::isfinite(settings.maximumColorShiftPercent)
+        || settings.maximumColorShiftPercent < 0.0
         || settings.maximumColorShiftPercent > 100.0) {
         issues.push_back({
             "maximumColorShiftPercent",
             "Maximum color shift must be between 0 and 100 percent.",
+        });
+    }
+
+    if (!std::isfinite(settings.perceptualRedWeight)
+        || settings.perceptualRedWeight < 0.0) {
+        issues.push_back({
+            "perceptualRedWeight",
+            "The perceptual red weight must be finite and nonnegative.",
+        });
+    }
+
+    if (!std::isfinite(settings.perceptualGreenWeight)
+        || settings.perceptualGreenWeight < 0.0) {
+        issues.push_back({
+            "perceptualGreenWeight",
+            "The perceptual green weight must be finite and nonnegative.",
+        });
+    }
+
+    if (!std::isfinite(settings.perceptualBlueWeight)
+        || settings.perceptualBlueWeight < 0.0) {
+        issues.push_back({
+            "perceptualBlueWeight",
+            "The perceptual blue weight must be finite and nonnegative.",
+        });
+    }
+
+    if (settings.perceptualRedWeight == 0.0
+        && settings.perceptualGreenWeight == 0.0
+        && settings.perceptualBlueWeight == 0.0) {
+        issues.push_back({
+            "perceptualColorWeights",
+            "At least one perceptual color weight must be greater than zero.",
+        });
+    }
+
+    if (!std::isfinite(settings.lumaEmphasis) || settings.lumaEmphasis < 0.0) {
+        issues.push_back({
+            "lumaEmphasis",
+            "Luma emphasis must be finite and nonnegative.",
         });
     }
 

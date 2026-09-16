@@ -1,3 +1,4 @@
+#include "newconvert9918/core/ColorMath.hpp"
 #include "newconvert9918/core/ConversionTypes.hpp"
 #include "newconvert9918/core/ImageTransform.hpp"
 #include "newconvert9918/core/RgbImage.hpp"
@@ -17,6 +18,7 @@
 #include <QSet>
 
 #include <array>
+#include <cmath>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -35,10 +37,12 @@ using newconvert9918::core::ImageSizeLimits;
 using newconvert9918::core::ImageFillMode;
 using newconvert9918::core::ImageTransformError;
 using newconvert9918::core::ImageTransformOptions;
+using newconvert9918::core::PerceptualRgbWeights;
 using newconvert9918::core::Palette;
 using newconvert9918::core::PaletteError;
 using newconvert9918::core::PixelFormat;
 using newconvert9918::core::RgbColor;
+using newconvert9918::core::RgbSample;
 using newconvert9918::core::RgbImage;
 using newconvert9918::core::ScalingFilter;
 using newconvert9918::core::TargetMemoryImage;
@@ -46,12 +50,16 @@ using newconvert9918::core::TargetMemoryTable;
 using newconvert9918::core::TargetTableError;
 using newconvert9918::core::TargetTableRole;
 using newconvert9918::core::bytesPerPixel;
+using newconvert9918::core::colorDistanceSquared;
 using newconvert9918::core::expectedTargetTables;
 using newconvert9918::core::planImageTransform;
+using newconvert9918::core::perceptualRgbDistanceSquared;
+using newconvert9918::core::toYCrCb;
 using newconvert9918::core::transformImage;
 using newconvert9918::core::validate;
 using newconvert9918::core::validateImageLayout;
 using newconvert9918::core::validateTargetTables;
+using newconvert9918::core::yCrCbDistanceSquared;
 
 namespace {
 
@@ -65,6 +73,11 @@ public:
             ++failures_;
             std::cerr << "FAIL: " << message << '\n';
         }
+    }
+
+    void expectNear(double actual, double expected, double tolerance, std::string_view message)
+    {
+        expect(std::isfinite(actual) && std::abs(actual - expected) <= tolerance, message);
     }
 
     [[nodiscard]] int result() const { return failures_ == 0 ? 0 : 1; }
@@ -164,6 +177,88 @@ void testSettingsValidation(TestContext &test)
     issues = validate(settings);
     test.expect(issues.size() == 1 && issues.front().field == "maximumColorShiftPercent",
                 "color shift above 100 percent should produce one color-shift issue");
+
+    settings = ConversionSettings{};
+    settings.perceptualRedWeight = -0.01;
+    issues = validate(settings);
+    test.expect(issues.size() == 1 && issues.front().field == "perceptualRedWeight",
+                "negative perceptual weights should be rejected");
+
+    settings = ConversionSettings{};
+    settings.perceptualRedWeight = 0.0;
+    settings.perceptualGreenWeight = 0.0;
+    settings.perceptualBlueWeight = 0.0;
+    issues = validate(settings);
+    test.expect(issues.size() == 1 && issues.front().field == "perceptualColorWeights",
+                "at least one perceptual weight should be required");
+
+    settings = ConversionSettings{};
+    settings.lumaEmphasis = -0.01;
+    issues = validate(settings);
+    test.expect(issues.size() == 1 && issues.front().field == "lumaEmphasis",
+                "negative luma emphasis should be rejected");
+
+    settings = ConversionSettings{};
+    settings.gamma = std::numeric_limits<double>::quiet_NaN();
+    issues = validate(settings);
+    test.expect(issues.size() == 1 && issues.front().field == "gamma",
+                "non-finite settings should be rejected");
+}
+
+void testColorMath(TestContext &test)
+{
+    const RgbSample black{0.0, 0.0, 0.0};
+    const RgbSample white{255.0, 255.0, 255.0};
+    const RgbSample red{RgbColor{255, 0, 0}};
+
+    const auto whiteYCrCb = toYCrCb(white);
+    test.expectNear(whiteYCrCb.luminance, 255.0, 1.0e-12,
+                    "white should have full legacy luminance");
+    test.expectNear(whiteYCrCb.redChroma, 0.0, 1.0e-12,
+                    "white should have zero red chroma");
+    test.expectNear(whiteYCrCb.blueChroma, 0.0, 1.0e-12,
+                    "white should have zero blue chroma");
+
+    const auto redYCrCb = toYCrCb(red);
+    test.expectNear(redYCrCb.luminance, 76.245, 1.0e-12,
+                    "red luminance should match the original matrix");
+    test.expectNear(redYCrCb.redChroma, 127.5, 1.0e-12,
+                    "red chroma should match the original matrix");
+    test.expectNear(redYCrCb.blueChroma, -43.095, 1.0e-12,
+                    "blue chroma should match the original matrix");
+
+    test.expectNear(yCrCbDistanceSquared(red, black), 26484.581061, 1.0e-9,
+                    "default YCrCb distance should preserve legacy luma emphasis");
+    test.expectNear(yCrCbDistanceSquared(white, black), 93636.0, 1.0e-9,
+                    "neutral YCrCb distance should apply luma emphasis before squaring");
+    test.expectNear(perceptualRgbDistanceSquared(red, black), 19507.5, 1.0e-9,
+                    "perceptual RGB distance should weight squared channel differences");
+
+    const RgbSample diffused{-12.5, 260.0, 40.25};
+    test.expectNear(yCrCbDistanceSquared(diffused, diffused), 0.0, 1.0e-12,
+                    "color math should accept identical out-of-range diffusion values");
+    test.expectNear(yCrCbDistanceSquared(red, white), yCrCbDistanceSquared(white, red),
+                    1.0e-12, "YCrCb distance should be symmetric");
+
+    ConversionSettings settings;
+    test.expectNear(colorDistanceSquared(red, black, settings), 26484.581061, 1.0e-9,
+                    "conversion settings should select YCrCb matching by default");
+    settings.perceptualColorMatching = true;
+    test.expectNear(colorDistanceSquared(red, black, settings), 19507.5, 1.0e-9,
+                    "conversion settings should select perceptual RGB matching");
+    settings.perceptualRedWeight = 1.0;
+    settings.perceptualGreenWeight = 0.0;
+    settings.perceptualBlueWeight = 0.0;
+    test.expectNear(colorDistanceSquared(red, black, settings), 65025.0, 1.0e-9,
+                    "custom perceptual weights should flow into color matching");
+
+    test.expectNear(perceptualRgbDistanceSquared(
+                        RgbSample{1.0, 2.0, 3.0},
+                        RgbSample{4.0, 6.0, 8.0},
+                        PerceptualRgbWeights{1.0, 2.0, 3.0}),
+                    116.0,
+                    1.0e-12,
+                    "perceptual weights should scale squared differences, not channels");
 }
 
 void testRgbImage(TestContext &test)
@@ -888,6 +983,7 @@ int main(int argc, char *argv[])
     const QCoreApplication application(argc, argv);
     TestContext test;
     testSettingsValidation(test);
+    testColorMath(test);
     testRgbImage(test);
     testConversionTypes(test);
     testTargetData(test);

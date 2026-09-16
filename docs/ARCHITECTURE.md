@@ -59,6 +59,14 @@ separable resampling, while None preserves source pixels without resampling.
 All paths produce an exact target-sized RGB/RGBA image and validate both the
 intermediate and output allocations before processing.
 
+Color matching preserves the original converter's two distance metrics. The
+default path converts RGB samples to unoffset YCrCb using the original matrix,
+multiplies the luminance difference by the configurable emphasis, and then
+sums squared component differences. Perceptual matching instead sums squared
+RGB differences with configurable channel weights. These routines accept
+double-precision, temporarily out-of-range RGB samples so error diffusion does
+not need to clamp before measuring a candidate palette color.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,

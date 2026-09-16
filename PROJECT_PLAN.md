@@ -1,6 +1,6 @@
 # New Convert 9918 — Project Plan and Checklist
 
-Last updated: 2026-09-15
+Last updated: 2026-09-16
 
 This document is the durable handoff for future development sessions. Read it
 before starting work, update the checkboxes as milestones are completed, and
@@ -98,6 +98,8 @@ improvement.
   every conversion mode's target-memory tables.
 - [x] Added conversion-independent aspect-preserving fit/fill geometry,
   clamped crop positioning, and deterministic RGB/RGBA resampling filters.
+- [x] Added legacy-compatible YCrCb and perceptually weighted RGB color
+  distances with configurable, validated weights and luma emphasis.
 
 ### Development environment
 
@@ -219,7 +221,7 @@ visual memory or subjective comparison.
 - [x] Define `ConversionRequest`, `ConversionResult`, and diagnostic types.
 - [x] Define palette and target-memory-table types.
 - [x] Implement scaling/crop positioning independently from conversion.
-- [ ] Implement color-space and distance calculations.
+- [x] Implement color-space and distance calculations.
 - [ ] Implement histogram stretching and gamma correction.
 - [ ] Implement palette selection and median-cut behavior.
 - [ ] Implement error-distribution kernels and ordered dithering.
@@ -449,7 +451,8 @@ When opening this project again:
 15. [x] Define `ConversionRequest`, `ConversionResult`, and diagnostic types.
 16. [x] Define palette and target-memory-table types.
 17. [x] Implement scaling and crop positioning independently from conversion.
-18. [ ] Implement color-space and distance calculations.
+18. [x] Implement color-space and distance calculations.
+19. [ ] Implement histogram stretching and gamma correction.
 
 Suggested opening prompt:
 
