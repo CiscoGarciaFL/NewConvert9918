@@ -2,6 +2,7 @@
 #include "newconvert9918/core/ConversionTypes.hpp"
 #include "newconvert9918/core/ImageAdjustments.hpp"
 #include "newconvert9918/core/ImageTransform.hpp"
+#include "newconvert9918/core/PaletteSelection.hpp"
 #include "newconvert9918/core/RgbImage.hpp"
 #include "newconvert9918/core/TargetData.hpp"
 #include "newconvert9918/core/Validation.hpp"
@@ -18,6 +19,7 @@
 #include <QHash>
 #include <QSet>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <iostream>
@@ -39,10 +41,13 @@ using newconvert9918::core::ImageFillMode;
 using newconvert9918::core::ImageAdjustmentError;
 using newconvert9918::core::ImageTransformError;
 using newconvert9918::core::ImageTransformOptions;
+using newconvert9918::core::MedianCutColorDepth;
 using newconvert9918::core::PerceptualRgbWeights;
 using newconvert9918::core::Palette;
 using newconvert9918::core::PaletteError;
+using newconvert9918::core::PaletteSelectionError;
 using newconvert9918::core::PixelFormat;
+using newconvert9918::core::PopularityWeighting;
 using newconvert9918::core::RgbColor;
 using newconvert9918::core::RgbSample;
 using newconvert9918::core::RgbImage;
@@ -58,6 +63,8 @@ using newconvert9918::core::expectedTargetTables;
 using newconvert9918::core::planImageTransform;
 using newconvert9918::core::perceptualRgbDistanceSquared;
 using newconvert9918::core::toYCrCb;
+using newconvert9918::core::selectMedianCutPalette;
+using newconvert9918::core::selectPopularPalette;
 using newconvert9918::core::transformImage;
 using newconvert9918::core::validate;
 using newconvert9918::core::validateImageLayout;
@@ -345,6 +352,131 @@ void testImageAdjustments(TestContext &test)
     adjusted = adjustImage(*flat, settings, smallLimits);
     test.expect(!adjusted && adjusted.error == ImageAdjustmentError::OutputImageRejected,
                 "image adjustment should enforce output allocation limits");
+}
+
+void testPaletteSelection(TestContext &test)
+{
+    auto ramp = RgbImage::create(
+        {.width = 8, .height = 1, .pixelFormat = PixelFormat::Rgba8888, .rowStride = 34},
+        {
+            0, 0, 0, 1,
+            16, 0, 0, 2,
+            32, 0, 0, 3,
+            48, 0, 0, 4,
+            192, 0, 0, 5,
+            208, 0, 0, 6,
+            224, 0, 0, 7,
+            240, 0, 0, 8,
+            201, 202,
+        });
+    test.expect(ramp.has_value(), "palette-selection fixture should be created");
+
+    auto selected = selectMedianCutPalette(*ramp, 2);
+    test.expect(static_cast<bool>(selected) && selected.palette->size() == 2,
+                "median cut should produce the requested palette size");
+    test.expect(selected.palette->at(0) == RgbColor{17, 0, 0}
+                    && selected.palette->at(1) == RgbColor{221, 0, 0},
+                "RGB444 median cut should split the longest range and truncate block averages");
+
+    selected = selectMedianCutPalette(*ramp, 2, MedianCutColorDepth::Rgb888);
+    test.expect(static_cast<bool>(selected)
+                    && selected.palette->at(0) == RgbColor{24, 0, 0}
+                    && selected.palette->at(1) == RgbColor{216, 0, 0},
+                "RGB888 median cut should retain full channel precision");
+
+    const auto repeated = selectMedianCutPalette(*ramp, 4);
+    const auto repeatedAgain = selectMedianCutPalette(*ramp, 4);
+    test.expect(static_cast<bool>(repeated) && static_cast<bool>(repeatedAgain)
+                    && repeated.palette->colors().size() == 4
+                    && std::equal(repeated.palette->colors().begin(),
+                                  repeated.palette->colors().end(),
+                                  repeatedAgain.palette->colors().begin()),
+                "median-cut tie handling should be deterministic");
+
+    auto twoPixels = RgbImage::create(
+        {.width = 2, .height = 1, .pixelFormat = PixelFormat::Rgb888, .rowStride = 6},
+        {10, 20, 30, 20, 40, 60});
+    selected = selectMedianCutPalette(*twoPixels, 1, MedianCutColorDepth::Rgb888);
+    test.expect(static_cast<bool>(selected)
+                    && selected.palette->at(0) == RgbColor{15, 30, 45},
+                "a one-color median palette should be the truncated RGB average");
+
+    auto tiedRanges = RgbImage::create(
+        {.width = 4, .height = 1, .pixelFormat = PixelFormat::Rgb888, .rowStride = 12},
+        {0, 0, 0, 0, 255, 0, 255, 0, 0, 255, 255, 0});
+    selected = selectMedianCutPalette(*tiedRanges, 2, MedianCutColorDepth::Rgb888);
+    test.expect(static_cast<bool>(selected)
+                    && selected.palette->at(0) == RgbColor{0, 127, 0}
+                    && selected.palette->at(1) == RgbColor{255, 127, 0},
+                "equal channel ranges should retain the original red-green-blue precedence");
+
+    std::vector<std::uint8_t> popularityPixels;
+    const auto append = [&popularityPixels](RgbColor color, std::size_t count) {
+        for (std::size_t index = 0; index < count; ++index) {
+            popularityPixels.push_back(color.red);
+            popularityPixels.push_back(color.green);
+            popularityPixels.push_back(color.blue);
+        }
+    };
+    append({0x10, 0x10, 0x10}, 10);
+    append({0x20, 0x20, 0x20}, 9);
+    append({0xf0, 0x00, 0x00}, 8);
+    auto popularitySource = RgbImage::create(
+        {.width = 27, .height = 1, .pixelFormat = PixelFormat::Rgb888, .rowStride = 81},
+        std::move(popularityPixels));
+    selected = selectPopularPalette(*popularitySource, 2, PopularityWeighting::Uniform);
+    test.expect(static_cast<bool>(selected) && selected.palette->size() == 2,
+                "popularity selection should produce the requested number of colors");
+    test.expect(selected.palette->at(0) == RgbColor{17, 17, 17}
+                    && selected.palette->at(1) == RgbColor{255, 0, 0},
+                "nearby popular RGB444 colors should merge before final ranking");
+
+    auto weightedSource = RgbImage::create(
+        {.width = 8, .height = 1, .pixelFormat = PixelFormat::Rgb888, .rowStride = 24},
+        {
+            0xf0, 0, 0,
+            0xf0, 0, 0,
+            0, 0xf0, 0,
+            0, 0, 0xf0,
+            0, 0, 0xf0,
+            0xf0, 0xf0, 0,
+            0, 0xf0, 0xf0,
+            0xf0, 0, 0,
+        });
+    const auto uniform = selectPopularPalette(
+        *weightedSource, 1, PopularityWeighting::Uniform);
+    const auto centerWeighted = selectPopularPalette(
+        *weightedSource, 1, PopularityWeighting::HorizontalCenter);
+    test.expect(static_cast<bool>(uniform)
+                    && uniform.palette->at(0) == RgbColor{255, 0, 0}
+                    && static_cast<bool>(centerWeighted)
+                    && centerWeighted.palette->at(0) == RgbColor{0, 0, 255},
+                "horizontal center weighting should reproduce the original 1-2-2-3-3-2-2-1 emphasis");
+
+    auto ties = RgbImage::create(
+        {.width = 2, .height = 1, .pixelFormat = PixelFormat::Rgb888, .rowStride = 6},
+        {0xf0, 0, 0, 0, 0, 0xf0});
+    selected = selectPopularPalette(*ties, 2, PopularityWeighting::Uniform);
+    test.expect(static_cast<bool>(selected)
+                    && selected.palette->at(0) == RgbColor{0, 0, 255}
+                    && selected.palette->at(1) == RgbColor{255, 0, 0},
+                "popularity ties should use ascending RGB444 value order");
+
+    selected = selectMedianCutPalette(*ramp, 0);
+    test.expect(!selected && selected.error == PaletteSelectionError::InvalidColorCount,
+                "palette selection should reject a zero color request");
+    selected = selectPopularPalette(
+        *ramp, Palette::maximumColorCount + 1, PopularityWeighting::Uniform);
+    test.expect(!selected && selected.error == PaletteSelectionError::InvalidColorCount,
+                "palette selection should reject more than sixteen colors");
+    selected = selectMedianCutPalette(
+        *ramp, 2, static_cast<MedianCutColorDepth>(255));
+    test.expect(!selected && selected.error == PaletteSelectionError::UnsupportedColorDepth,
+                "median cut should reject unknown color-depth options");
+    selected = selectPopularPalette(
+        *ramp, 2, static_cast<PopularityWeighting>(255));
+    test.expect(!selected && selected.error == PaletteSelectionError::UnsupportedWeighting,
+                "popularity selection should reject unknown weighting options");
 }
 
 void testRgbImage(TestContext &test)
@@ -1071,6 +1203,7 @@ int main(int argc, char *argv[])
     testSettingsValidation(test);
     testColorMath(test);
     testImageAdjustments(test);
+    testPaletteSelection(test);
     testRgbImage(test);
     testConversionTypes(test);
     testTargetData(test);

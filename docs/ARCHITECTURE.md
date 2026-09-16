@@ -78,6 +78,17 @@ its exact histogram parity remains a golden-output question; the portable
 algorithm is specified and tested independently rather than importing that
 abandoned binary dependency.
 
+Palette selection exposes deterministic median-cut and popularity paths. The
+F18A-compatible median cut reduces channels to four bits before partitioning,
+splits the block with the longest RGB range at `(count + 1) / 2`, averages with
+integer truncation, and expands each result nibble to eight bits. An RGB888
+variant is available for future non-target previews. Range and channel ties
+use stable creation and RGB ordering instead of depending on a standard
+library heap implementation. Popularity selection counts RGB444 colors,
+optionally applies the original eight-band horizontal center weighting, merges
+neighboring colors among the leading candidates, and ranks equal counts by
+ascending packed RGB value.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,
