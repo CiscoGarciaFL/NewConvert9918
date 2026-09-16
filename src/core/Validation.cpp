@@ -8,6 +8,52 @@ std::vector<ValidationIssue> validate(const ConversionSettings& settings)
 {
     std::vector<ValidationIssue> issues;
 
+    switch (settings.dither) {
+    case DitherMode::None:
+    case DitherMode::FloydSteinberg:
+    case DitherMode::Atkinson:
+    case DitherMode::Pattern:
+    case DitherMode::Diagonal:
+    case DitherMode::Ordered:
+    case DitherMode::OrderedWithError:
+        break;
+    default:
+        issues.push_back({"dither", "Dither mode is not supported."});
+        break;
+    }
+
+    switch (settings.orderedDitherMapSize) {
+    case OrderedDitherMapSize::TwoByTwo:
+    case OrderedDitherMapSize::FourByFour:
+        break;
+    default:
+        issues.push_back({
+            "orderedDitherMapSize",
+            "Ordered dither map size must be 2x2 or 4x4.",
+        });
+        break;
+    }
+
+    if (settings.orderedDitherBrightness < 0
+        || settings.orderedDitherBrightness > 16) {
+        issues.push_back({
+            "orderedDitherBrightness",
+            "Ordered dither brightness must be between 0 and 16.",
+        });
+    }
+
+    switch (settings.errorAccumulation) {
+    case ErrorAccumulationMode::Average:
+    case ErrorAccumulationMode::Accumulate:
+        break;
+    default:
+        issues.push_back({
+            "errorAccumulation",
+            "Error accumulation mode is not supported.",
+        });
+        break;
+    }
+
     if (settings.targetWidth <= 0) {
         issues.push_back({"targetWidth", "Target width must be positive."});
     }

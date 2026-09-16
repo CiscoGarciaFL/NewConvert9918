@@ -104,6 +104,8 @@ improvement.
   gamma correction while preserving alpha and padded row bytes.
 - [x] Added deterministic RGB444/RGB888 median cut and legacy-style weighted
   RGB444 popularity palette selection.
+- [x] Added the original six-cell error-distribution kernels, bounded error
+  buffer, Average/Accumulate behavior, and 2x2/4x4 ordered threshold maps.
 
 ### Development environment
 
@@ -458,7 +460,8 @@ When opening this project again:
 18. [x] Implement color-space and distance calculations.
 19. [x] Implement histogram stretching and gamma correction.
 20. [x] Implement palette selection and median-cut behavior.
-21. [ ] Implement error-distribution kernels and ordered dithering.
+21. [x] Implement error-distribution kernels and ordered dithering.
+22. [ ] Port Bitmap 9918A / Graphics II conversion mode.
 
 Suggested opening prompt:
 

@@ -1,6 +1,7 @@
 add_library(newconvert9918_core STATIC
     ColorMath.cpp
     ConversionTypes.cpp
+    Dithering.cpp
     ImageAdjustments.cpp
     ImageTransform.cpp
     PaletteSelection.cpp
