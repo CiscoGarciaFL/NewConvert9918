@@ -167,6 +167,13 @@ the old result could depend on error accumulated from earlier scanlines, while
 the new selector is deterministic, independently testable, and parallelizable.
 Successful results include an informational diagnostic naming this difference.
 
+Interactive conversion uses `ConversionJobController`. Each request receives a
+monotonically increasing generation and a shared cancellation token. Beginning
+a newer request atomically cancels the previous token; workers finalize results
+through the controller, which stamps the generation and strips output from a
+cancelled job. Consumers publish a result only when `accepts()` confirms it is
+both non-cancelled and still the newest generation.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,

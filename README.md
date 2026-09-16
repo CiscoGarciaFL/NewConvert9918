@@ -14,7 +14,9 @@ The project is starting with two goals:
 The portable core now includes image geometry, preprocessing, color matching,
 palette selection, dithering, all four Bitmap 9918A variants, all three
 Multicolor 9918/9918A variants, and both F18A bitmap palette modes. The Qt shell
-still presents the proposed workflow; connecting image loading and live
+can use the core's cancellation tokens and generation gate to discard stale
+interactive previews. It still presents the proposed workflow; connecting
+image loading and live
 conversion to that interface is a later integration milestone.
 
 See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current

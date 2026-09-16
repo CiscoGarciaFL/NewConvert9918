@@ -1,6 +1,7 @@
 #include "newconvert9918/core/Bitmap9918Converter.hpp"
 #include "newconvert9918/core/ColorMath.hpp"
 #include "newconvert9918/core/ConversionTypes.hpp"
+#include "newconvert9918/core/ConversionJobController.hpp"
 #include "newconvert9918/core/Dithering.hpp"
 #include "newconvert9918/core/F18AConverter.hpp"
 #include "newconvert9918/core/ImageAdjustments.hpp"
@@ -37,6 +38,7 @@ using newconvert9918::core::ConversionMode;
 using newconvert9918::core::ConversionRequest;
 using newconvert9918::core::ConversionResult;
 using newconvert9918::core::ConversionStatus;
+using newconvert9918::core::ConversionJobController;
 using newconvert9918::core::DiagnosticSeverity;
 using newconvert9918::core::DitherMode;
 using newconvert9918::core::ErrorAccumulationMode;
@@ -1275,6 +1277,54 @@ void testConversionTypes(TestContext &test)
                 "cancellation should remain distinct from an error diagnostic");
 }
 
+void testConversionJobController(TestContext &test)
+{
+    auto image = RgbImage::createTightlyPacked(2, 2, PixelFormat::Rgb888);
+    test.expect(image.has_value(), "conversion-job fixture should be created");
+    auto source = std::make_shared<const RgbImage>(std::move(*image));
+
+    ConversionJobController controller;
+    const ConversionRequest first = controller.begin(source, ConversionSettings{});
+    test.expect(first.generation == 1
+                    && !first.cancellation.isCancellationRequested()
+                    && controller.isCurrent(first.generation),
+                "the first preview request should receive generation one");
+
+    const ConversionRequest second = controller.begin(source, ConversionSettings{});
+    test.expect(second.generation == 2
+                    && first.cancellation.isCancellationRequested()
+                    && !second.cancellation.isCancellationRequested()
+                    && !controller.isCurrent(first.generation)
+                    && controller.isCurrent(second.generation),
+                "a newer preview request should cancel and supersede its predecessor");
+
+    ConversionResult completed{
+        .status = ConversionStatus::Succeeded,
+        .preview = *source,
+        .diagnostics = {},
+        .target = std::nullopt,
+    };
+    const ConversionResult stale = controller.finalize(first, completed);
+    test.expect(stale.status == ConversionStatus::Cancelled
+                    && stale.generation == first.generation
+                    && !stale.preview && !stale.target
+                    && stale.diagnostics.size() == 1
+                    && stale.diagnostics.front().code == "conversion-cancelled"
+                    && !controller.accepts(stale),
+                "finalization should strip cancelled stale output before publication");
+
+    const ConversionResult current = controller.finalize(second, completed);
+    test.expect(current.succeeded() && current.generation == second.generation
+                    && current.preview && controller.accepts(current),
+                "the newest completed generation should be accepted");
+
+    controller.cancelCurrent();
+    const ConversionResult cancelled = controller.finalize(second, completed);
+    test.expect(cancelled.status == ConversionStatus::Cancelled
+                    && !controller.accepts(cancelled),
+                "explicit cancellation should prevent publication of the current job");
+}
+
 void testTargetData(TestContext &test)
 {
     PaletteError paletteError = PaletteError::TooManyColors;
@@ -1887,6 +1937,7 @@ int main(int argc, char *argv[])
     testPaletteSelection(test);
     testRgbImage(test);
     testConversionTypes(test);
+    testConversionJobController(test);
     testTargetData(test);
     testImageTransform(test);
     const QJsonObject manifest = loadCorpusManifest();
