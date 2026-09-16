@@ -50,6 +50,15 @@ padding and byte-order ambiguity. Each conversion mode publishes one exact
 ordered table layout derived from the approved original captures; validation
 checks table count, role, and byte size before data reaches an exporter.
 
+Image geometry is a separate core operation. Fit mode preserves the complete
+source and centers any letterbox area; start, center, and end fill modes scale
+to cover the target and crop along the overflowing axis. Crop offsets are
+expressed in scaled-source pixels and are clamped to the valid region. The
+Box, Gaussian, Hamming, Blackman, and Bilinear filters use deterministic
+separable resampling, while None preserves source pixels without resampling.
+All paths produce an exact target-sized RGB/RGBA image and validate both the
+intermediate and output allocations before processing.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,

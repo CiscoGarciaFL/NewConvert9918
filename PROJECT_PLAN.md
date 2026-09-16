@@ -96,6 +96,8 @@ improvement.
   information, warning, and error diagnostics.
 - [x] Defined validated 16-color palettes and exact role/size contracts for
   every conversion mode's target-memory tables.
+- [x] Added conversion-independent aspect-preserving fit/fill geometry,
+  clamped crop positioning, and deterministic RGB/RGBA resampling filters.
 
 ### Development environment
 
@@ -216,7 +218,7 @@ visual memory or subjective comparison.
 - [x] Define `RgbImage`, pixel format, row stride, and size-limit rules.
 - [x] Define `ConversionRequest`, `ConversionResult`, and diagnostic types.
 - [x] Define palette and target-memory-table types.
-- [ ] Implement scaling/crop positioning independently from conversion.
+- [x] Implement scaling/crop positioning independently from conversion.
 - [ ] Implement color-space and distance calculations.
 - [ ] Implement histogram stretching and gamma correction.
 - [ ] Implement palette selection and median-cut behavior.
@@ -446,7 +448,8 @@ When opening this project again:
     semantics, and checked image-allocation limits.
 15. [x] Define `ConversionRequest`, `ConversionResult`, and diagnostic types.
 16. [x] Define palette and target-memory-table types.
-17. [ ] Implement scaling and crop positioning independently from conversion.
+17. [x] Implement scaling and crop positioning independently from conversion.
+18. [ ] Implement color-space and distance calculations.
 
 Suggested opening prompt:
 
