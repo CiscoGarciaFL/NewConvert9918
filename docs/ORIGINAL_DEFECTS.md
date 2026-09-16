@@ -30,6 +30,11 @@ Until a compatible consumer and byte-layout test prove otherwise, New Convert
 9918 must not present this format as a reliable export. If implemented for
 forensic compatibility, it must remain explicitly marked experimental.
 
+The controlled 2026-09-15 export capture therefore omitted this writer while
+capturing every other non-TIFILES Save Pic choice. The exclusion is recorded
+in `tests/golden/reference/original-1_9_1/export-captures.json` so the missing
+file cannot be mistaken for an incomplete capture.
+
 ## Unconfirmed compatibility questions
 
 - The save code questions whether RLE TIFILES headers contain the wrong file

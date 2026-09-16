@@ -23,6 +23,15 @@ command-line BMP preview. Scanline Palette Bitmap F18A has no BMP because the
 original deliberately suppresses its normal single-palette preview path for
 per-scanline palettes.
 
+`reference/original-1_9_1/export-captures.json` records a controlled Windows
+UI capture of every applicable non-TIFILES Save Pic choice in default Bitmap
+9918A mode. The small `tiny-rgba.png` fixture keeps this writer-layout baseline
+focused and reproducible. It covers V9T9 headers, raw and RLE tables, TI
+Extended BASIC programs, MSX SC2, Coleco CVPaint, Adam PowerPaint and HGR,
+ColecoVision cartridge, and PNG output. The original's explicitly broken
+ColecoVision RLE cartridge choice is recorded as excluded, not as an approved
+compatibility target.
+
 ## Coverage
 
 | Fixture | Primary coverage |
