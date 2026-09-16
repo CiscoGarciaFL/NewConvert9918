@@ -17,6 +17,12 @@ BMP preview and its TIFILES pattern (`TIAP`) and color (`TIAC`) tables. The
 directory name deliberately avoids dots because the original save code
 mistakes a dot anywhere in the full path for a filename extension.
 
+`reference/original-1_9_1/mode-captures.json` extends that baseline across the
+other eight conversion modes. It records each applicable TIFILES table and the
+command-line BMP preview. Scanline Palette Bitmap F18A has no BMP because the
+original deliberately suppresses its normal single-palette preview path for
+per-scanline palettes.
+
 ## Coverage
 
 | Fixture | Primary coverage |
@@ -54,6 +60,10 @@ On Windows, `tools/capture_original_baseline.ps1 -Executable <path>` recreates
 the default Bitmap 9918A capture from the verified original 1.9.1 executable.
 It refuses a different executable hash and refuses to overwrite a nonempty
 capture directory.
+
+Run `tools/capture_original_modes.ps1 -Executable <path>` to recreate the
+Greyscale, B&W, multicolor, color-only, and F18A mode captures. It applies the
+same executable-hash and no-overwrite safeguards.
 
 No original Convert9918 images, ImgSource material, or third-party stock media
 are included in this corpus.

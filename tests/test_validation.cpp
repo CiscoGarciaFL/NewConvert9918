@@ -9,6 +9,8 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QHash>
+#include <QSet>
 
 #include <iostream>
 #include <string_view>
@@ -50,6 +52,18 @@ QJsonObject loadCorpusManifest()
 QJsonObject loadCaptureManifest()
 {
     QFile file(corpusDirectory + QStringLiteral("/reference/original-1_9_1/capture.json"));
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
+    return document.isObject() ? document.object() : QJsonObject{};
+}
+
+QJsonObject loadModeCaptureManifest()
+{
+    QFile file(corpusDirectory
+               + QStringLiteral("/reference/original-1_9_1/mode-captures.json"));
     if (!file.open(QIODevice::ReadOnly)) {
         return {};
     }
@@ -201,6 +215,84 @@ void testOriginalCapture(TestContext &test)
     }
 }
 
+void testOriginalModeCaptures(TestContext &test)
+{
+    const QJsonObject manifest = loadModeCaptureManifest();
+    test.expect(manifest.value(QStringLiteral("schema_version")).toInt() == 1,
+                "original mode-capture schema version should be 1");
+
+    const QJsonArray modes = manifest.value(QStringLiteral("modes")).toArray();
+    test.expect(modes.size() == 8, "mode captures should contain the eight remaining modes");
+    QSet<int> capturedModeIndexes;
+
+    for (const QJsonValue &modeValue : modes) {
+        const QJsonObject mode = modeValue.toObject();
+        const int modeIndex = mode.value(QStringLiteral("conversion_mode_index")).toInt(-1);
+        test.expect(modeIndex >= 1 && modeIndex <= 8,
+                    "captured conversion-mode index should be between 1 and 8");
+        test.expect(!capturedModeIndexes.contains(modeIndex),
+                    "captured conversion-mode indexes should be unique");
+        capturedModeIndexes.insert(modeIndex);
+
+        QHash<QString, qint64> expectedPayloadSizes;
+        const QJsonArray tablePayloads = mode.value(QStringLiteral("table_payloads")).toArray();
+        for (const QJsonValue &tableValue : tablePayloads) {
+            const QJsonObject table = tableValue.toObject();
+            expectedPayloadSizes.insert(table.value(QStringLiteral("extension")).toString(),
+                                        table.value(QStringLiteral("payload_size")).toInteger());
+        }
+
+        const bool previewAvailable = mode.value(QStringLiteral("preview_available")).toBool();
+        const int expectedOutputCount = tablePayloads.size() + (previewAvailable ? 1 : 0);
+        const QJsonArray captures = mode.value(QStringLiteral("captures")).toArray();
+        test.expect(captures.size() == 8,
+                    "each remaining conversion mode should contain all eight valid sources");
+
+        for (const QJsonValue &captureValue : captures) {
+            const QJsonArray outputs =
+                captureValue.toObject().value(QStringLiteral("outputs")).toArray();
+            test.expect(outputs.size() == expectedOutputCount,
+                        "each mode capture should contain its applicable outputs");
+
+            for (const QJsonValue &outputValue : outputs) {
+                const QJsonObject output = outputValue.toObject();
+                const QString path = corpusPath(output);
+                const QFileInfo file(path);
+                test.expect(file.exists(), "each recorded mode output should exist");
+                test.expect(file.size() == output.value(QStringLiteral("size")).toInteger(),
+                            "mode-output size should match its capture manifest");
+                test.expect(sha256(path)
+                                == output.value(QStringLiteral("sha256")).toString().toLatin1(),
+                            "mode-output SHA-256 should match its capture manifest");
+
+                const QString extension = output.value(QStringLiteral("extension")).toString();
+                if (output.value(QStringLiteral("kind")).toString()
+                    == QStringLiteral("preview")) {
+                    const QImage preview(path);
+                    test.expect(extension == QStringLiteral("BMP")
+                                    && preview.size() == QSize(256, 192),
+                                "captured preview should be a 256 by 192 BMP");
+                } else {
+                    test.expect(expectedPayloadSizes.contains(extension),
+                                "captured table extension should be expected for its mode");
+                    test.expect(file.size() == expectedPayloadSizes.value(extension) + 128,
+                                "captured table should contain its payload and TIFILES header");
+                    QFile input(path);
+                    test.expect(input.open(QIODevice::ReadOnly),
+                                "captured TIFILES table should be readable");
+                    test.expect(input.read(8) == QByteArray("\x07TIFILES", 8),
+                                "captured table should contain the TIFILES signature");
+                }
+            }
+        }
+    }
+
+    for (int modeIndex = 1; modeIndex <= 8; ++modeIndex) {
+        test.expect(capturedModeIndexes.contains(modeIndex),
+                    "every remaining original conversion-mode index should be captured");
+    }
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -213,5 +305,6 @@ int main(int argc, char *argv[])
     testCorpusImages(test, manifest);
     testMalformedInputs(test, manifest);
     testOriginalCapture(test);
+    testOriginalModeCaptures(test);
     return test.result();
 }
