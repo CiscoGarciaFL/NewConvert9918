@@ -1,3 +1,4 @@
+#include "newconvert9918/core/ConversionTypes.hpp"
 #include "newconvert9918/core/RgbImage.hpp"
 #include "newconvert9918/core/Validation.hpp"
 
@@ -15,9 +16,15 @@
 
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <string_view>
 
 using newconvert9918::core::ConversionSettings;
+using newconvert9918::core::ConversionDiagnostic;
+using newconvert9918::core::ConversionRequest;
+using newconvert9918::core::ConversionResult;
+using newconvert9918::core::ConversionStatus;
+using newconvert9918::core::DiagnosticSeverity;
 using newconvert9918::core::ImageLayout;
 using newconvert9918::core::ImageLayoutError;
 using newconvert9918::core::ImageSizeLimits;
@@ -223,6 +230,46 @@ void testRgbImage(TestContext &test)
     test.expect(validateImageLayout(overflowingLayout, overflowLimits).error
                     == ImageLayoutError::ByteSizeOverflow,
                 "row-stride multiplication should reject integer overflow");
+}
+
+void testConversionTypes(TestContext &test)
+{
+    auto source = RgbImage::createTightlyPacked(2, 2, PixelFormat::Rgba8888);
+    test.expect(source.has_value(), "conversion-type fixture should be created");
+
+    ConversionRequest request{
+        .source = std::make_shared<const RgbImage>(std::move(*source)),
+        .settings = {},
+    };
+    test.expect(validate(request).empty(), "a request with a source and valid settings should pass");
+
+    request.settings.gamma = 0.0;
+    const auto invalidSettings = validate(request);
+    test.expect(invalidSettings.size() == 1 && invalidSettings.front().field == "gamma",
+                "request validation should include settings issues");
+
+    request.source.reset();
+    const auto invalidRequest = validate(request);
+    test.expect(invalidRequest.size() == 2 && invalidRequest.front().field == "source",
+                "request validation should report a missing source before settings issues");
+
+    ConversionResult result{
+        .status = ConversionStatus::Succeeded,
+        .preview = std::nullopt,
+        .diagnostics = {{DiagnosticSeverity::Warning, "palette-reduced", "Palette reduced."}},
+    };
+    test.expect(result.succeeded() && !result.hasErrors(),
+                "warnings should not turn a successful conversion into a failure");
+
+    result.diagnostics.push_back(
+        ConversionDiagnostic{DiagnosticSeverity::Error, "invalid-source", "Invalid source."});
+    test.expect(result.hasErrors() && !result.succeeded(),
+                "error diagnostics should make a result unsuccessful");
+
+    result.status = ConversionStatus::Cancelled;
+    result.diagnostics.clear();
+    test.expect(!result.succeeded() && !result.hasErrors(),
+                "cancellation should remain distinct from an error diagnostic");
 }
 
 void testCorpusManifest(TestContext &test, const QJsonObject &manifest)
@@ -532,6 +579,7 @@ int main(int argc, char *argv[])
     TestContext test;
     testSettingsValidation(test);
     testRgbImage(test);
+    testConversionTypes(test);
     const QJsonObject manifest = loadCorpusManifest();
     testCorpusManifest(test, manifest);
     testCorpusImages(test, manifest);

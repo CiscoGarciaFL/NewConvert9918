@@ -36,6 +36,14 @@ validation checks every multiplication before allocation. Default limits are
 16,384 pixels per dimension, 64 Mi pixels, and 256 MiB of stored bytes; callers
 may supply tighter limits at trust boundaries.
 
+`ConversionRequest` holds immutable shared ownership of a source image so GUI
+preview jobs can reuse decoded pixels without large copies. `ConversionResult`
+keeps completion, failure, and cancellation distinct, and carries an optional
+preview plus structured diagnostics with stable machine-readable codes.
+Warnings do not make an otherwise successful result fail; error diagnostics
+do. Target palettes and memory tables are added independently as their types
+are defined.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,
