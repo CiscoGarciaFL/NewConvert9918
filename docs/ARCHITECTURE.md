@@ -125,6 +125,13 @@ mean black and clear bits mean white. Because the target display uses a fixed
 black-on-white color setup, this mode emits only the 6 KiB pattern table and
 no redundant color table.
 
+Bitmap Color Only 9918A constrains every eight-pixel row to the fixed `0xF0`
+pattern and searches all ordered foreground/background pairs, including equal
+colors. This reduces the target image to two four-pixel-wide color regions per
+character row while retaining full Graphics II color-table addressing. The
+encoder preserves the original working-index ordering and emits separate
+6 KiB fixed-pattern and color tables.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,

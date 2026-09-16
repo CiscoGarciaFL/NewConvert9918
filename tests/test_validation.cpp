@@ -69,6 +69,7 @@ using newconvert9918::core::adjustImage;
 using newconvert9918::core::applyOrderedDither;
 using newconvert9918::core::colorDistanceSquared;
 using newconvert9918::core::convertBlackAndWhiteBitmap9918;
+using newconvert9918::core::convertBitmapColorOnly9918;
 using newconvert9918::core::convertBitmap9918;
 using newconvert9918::core::convertGreyscaleBitmap9918;
 using newconvert9918::core::defaultBitmap9918Palette;
@@ -565,6 +566,62 @@ void testBlackAndWhiteBitmap9918Conversion(TestContext &test)
                     && wrongMode.diagnostics.front().code
                         == "black-white-bitmap9918-wrong-mode",
                 "black-and-white conversion should reject another selected mode");
+}
+
+void testBitmapColorOnly9918Conversion(TestContext &test)
+{
+    const Palette palette = defaultBitmap9918Palette();
+    auto source = RgbImage::createTightlyPacked(256, 192, PixelFormat::Rgb888);
+    test.expect(source.has_value(),
+                "the Bitmap Color Only test source should be allocated");
+    for (std::uint32_t y = 0; y < source->height(); ++y) {
+        std::span<std::uint8_t> row = source->row(y);
+        for (std::uint32_t x = 0; x < source->width(); ++x) {
+            const bool firstHalf = (x & 7U) < 4;
+            const std::uint8_t value = firstHalf ? 248 : 0;
+            const std::size_t offset = static_cast<std::size_t>(x) * 3;
+            row[offset] = value;
+            row[offset + 1] = value;
+            row[offset + 2] = value;
+        }
+    }
+
+    ConversionSettings settings;
+    settings.mode = ConversionMode::BitmapColorOnly9918;
+    settings.dither = DitherMode::None;
+    settings.maximumColorShiftPercent = 0.0;
+    const ConversionResult result = convertBitmapColorOnly9918(
+        *source, palette, settings);
+    test.expect(result.succeeded() && result.preview && result.target,
+                "a valid image should convert to Bitmap Color Only 9918A");
+    test.expect(result.target->mode == ConversionMode::BitmapColorOnly9918
+                    && result.target->tables.size() == 2
+                    && validateTargetTables(*result.target),
+                "Bitmap Color Only should emit valid fixed-pattern and color tables");
+    test.expect(result.target->tables[0].role == TargetTableRole::FixedPattern
+                    && std::ranges::all_of(
+                        result.target->tables[0].bytes,
+                        [](std::uint8_t value) { return value == 0xf0; }),
+                "Bitmap Color Only should force every pattern byte to F0");
+    test.expect(result.target->tables[1].role == TargetTableRole::Color
+                    && std::ranges::all_of(
+                        result.target->tables[1].bytes,
+                        [](std::uint8_t value) { return value == 0x1f; }),
+                "Bitmap Color Only should preserve the original color-byte ordering");
+
+    const std::span<const std::uint8_t> previewRow = result.preview->row(0);
+    test.expect(previewRow[0] == 248 && previewRow[1] == 248
+                    && previewRow[2] == 248 && previewRow[12] == 0
+                    && previewRow[13] == 0 && previewRow[14] == 0,
+                "Bitmap Color Only preview should retain its searched half-block colors");
+
+    settings.mode = ConversionMode::Bitmap9918;
+    const ConversionResult wrongMode = convertBitmapColorOnly9918(
+        *source, palette, settings);
+    test.expect(!wrongMode.succeeded()
+                    && wrongMode.diagnostics.front().code
+                        == "bitmap-color-only9918-wrong-mode",
+                "Bitmap Color Only should reject another selected mode");
 }
 
 void testColorMath(TestContext &test)
@@ -1558,6 +1615,7 @@ int main(int argc, char *argv[])
     testBitmap9918Conversion(test);
     testGreyscaleBitmap9918Conversion(test);
     testBlackAndWhiteBitmap9918Conversion(test);
+    testBitmapColorOnly9918Conversion(test);
     testImageAdjustments(test);
     testPaletteSelection(test);
     testRgbImage(test);

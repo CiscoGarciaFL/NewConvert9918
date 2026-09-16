@@ -123,7 +123,8 @@ BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
                         const Palette& palette,
                         const ConversionSettings& settings,
                         const DitherConfiguration& dithering,
-                        double errorDivisor)
+                        double errorDivisor,
+                        bool colorOnly)
 {
     BlockChoice best;
     const double rightScale = static_cast<double>(dithering.kernel.right)
@@ -133,10 +134,13 @@ BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
 
     for (std::size_t foreground = 0; foreground + 1 < palette.size();
          ++foreground) {
-        for (std::size_t background = foreground + 1;
+        const std::size_t backgroundStart = colorOnly ? 0 : foreground + 1;
+        for (std::size_t background = backgroundStart;
              background < palette.size();
              ++background) {
-            for (int pattern = 0; pattern < 256; ++pattern) {
+            const int patternStart = colorOnly ? 0xf0 : 0;
+            const int patternEnd = colorOnly ? 0xf1 : 256;
+            for (int pattern = patternStart; pattern < patternEnd; ++pattern) {
                 RgbSample carried{};
                 RgbSample farCarried{};
                 double distance = 0.0;
@@ -207,7 +211,9 @@ std::uint8_t hardwareColor(std::uint8_t workingColor)
 }
 
 std::pair<std::vector<std::uint8_t>, std::vector<std::uint8_t>>
-encodeTables(std::span<const std::uint8_t> indexed, bool monochrome)
+encodeTables(std::span<const std::uint8_t> indexed,
+             bool monochrome,
+             bool colorOnly)
 {
     std::vector<std::uint8_t> patterns(bitmapTableSize);
     std::vector<std::uint8_t> colors(bitmapTableSize);
@@ -243,6 +249,13 @@ encodeTables(std::span<const std::uint8_t> indexed, bool monochrome)
                     }
                     foreground = 1;
                     background = 0;
+                } else if (colorOnly) {
+                    if (pattern == 0x00) {
+                        foreground = background;
+                    } else if (pattern == 0xff) {
+                        background = foreground;
+                    }
+                    pattern = 0xf0;
                 } else if (foregroundCount > backgroundCount) {
                     std::swap(foreground, background);
                     pattern = static_cast<std::uint8_t>(~pattern);
@@ -326,6 +339,7 @@ ConversionResult convertBitmap9918Impl(const RgbImage& source,
                                        ConversionMode requiredMode,
                                        bool greyscaleSource,
                                        bool monochrome,
+                                       bool colorOnly,
                                        std::string_view diagnosticPrefix)
 {
     const std::string codePrefix(diagnosticPrefix);
@@ -420,7 +434,12 @@ ConversionResult convertBitmap9918Impl(const RgbImage& source,
             }
 
             const BlockChoice choice = chooseBlock(
-                desired, workingPalette, settings, *dithering, errorDivisor);
+                desired,
+                workingPalette,
+                settings,
+                *dithering,
+                errorDivisor,
+                colorOnly);
             int mask = 0x80;
             RgbSample carried{};
             RgbSample farCarried{};
@@ -478,9 +497,11 @@ ConversionResult convertBitmap9918Impl(const RgbImage& source,
                        "The Bitmap 9918A preview could not be allocated.");
     }
 
-    auto [patterns, colors] = encodeTables(indexed, monochrome);
+    auto [patterns, colors] = encodeTables(indexed, monochrome, colorOnly);
     std::vector<TargetMemoryTable> tables;
-    tables.push_back({TargetTableRole::Pattern, std::move(patterns)});
+    tables.push_back({colorOnly ? TargetTableRole::FixedPattern
+                               : TargetTableRole::Pattern,
+                      std::move(patterns)});
     if (!monochrome) {
         tables.push_back({TargetTableRole::Color, std::move(colors)});
     }
@@ -509,6 +530,7 @@ ConversionResult convertBitmap9918(const RgbImage& source,
                                  ConversionMode::Bitmap9918,
                                  false,
                                  false,
+                                 false,
                                  "bitmap9918");
 }
 
@@ -525,6 +547,7 @@ ConversionResult convertGreyscaleBitmap9918(const RgbImage& source,
                                  settings,
                                  ConversionMode::GreyscaleBitmap9918,
                                  true,
+                                 false,
                                  false,
                                  "greyscale-bitmap9918");
 }
@@ -547,7 +570,22 @@ ConversionResult convertBlackAndWhiteBitmap9918(const RgbImage& source,
                                  ConversionMode::BlackAndWhiteBitmap9918,
                                  true,
                                  true,
+                                 false,
                                  "black-white-bitmap9918");
+}
+
+ConversionResult convertBitmapColorOnly9918(const RgbImage& source,
+                                            const Palette& workingPalette,
+                                            const ConversionSettings& settings)
+{
+    return convertBitmap9918Impl(source,
+                                 workingPalette,
+                                 settings,
+                                 ConversionMode::BitmapColorOnly9918,
+                                 false,
+                                 false,
+                                 true,
+                                 "bitmap-color-only9918");
 }
 
 } // namespace newconvert9918::core
