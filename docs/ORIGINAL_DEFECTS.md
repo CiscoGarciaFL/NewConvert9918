@@ -37,6 +37,10 @@ file cannot be mistaken for an incomplete capture.
 
 ## Unconfirmed compatibility questions
 
+- The original histogram option delegates to ImgSource's undocumented
+  `IS40_BrightnessHistogramEqualizeImage` with a 32-224 range. The replacement
+  has an independently specified brightness-CDF implementation; focused
+  executable captures are still needed to determine whether its pixels differ.
 - The save code questions whether RLE TIFILES headers contain the wrong file
   size.
 - `.jpc` files are indexed by slideshow mode but have no matching reader in

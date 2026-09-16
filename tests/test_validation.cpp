@@ -1,5 +1,6 @@
 #include "newconvert9918/core/ColorMath.hpp"
 #include "newconvert9918/core/ConversionTypes.hpp"
+#include "newconvert9918/core/ImageAdjustments.hpp"
 #include "newconvert9918/core/ImageTransform.hpp"
 #include "newconvert9918/core/RgbImage.hpp"
 #include "newconvert9918/core/TargetData.hpp"
@@ -35,6 +36,7 @@ using newconvert9918::core::ImageLayout;
 using newconvert9918::core::ImageLayoutError;
 using newconvert9918::core::ImageSizeLimits;
 using newconvert9918::core::ImageFillMode;
+using newconvert9918::core::ImageAdjustmentError;
 using newconvert9918::core::ImageTransformError;
 using newconvert9918::core::ImageTransformOptions;
 using newconvert9918::core::PerceptualRgbWeights;
@@ -50,6 +52,7 @@ using newconvert9918::core::TargetMemoryTable;
 using newconvert9918::core::TargetTableError;
 using newconvert9918::core::TargetTableRole;
 using newconvert9918::core::bytesPerPixel;
+using newconvert9918::core::adjustImage;
 using newconvert9918::core::colorDistanceSquared;
 using newconvert9918::core::expectedTargetTables;
 using newconvert9918::core::planImageTransform;
@@ -259,6 +262,89 @@ void testColorMath(TestContext &test)
                     116.0,
                     1.0e-12,
                     "perceptual weights should scale squared differences, not channels");
+}
+
+void testImageAdjustments(TestContext &test)
+{
+    auto rgba = RgbImage::create(
+        {.width = 2, .height = 1, .pixelFormat = PixelFormat::Rgba8888, .rowStride = 10},
+        {0, 16, 64, 7, 128, 255, 32, 9, 201, 202});
+    test.expect(rgba.has_value(), "image-adjustment fixture should be created");
+
+    auto adjusted = adjustImage(*rgba, ConversionSettings{});
+    test.expect(static_cast<bool>(adjusted) && adjusted.image->bytes() == rgba->bytes(),
+                "default adjustments should copy every pixel and padding byte unchanged");
+
+    ConversionSettings settings;
+    settings.gamma = 2.0;
+    adjusted = adjustImage(*rgba, settings);
+    test.expect(static_cast<bool>(adjusted), "positive gamma should produce an image");
+    test.expect(adjusted.image->bytes()
+                    == std::vector<std::uint8_t>(
+                        {0, 63, 127, 7, 180, 255, 90, 9, 201, 202}),
+                "gamma should use the legacy inverse exponent and preserve alpha and padding");
+
+    settings.gamma = 0.5;
+    adjusted = adjustImage(*rgba, settings);
+    test.expect(static_cast<bool>(adjusted)
+                    && adjusted.image->bytes()[4] == 64
+                    && adjusted.image->bytes()[5] == 255
+                    && adjusted.image->bytes()[7] == 9,
+                "gamma below one should darken RGB without changing alpha");
+
+    auto greys = RgbImage::create(
+        {.width = 4, .height = 1, .pixelFormat = PixelFormat::Rgb888, .rowStride = 12},
+        {10, 10, 10, 20, 20, 20, 30, 30, 30, 40, 40, 40});
+    settings = ConversionSettings{};
+    settings.stretchHistogram = true;
+    adjusted = adjustImage(*greys, settings);
+    test.expect(static_cast<bool>(adjusted)
+                    && adjusted.image->bytes()
+                        == std::vector<std::uint8_t>(
+                            {32, 32, 32, 96, 96, 96, 160, 160, 160, 224, 224, 224}),
+                "histogram stretching should equalize brightness into the legacy 32-224 range");
+
+    auto colors = RgbImage::create(
+        {.width = 4, .height = 1, .pixelFormat = PixelFormat::Rgb888, .rowStride = 12},
+        {10, 20, 30, 60, 70, 80, 110, 120, 130, 160, 170, 180});
+    adjusted = adjustImage(*colors, settings);
+    test.expect(static_cast<bool>(adjusted)
+                    && adjusted.image->bytes()
+                        == std::vector<std::uint8_t>(
+                            {24, 34, 44, 88, 98, 108, 152, 162, 172, 216, 226, 236}),
+                "brightness stretching should preserve RGB channel differences when unclipped");
+
+    settings.gamma = 2.0;
+    adjusted = adjustImage(*greys, settings);
+    test.expect(static_cast<bool>(adjusted)
+                    && adjusted.image->bytes()
+                        == std::vector<std::uint8_t>(
+                            {90, 90, 90, 156, 156, 156, 201, 201, 201, 238, 238, 238}),
+                "histogram stretching should run before gamma correction");
+
+    auto flat = RgbImage::create(
+        {.width = 2, .height = 1, .pixelFormat = PixelFormat::Rgb888, .rowStride = 6},
+        {40, 50, 60, 40, 50, 60});
+    settings.gamma = 1.0;
+    adjusted = adjustImage(*flat, settings);
+    test.expect(static_cast<bool>(adjusted) && adjusted.image->bytes() == flat->bytes(),
+                "a single-valued brightness histogram should remain unchanged");
+
+    settings.gamma = 0.0;
+    adjusted = adjustImage(*flat, settings);
+    test.expect(!adjusted && adjusted.error == ImageAdjustmentError::InvalidGamma,
+                "image adjustment should reject invalid gamma without relying on prior validation");
+
+    settings = ConversionSettings{};
+    const ImageSizeLimits smallLimits{
+        .maximumWidth = 1,
+        .maximumHeight = 1,
+        .maximumPixels = 1,
+        .maximumBytes = 4,
+    };
+    adjusted = adjustImage(*flat, settings, smallLimits);
+    test.expect(!adjusted && adjusted.error == ImageAdjustmentError::OutputImageRejected,
+                "image adjustment should enforce output allocation limits");
 }
 
 void testRgbImage(TestContext &test)
@@ -984,6 +1070,7 @@ int main(int argc, char *argv[])
     TestContext test;
     testSettingsValidation(test);
     testColorMath(test);
+    testImageAdjustments(test);
     testRgbImage(test);
     testConversionTypes(test);
     testTargetData(test);
