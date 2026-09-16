@@ -1,3 +1,4 @@
+#include "newconvert9918/core/RgbImage.hpp"
 #include "newconvert9918/core/Validation.hpp"
 
 #include <QCoreApplication>
@@ -13,10 +14,18 @@
 #include <QSet>
 
 #include <iostream>
+#include <limits>
 #include <string_view>
 
 using newconvert9918::core::ConversionSettings;
+using newconvert9918::core::ImageLayout;
+using newconvert9918::core::ImageLayoutError;
+using newconvert9918::core::ImageSizeLimits;
+using newconvert9918::core::PixelFormat;
+using newconvert9918::core::RgbImage;
+using newconvert9918::core::bytesPerPixel;
 using newconvert9918::core::validate;
+using newconvert9918::core::validateImageLayout;
 
 namespace {
 
@@ -129,6 +138,91 @@ void testSettingsValidation(TestContext &test)
     issues = validate(settings);
     test.expect(issues.size() == 1 && issues.front().field == "maximumColorShiftPercent",
                 "color shift above 100 percent should produce one color-shift issue");
+}
+
+void testRgbImage(TestContext &test)
+{
+    test.expect(bytesPerPixel(PixelFormat::Rgb888) == 3,
+                "RGB888 should contain three bytes per pixel");
+    test.expect(bytesPerPixel(PixelFormat::Rgba8888) == 4,
+                "RGBA8888 should contain four bytes per pixel");
+    test.expect(validateImageLayout({0, 1, PixelFormat::Rgb888, 0}).error
+                    == ImageLayoutError::ZeroWidth,
+                "image width should be positive");
+    test.expect(validateImageLayout({1, 0, PixelFormat::Rgb888, 3}).error
+                    == ImageLayoutError::ZeroHeight,
+                "image height should be positive");
+    test.expect(validateImageLayout({1, 1, static_cast<PixelFormat>(255), 4}).error
+                    == ImageLayoutError::UnsupportedPixelFormat,
+                "unknown pixel formats should be rejected");
+
+    ImageLayoutError error = ImageLayoutError::DataSizeMismatch;
+    auto image = RgbImage::createTightlyPacked(2, 3, PixelFormat::Rgb888, {}, &error);
+    test.expect(image.has_value() && error == ImageLayoutError::None,
+                "a small tightly packed RGB image should be created");
+    test.expect(image->rowStride() == 6 && image->bytes().size() == 18,
+                "a tightly packed image should derive stride and byte size");
+    test.expect(image->row(2).size() == 6,
+                "an image row should expose the complete stored stride");
+
+    const ImageLayout paddedLayout{
+        .width = 2,
+        .height = 2,
+        .pixelFormat = PixelFormat::Rgb888,
+        .rowStride = 8,
+    };
+    image = RgbImage::create(paddedLayout, std::vector<std::uint8_t>(16), {}, &error);
+    test.expect(image.has_value() && image->minimumRowBytes() == 6
+                    && image->rowStride() == 8,
+                "RgbImage should preserve explicit row padding");
+
+    const ImageLayout shortStride{
+        .width = 2,
+        .height = 1,
+        .pixelFormat = PixelFormat::Rgba8888,
+        .rowStride = 7,
+    };
+    test.expect(validateImageLayout(shortStride).error == ImageLayoutError::RowStrideTooSmall,
+                "row stride must contain every pixel in a row");
+
+    const ImageSizeLimits smallLimits{
+        .maximumWidth = 4,
+        .maximumHeight = 4,
+        .maximumPixels = 8,
+        .maximumBytes = 32,
+    };
+    test.expect(validateImageLayout({5, 1, PixelFormat::Rgb888, 15}, smallLimits).error
+                    == ImageLayoutError::DimensionLimitExceeded,
+                "image dimensions should respect configured limits");
+    test.expect(validateImageLayout({4, 3, PixelFormat::Rgb888, 12}, smallLimits).error
+                    == ImageLayoutError::PixelLimitExceeded,
+                "image pixel count should respect configured limits");
+    test.expect(validateImageLayout({4, 2, PixelFormat::Rgba8888, 20}, smallLimits).error
+                    == ImageLayoutError::ByteLimitExceeded,
+                "image allocation size should respect configured limits");
+
+    image = RgbImage::create({2, 2, PixelFormat::Rgb888, 6},
+                             std::vector<std::uint8_t>(11),
+                             {},
+                             &error);
+    test.expect(!image.has_value() && error == ImageLayoutError::DataSizeMismatch,
+                "RgbImage should reject a buffer whose size does not match its layout");
+
+    const ImageSizeLimits overflowLimits{
+        .maximumWidth = std::numeric_limits<std::uint32_t>::max(),
+        .maximumHeight = std::numeric_limits<std::uint32_t>::max(),
+        .maximumPixels = std::numeric_limits<std::size_t>::max(),
+        .maximumBytes = std::numeric_limits<std::size_t>::max(),
+    };
+    const ImageLayout overflowingLayout{
+        .width = 1,
+        .height = 2,
+        .pixelFormat = PixelFormat::Rgb888,
+        .rowStride = std::numeric_limits<std::size_t>::max(),
+    };
+    test.expect(validateImageLayout(overflowingLayout, overflowLimits).error
+                    == ImageLayoutError::ByteSizeOverflow,
+                "row-stride multiplication should reject integer overflow");
 }
 
 void testCorpusManifest(TestContext &test, const QJsonObject &manifest)
@@ -437,6 +531,7 @@ int main(int argc, char *argv[])
     const QCoreApplication application(argc, argv);
     TestContext test;
     testSettingsValidation(test);
+    testRgbImage(test);
     const QJsonObject manifest = loadCorpusManifest();
     testCorpusManifest(test, manifest);
     testCorpusImages(test, manifest);

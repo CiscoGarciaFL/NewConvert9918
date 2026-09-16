@@ -1,4 +1,5 @@
 add_library(newconvert9918_core STATIC
+    RgbImage.cpp
     Validation.cpp
 )
 
@@ -14,4 +15,3 @@ if(MSVC)
 else()
     target_compile_options(newconvert9918_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
-
