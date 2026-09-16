@@ -145,6 +145,13 @@ difference exceeds `maximumMulticolorDifferencePercent` are rejected to bound
 visible flicker. The low-nibble color remains the first legacy output frame and
 the high-nibble color the second, each using the same 1536-byte hardware layout.
 
+Half Multicolor 9918A first selects a 4x4 multicolor underlay, then searches a
+two-color Graphics II overlay against the temporal average of both layers. It
+supports the shared ordered and error-distribution dither settings, retains the
+original one-sided squared-luminance flicker constraint, rotates the lower two
+bitmap table thirds for the display sequence, and writes the underlay into its
+sparse 2 KiB legacy address layout.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,
