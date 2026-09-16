@@ -1,0 +1,2209 @@
+{
+  "schema_version": 1,
+  "original": {
+    "application": "Convert9918",
+    "version": "1.9.1.0",
+    "repository_commit": "edbdf0f978d93ad4493e0a91ac1380752e8a082c",
+    "executable_sha256": "7a97a25cf58adcf55e81d714a62a51d1f65ff2298bd3ea6b05348415f17f0c9a"
+  },
+  "invocation": {
+    "syntax": "convert9918.exe <input> <output-base> /CtrlList=<mode-index>",
+    "export": "Applicable TIFILES tables plus command-line BMP preview when supported",
+    "conversion_mode_range": "1-8; mode 0 remains recorded in capture.json"
+  },
+  "settings": {
+    "PIXA": 2,
+    "PIXB": 2,
+    "PIXC": 2,
+    "PIXD": 2,
+    "PIXE": 1,
+    "PIXF": 1,
+    "order_slide": 0,
+    "filter": 4,
+    "power_paint": 0,
+    "portrait_mode": 0,
+    "perceptual": 0,
+    "cartoon": 0,
+    "accumulate_errors": 1,
+    "maximum_multicolor_difference": 95,
+    "maximum_color_shift_percent": 1,
+    "ordered_dither": 0,
+    "ordered_map_size": 2,
+    "perceptual_red": 0.3,
+    "perceptual_green": 0.52,
+    "perceptual_blue": 0.18,
+    "luma_emphasis": 1.2,
+    "gamma": 1.0,
+    "stretch_histogram": false,
+    "pixel_offset": 0,
+    "height_offset": 0
+  },
+  "modes": [
+    {
+      "conversion_mode_index": 1,
+      "conversion_mode": "Greyscale Bitmap 9918A",
+      "directory": "greyscale-bitmap-9918a",
+      "preview_available": true,
+      "table_payloads": [
+        {
+          "extension": "TIAP",
+          "role": "pattern",
+          "payload_size": 6144
+        },
+        {
+          "extension": "TIAC",
+          "role": "color",
+          "payload_size": 6144
+        }
+      ],
+      "captures": [
+        {
+          "source": "tests/golden/source/photo-landscape.png",
+          "source_sha256": "44e858cf043538125bbab7a817fb07bde3e1dcdd36720696b544c6774a8df8d7",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/photo-landscape/photo-landscape.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "e5bc0462a954ae61abb59dd1e12d3d99b93c8acf44056acbf209e800422a87cb"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/photo-landscape/PHOTO-LANDSCAPE.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "45e1540cf21f38cbb18fefd05b9cee48855c3ef2aa87d11a05385608ff17f359",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/photo-landscape/PHOTO-LANDSCAPE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "c189d297f8cf03b5b605f9b6ec828b0d9d6db4445e5eb53f78e95a1757401b7f",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/pixel-art-portrait.png",
+          "source_sha256": "5f1102b1953a5ea29e01d9e4ddc3e7aa93ae2839d6db3df089725e4b9fac3ddc",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/pixel-art-portrait/pixel-art-portrait.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "51ea35b7f0f8b427931892be14f842d8d751255c90b597a38c20f60ffdc80cc0"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "4c718880a9c73158bdb2f5a1b9ec9f421e115307d678700a8bd8967533d1b740",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "37dda5092d1b43c7c142375eefcf3e0d40b0e4b3fe2aeed1237c6bfbfc4aca05",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/flat-cartoon-square.png",
+          "source_sha256": "32a76eaa5516044c925e9205d61f4ded09547e68ec16bb45e483d4a64b08c352",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/flat-cartoon-square/flat-cartoon-square.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "8a7eeb56a9ac36bfae2f1c0067f5fc4c0437397e62450b9d2df45f2e8e764d9b"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "bed8e708408032ee10f68c0ec59b9cb3eae6d6d24f95446a9c3748c783504657",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "5f4f8a16305d3201d6cac86bbe5a066889a13bdee91ffea7ff04e0d2fd65712f",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/greyscale-gradient.png",
+          "source_sha256": "c1d4b1233021233392b7b4763fc8daa2bddfff5270885578fa6d430c510a4b57",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/greyscale-gradient/greyscale-gradient.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "bb0b16435b9a32bbf6f2b098ec18a9226048bd5e22e2655e9c078ca3a58223ca"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "6a03389aa09fe705375cfbe3d894eaff7f8b8aa574fcab4bbe78f9563ca2caab",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "67e412cd4747fb3d7c88001813b00ce5715a3f5a6c5669a51fc6694541cdca9d",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/black-white-pattern.png",
+          "source_sha256": "ab2998d9699132b2e9e238e9f93c6157b1834b5b659aa70091eb1dc10e5139d4",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/black-white-pattern/black-white-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "f22dcd9398318861ef748f9ec701389765c2644b237ceb1ff8b081636b56739b"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "412faf76f9973c77870519a3df8993577b2da11ce2a639a7c45a21692d635a18",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "1dfa6a5f7336a35d9607ac30a44262fc0c21a9e58fda36dc6b8f20044c1e5def",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/tiny-rgba.png",
+          "source_sha256": "bf9e02d079280ea9740c7c2a2e106230ec5e62454f85ca82c72b1536f4c44584",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/tiny-rgba/tiny-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "2042617200975d8aa8b2d5bcf4d1edbfd3b936036a126b2df1d7daa3b61ee751"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/tiny-rgba/TINY-RGBA.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "86a93c06f0ed844ac6a1b7344ce7a8d67901cb36ff70254b4e139c49e0ff5176",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/tiny-rgba/TINY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "549c878a2f60101bfdf43c807b2d558ea420ad454b1cd8aaf645b677de516fc6",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/transparency-rgba.png",
+          "source_sha256": "fbd066d449d25e618dffcc5127561e1242fb50dfe880f97d50a0ffbdd21e6346",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/transparency-rgba/transparency-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "f32a17dd356d93692ab44d2eb3ca04295b92ed357d5a65493013a120162541c2"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "871b73a54dee33d0c7eba9ced4df372553279ace7995c32fce53777857b3721f",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "c8046b77b156ded72fd1c4e774fddc5f6a109c49d7f6025f2130ca50013e1c05",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/large-pattern.png",
+          "source_sha256": "9c098b0d522b3ff7ecbf9a697c3324e8ab7b7fce7002c27819fd77331bc09447",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/large-pattern/large-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "b083a6b78c5680e882907c3afc9332f72a1efb8027dac974e7ac907f85af63e7"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/large-pattern/LARGE-PATTERN.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "100cdf6223f878a32b47a817a1f5473889f9c79b8a5476bc1a7798f1641f281c",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/greyscale-bitmap-9918a/default/large-pattern/LARGE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "8520ddf5787dfe0a1ceea309ebaee5dc987e7fc3c8321361027560c1d650369e",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conversion_mode_index": 2,
+      "conversion_mode": "B&W Bitmap 9918A",
+      "directory": "black-white-bitmap-9918a",
+      "preview_available": true,
+      "table_payloads": [
+        {
+          "extension": "TIAP",
+          "role": "pattern",
+          "payload_size": 6144
+        }
+      ],
+      "captures": [
+        {
+          "source": "tests/golden/source/photo-landscape.png",
+          "source_sha256": "44e858cf043538125bbab7a817fb07bde3e1dcdd36720696b544c6774a8df8d7",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/photo-landscape/photo-landscape.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "c57a5c938916681c4c394923b3504845f14f58bd405b53d8e665ad0e98915c45"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/photo-landscape/PHOTO-LANDSCAPE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "1c9165c543d6e73b419a492406064bbc4aca5ba3347e1998d83a5f52e960b0bf",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/pixel-art-portrait.png",
+          "source_sha256": "5f1102b1953a5ea29e01d9e4ddc3e7aa93ae2839d6db3df089725e4b9fac3ddc",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/pixel-art-portrait/pixel-art-portrait.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "a5a05f5d949f2568650b3d77287261cff2a1c52afef1a800c1cc4442abda591b"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "63bf2025d8eb2540a1c8572b3e80209815aa693036bd63c0f7090d412ae4b852",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/flat-cartoon-square.png",
+          "source_sha256": "32a76eaa5516044c925e9205d61f4ded09547e68ec16bb45e483d4a64b08c352",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/flat-cartoon-square/flat-cartoon-square.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "deb3844f33906ca3ac26d6c75fcac70b8c2bce7ad399b1b5d205164504b95918"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "4f1206f1072645d602e4c4db9888b3c5159c10d4071333bfd6f9072dbd3ecc22",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/greyscale-gradient.png",
+          "source_sha256": "c1d4b1233021233392b7b4763fc8daa2bddfff5270885578fa6d430c510a4b57",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/greyscale-gradient/greyscale-gradient.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "35d15a1a3c94a421f2ccc96eb82501febf5039e8530bf3c071bd8f10094fa7b0"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "d546eef2f26aa4d39e90f954d31e652d478b2e952868c8dde064957636f4460d",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/black-white-pattern.png",
+          "source_sha256": "ab2998d9699132b2e9e238e9f93c6157b1834b5b659aa70091eb1dc10e5139d4",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/black-white-pattern/black-white-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "9f6be44b277c3e10226d6ecd11a684226da540633b1a4d135a9cc33cbe616c23"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "7702f1bc343f48fba2e7c67ed8798c36fe954c47faf52eefa860ac7c05ae0170",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/tiny-rgba.png",
+          "source_sha256": "bf9e02d079280ea9740c7c2a2e106230ec5e62454f85ca82c72b1536f4c44584",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/tiny-rgba/tiny-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "a83fbfe71b4e76441a34d6fb61b6cc5b2bc504bd6bdd15f3e657ca65343fe8c7"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/tiny-rgba/TINY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "cb7569b3a8596201c1d0d73a16f56a9baddfc1ea26e5571604a937aa3a835f0a",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/transparency-rgba.png",
+          "source_sha256": "fbd066d449d25e618dffcc5127561e1242fb50dfe880f97d50a0ffbdd21e6346",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/transparency-rgba/transparency-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "7ec379af6422fd693ebc24c968a6b651896a141d1ee89a767bcb4e0b0b2f5814"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "09286aca8913bf7996f342de8e3e4b35d5b9d2517cc63458659351dd37fd4b3a",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/large-pattern.png",
+          "source_sha256": "9c098b0d522b3ff7ecbf9a697c3324e8ab7b7fce7002c27819fd77331bc09447",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/large-pattern/large-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "fd89aa69ee46d57233ab5c32d24abcdea7ad67433ce186538b823679dbc83cb2"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/black-white-bitmap-9918a/default/large-pattern/LARGE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "bfdb4c2e752b1453f233ae60da26967e040168f5877fc2751d84dd848a23d406",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conversion_mode_index": 3,
+      "conversion_mode": "Multicolor 9918",
+      "directory": "multicolor-9918",
+      "preview_available": true,
+      "table_payloads": [
+        {
+          "extension": "TIAP",
+          "role": "multicolor",
+          "payload_size": 1536
+        }
+      ],
+      "captures": [
+        {
+          "source": "tests/golden/source/photo-landscape.png",
+          "source_sha256": "44e858cf043538125bbab7a817fb07bde3e1dcdd36720696b544c6774a8df8d7",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/photo-landscape/photo-landscape.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "c6d61e910f45207d2b5351048cacc1105d45c82585b060fbbdeddd24aff870b5"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/photo-landscape/PHOTO-LANDSCAPE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "f3dfeb417319cd42450e6e4b25f55ea5537bb6fa76d8f75ca7e2dde4d7e40b14",
+              "role": "multicolor",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/pixel-art-portrait.png",
+          "source_sha256": "5f1102b1953a5ea29e01d9e4ddc3e7aa93ae2839d6db3df089725e4b9fac3ddc",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/pixel-art-portrait/pixel-art-portrait.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "a18f7491b316ad30fe6b763e88e740afa57b10717a0dda7f3c0240294e3e5e5d"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "6090d82eb0b152604fe17426df6f654ad6365a248f8204b27c4b1b0bdc7051d8",
+              "role": "multicolor",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/flat-cartoon-square.png",
+          "source_sha256": "32a76eaa5516044c925e9205d61f4ded09547e68ec16bb45e483d4a64b08c352",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/flat-cartoon-square/flat-cartoon-square.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "40d84341df4171233c150d4d375824a5d58beb2f8f36e78cd0f49284ec7bd533"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "68aea3d217b8f553be8a0df7b351320a92b1689055f1969fc58b6845e8932f24",
+              "role": "multicolor",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/greyscale-gradient.png",
+          "source_sha256": "c1d4b1233021233392b7b4763fc8daa2bddfff5270885578fa6d430c510a4b57",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/greyscale-gradient/greyscale-gradient.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "1d02abdd9d5097bf1ad128b6e57cb96df2e45384bd39dae0c075199b980d2006"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "70f5069f7f37eb61716d2bd10634a81dc925bbc00b1c87e403845f369fae3767",
+              "role": "multicolor",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/black-white-pattern.png",
+          "source_sha256": "ab2998d9699132b2e9e238e9f93c6157b1834b5b659aa70091eb1dc10e5139d4",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/black-white-pattern/black-white-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "c95c26e1e7c5a1aec70be544b86f985367ec3a12be269f5c53c65a3b3dca0958"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "4bbf0f61df3f298a4f94d5cc50eeccab62293f8a3bd64deb6e26d3df99b93a8b",
+              "role": "multicolor",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/tiny-rgba.png",
+          "source_sha256": "bf9e02d079280ea9740c7c2a2e106230ec5e62454f85ca82c72b1536f4c44584",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/tiny-rgba/tiny-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "aae0b04efe269082870a8e4297d914070f88081ac6ee87dc8314801b9fb4057a"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/tiny-rgba/TINY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "44a49ea94e3e4ecef12c5c9acdb715563ab1885b566b429091e51147fce6ccce",
+              "role": "multicolor",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/transparency-rgba.png",
+          "source_sha256": "fbd066d449d25e618dffcc5127561e1242fb50dfe880f97d50a0ffbdd21e6346",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/transparency-rgba/transparency-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "ce181cf9fe0312d1774fab3ad36f0b654c0677123cb78b56ffa3210c576041f5"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/transparency-rgba/TRANSPARENCY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "cfcf78b057397efb1ccafb25f85ebe3e0423873d88896fef1c0880fa4734578e",
+              "role": "multicolor",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/large-pattern.png",
+          "source_sha256": "9c098b0d522b3ff7ecbf9a697c3324e8ab7b7fce7002c27819fd77331bc09447",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/large-pattern/large-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "ee5a3aaca133dda4e3c31afbc9b87ea0a7abd7fafec3b93dc4b3602d271bdbbe"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/multicolor-9918/default/large-pattern/LARGE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "cc9fce0a8ed74ea3da81ab0162ebf4bd584ff257609890f0ce141d015555ab55",
+              "role": "multicolor",
+              "payload_size": 1536
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conversion_mode_index": 4,
+      "conversion_mode": "Dual-Multicolor (flicker) 9918",
+      "directory": "dual-multicolor-9918",
+      "preview_available": true,
+      "table_payloads": [
+        {
+          "extension": "TIAP",
+          "role": "multicolor-frame-1",
+          "payload_size": 1536
+        },
+        {
+          "extension": "TIAC",
+          "role": "multicolor-frame-2",
+          "payload_size": 1536
+        }
+      ],
+      "captures": [
+        {
+          "source": "tests/golden/source/photo-landscape.png",
+          "source_sha256": "44e858cf043538125bbab7a817fb07bde3e1dcdd36720696b544c6774a8df8d7",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/photo-landscape/photo-landscape.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "8871d7f55eb7b260f23147864acc1be061b8bc503d09d8caf823db752d6706ae"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/photo-landscape/PHOTO-LANDSCAPE.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 1664,
+              "sha256": "bdc159a118ba02b8d80c06fea3101acb7916bce692fe13436024465c5f75e45f",
+              "role": "multicolor-frame-2",
+              "payload_size": 1536
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/photo-landscape/PHOTO-LANDSCAPE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "1ef1d7bfa790a994517ca057419f70de850e2c2d891f7b5583ebcd892ab93ae3",
+              "role": "multicolor-frame-1",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/pixel-art-portrait.png",
+          "source_sha256": "5f1102b1953a5ea29e01d9e4ddc3e7aa93ae2839d6db3df089725e4b9fac3ddc",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/pixel-art-portrait/pixel-art-portrait.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "5b500a2074a4fa31c97a330afb038a85b1bd10c74235e0688d46af6d9d717b03"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 1664,
+              "sha256": "87f9cb1b3ecfa548b77f352d33ccc9e0a8aea713743712b83d5532056736ccaa",
+              "role": "multicolor-frame-2",
+              "payload_size": 1536
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "f0325278ee16222dff0a43d9131726b249d302f901b358c9f4e647d14407f9e5",
+              "role": "multicolor-frame-1",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/flat-cartoon-square.png",
+          "source_sha256": "32a76eaa5516044c925e9205d61f4ded09547e68ec16bb45e483d4a64b08c352",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/flat-cartoon-square/flat-cartoon-square.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "015564adbc9d0026ce1f849161ac627108b850f6ce6148473f33b006f13b6ae4"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 1664,
+              "sha256": "d88e3afb06f1670b3503a485c93a2d51746eca517ec0d8478ce3e58a8f7252cf",
+              "role": "multicolor-frame-2",
+              "payload_size": 1536
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "f3fcea615ec5e6c1b23486b404a42da8446ff1d6a8ac9bdfb49cd79705bc1726",
+              "role": "multicolor-frame-1",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/greyscale-gradient.png",
+          "source_sha256": "c1d4b1233021233392b7b4763fc8daa2bddfff5270885578fa6d430c510a4b57",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/greyscale-gradient/greyscale-gradient.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "8cf6e0a99339714a8d04da46892e7ce3b38e5406b17a97b099c3964dee529dac"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 1664,
+              "sha256": "6e141365c49ed8ae134de88ede00cf97d4e8bcdb9c26b4e0d988e9d8c89ec94e",
+              "role": "multicolor-frame-2",
+              "payload_size": 1536
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "9744eb9baefc6eab40329f51677de5d885429c88102debf3a0795ff994b39f9d",
+              "role": "multicolor-frame-1",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/black-white-pattern.png",
+          "source_sha256": "ab2998d9699132b2e9e238e9f93c6157b1834b5b659aa70091eb1dc10e5139d4",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/black-white-pattern/black-white-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "be7763ca17904759f6c852f25817d59d62f2549cb382be2eb66014e366c63c59"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 1664,
+              "sha256": "92523e49d0c026fe3ba427907e26fff0942768e342b66090c5da77b69e6d1a1c",
+              "role": "multicolor-frame-2",
+              "payload_size": 1536
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "6d4dbc925236f5674751d61780ce6e2db7ce5a573f4f27c6681cbd04e9e7933e",
+              "role": "multicolor-frame-1",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/tiny-rgba.png",
+          "source_sha256": "bf9e02d079280ea9740c7c2a2e106230ec5e62454f85ca82c72b1536f4c44584",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/tiny-rgba/tiny-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "13fb9ac6795823fd3293318b4bb3dc166a9bd2d29990fb15a3167ac54c7ca132"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/tiny-rgba/TINY-RGBA.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 1664,
+              "sha256": "44a9cd2076c56034866c25c8166ce15fd1a2a4784b6f3c346520e4986e030a08",
+              "role": "multicolor-frame-2",
+              "payload_size": 1536
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/tiny-rgba/TINY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "2e8c40c9786d74b07adea470ba111a471a09af73e05ba509233622790b3ab2c8",
+              "role": "multicolor-frame-1",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/transparency-rgba.png",
+          "source_sha256": "fbd066d449d25e618dffcc5127561e1242fb50dfe880f97d50a0ffbdd21e6346",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/transparency-rgba/transparency-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "70a8e2aaa0819a9f714f153d56a39bfc7d7a58e687bf94e94feed1777139e569"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/transparency-rgba/TRANSPARENCY-RGBA.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 1664,
+              "sha256": "5d72135fd6850301371f00e1559742a832321540c4a2f185539dfc7fb4f65a7f",
+              "role": "multicolor-frame-2",
+              "payload_size": 1536
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/transparency-rgba/TRANSPARENCY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "830fb0c067e7461fc94dbbcce9561652cb26799383a44e3b976ec78d9b884258",
+              "role": "multicolor-frame-1",
+              "payload_size": 1536
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/large-pattern.png",
+          "source_sha256": "9c098b0d522b3ff7ecbf9a697c3324e8ab7b7fce7002c27819fd77331bc09447",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/large-pattern/large-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "36a1960a12733420a50bd6a621392ab1407ded66fb1ce46d09dd7be1b64d3e80"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/large-pattern/LARGE-PATTERN.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 1664,
+              "sha256": "88b4bcc32c6586468f4710474da7beca1c05864238c62f4e15ecd0a5fbe6441d",
+              "role": "multicolor-frame-2",
+              "payload_size": 1536
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/dual-multicolor-9918/default/large-pattern/LARGE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 1664,
+              "sha256": "4bf54908528e56d3ed5ca200ba9f9fb729ea6c145493cdc5c7bd4aab45e72295",
+              "role": "multicolor-frame-1",
+              "payload_size": 1536
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conversion_mode_index": 5,
+      "conversion_mode": "Half-Multicolor (flicker) 9918A",
+      "directory": "half-multicolor-9918a",
+      "preview_available": true,
+      "table_payloads": [
+        {
+          "extension": "TIAP",
+          "role": "pattern",
+          "payload_size": 6144
+        },
+        {
+          "extension": "TIAC",
+          "role": "color",
+          "payload_size": 6144
+        },
+        {
+          "extension": "TIAM",
+          "role": "multicolor",
+          "payload_size": 2048
+        }
+      ],
+      "captures": [
+        {
+          "source": "tests/golden/source/photo-landscape.png",
+          "source_sha256": "44e858cf043538125bbab7a817fb07bde3e1dcdd36720696b544c6774a8df8d7",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/photo-landscape/photo-landscape.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "a0aa3a7334d4a7dd5637aa222c5370949ee0e22207afbbd5a2dc376a8dbc431f"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/photo-landscape/PHOTO-LANDSCAPE.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "3e9093f7d07e5ca3763893177d76bb0ef79c5e9f3a6047cc5db0ca865ebef50c",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/photo-landscape/PHOTO-LANDSCAPE.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 2176,
+              "sha256": "36aa1c4cd6f16113dba44315be64ba124774af7c4a391a914283977fe4d73cc6",
+              "role": "multicolor",
+              "payload_size": 2048
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/photo-landscape/PHOTO-LANDSCAPE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "2c95639c109480f5b925430648819bdc857f7cf57ec27d8eeccad71c9eb138c4",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/pixel-art-portrait.png",
+          "source_sha256": "5f1102b1953a5ea29e01d9e4ddc3e7aa93ae2839d6db3df089725e4b9fac3ddc",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/pixel-art-portrait/pixel-art-portrait.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "4f71b735971dd7953e58e98617923aaeb10a6018a69f1ad7efbe90f4680bc56b"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "de09c6a0f81acd58a87bc8883c4f4d773e344842f3e7b2df2c32ed6284d93511",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 2176,
+              "sha256": "2ca1817e56bbd46ed64c41d1df71a1bb0d2892d0da8d26a7f7931a99f70074af",
+              "role": "multicolor",
+              "payload_size": 2048
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "3a71ead5c007deaca1fa2f034464f626cd303e5d4f1136a237c1bf819f7da68d",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/flat-cartoon-square.png",
+          "source_sha256": "32a76eaa5516044c925e9205d61f4ded09547e68ec16bb45e483d4a64b08c352",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/flat-cartoon-square/flat-cartoon-square.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "884c490de47da076917788e53660e3bb087169027bd0fff52b0a782103fa8a41"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "66fcb1c28726c34c6a40b2f856cc454ab3245ee127ca73eb8f0128a39a7f8432",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 2176,
+              "sha256": "9ba45458f9859e067edd76788c8f6269fa02b5f3241a7891b9fc005f5d35f924",
+              "role": "multicolor",
+              "payload_size": 2048
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "37e69022fe0bd88fecf85c31629b37b55d9fcca8a3e7171c7135366ffc9a46f8",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/greyscale-gradient.png",
+          "source_sha256": "c1d4b1233021233392b7b4763fc8daa2bddfff5270885578fa6d430c510a4b57",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/greyscale-gradient/greyscale-gradient.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "e517166c698169b060013e5059e8812e23926fb5fb9aad7b70a9d6706967f231"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "e06b7a0c3c0a5fd6aedcfbc34586604ddfe9d0bf7c66388c01118fac9a61cede",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 2176,
+              "sha256": "4f62337289cd60f408afdd9ecb2dbddf0731dbb2861335c6273180fed143b5da",
+              "role": "multicolor",
+              "payload_size": 2048
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "838eafb8f3f86b70d95ca09ad2d5d5cdfad76c6cfe266a80f28c398ee70c294d",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/black-white-pattern.png",
+          "source_sha256": "ab2998d9699132b2e9e238e9f93c6157b1834b5b659aa70091eb1dc10e5139d4",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/black-white-pattern/black-white-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "9629a6bd78519e19a827a15ac7030c8ddec561b79fff6153a9b036a0e73a23e7"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "01b850f4dbc8c07f70289c5b39ff4b751ae91299f8b0719d317f1e872561d08c",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 2176,
+              "sha256": "4061f0f0f0721f74344ff439d148e92ac415223bb597c898acd90064fbe05685",
+              "role": "multicolor",
+              "payload_size": 2048
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "6e77bb48086975216cf01d37a2d01063a3b419933dd8068413994b67367b1d8e",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/tiny-rgba.png",
+          "source_sha256": "bf9e02d079280ea9740c7c2a2e106230ec5e62454f85ca82c72b1536f4c44584",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/tiny-rgba/tiny-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "7d7e3b090aa40b38cc0205809e7f045cdeb412baa0629e975e66dec17fb5ba66"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/tiny-rgba/TINY-RGBA.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "9881a67c146b2dabb51d714a2176081a49d2cd2d93425528d359c0a92289de1d",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/tiny-rgba/TINY-RGBA.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 2176,
+              "sha256": "4521439f35190bf41311afdad2ecc7a5a643f00268ef11bd99ad947b4c994ad7",
+              "role": "multicolor",
+              "payload_size": 2048
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/tiny-rgba/TINY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "78e67b48d3f698a97167b1e5a278e6f0bb26d7f983896dbc4cee3ba88a019f1c",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/transparency-rgba.png",
+          "source_sha256": "fbd066d449d25e618dffcc5127561e1242fb50dfe880f97d50a0ffbdd21e6346",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/transparency-rgba/transparency-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "91fa237e2ffc77bd0edac11217cc7c3e06ec8967677469eb2c9f9caaea2bccdf"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "0662047556136922b2248388e99c6e9f86abd3369aaad2964c1040d8bde8e3da",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 2176,
+              "sha256": "b63fe74818b958c36d865889e6f392b8b0e866411ac21395d631b61ddcb01515",
+              "role": "multicolor",
+              "payload_size": 2048
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "87f12b474587388d8625cab035df9670d3a6878f4e8f11679804c36c4e1642b3",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/large-pattern.png",
+          "source_sha256": "9c098b0d522b3ff7ecbf9a697c3324e8ab7b7fce7002c27819fd77331bc09447",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/large-pattern/large-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "224e47aea7e8108c87ccce914da8c82220d56121077f85a5a089fda2a116f56f"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/large-pattern/LARGE-PATTERN.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "dfee9b048a812e54cf03e7815e8499501811947caf9a3493803eeeb50c304a05",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/large-pattern/LARGE-PATTERN.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 2176,
+              "sha256": "8ec77c5e54dec9dc37d45405e3c4dfb64d0de7b95c363021ecc3f5e79301e45b",
+              "role": "multicolor",
+              "payload_size": 2048
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/half-multicolor-9918a/default/large-pattern/LARGE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "ed23d1033745bacf10273e63b32ad25fa34031bdf78cb7275137ef6f2fa9bd5b",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conversion_mode_index": 6,
+      "conversion_mode": "Bitmap color only 9918A",
+      "directory": "bitmap-color-only-9918a",
+      "preview_available": true,
+      "table_payloads": [
+        {
+          "extension": "TIAP",
+          "role": "fixed-pattern",
+          "payload_size": 6144
+        },
+        {
+          "extension": "TIAC",
+          "role": "color",
+          "payload_size": 6144
+        }
+      ],
+      "captures": [
+        {
+          "source": "tests/golden/source/photo-landscape.png",
+          "source_sha256": "44e858cf043538125bbab7a817fb07bde3e1dcdd36720696b544c6774a8df8d7",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/photo-landscape/photo-landscape.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "ed89632e58947bb1b6ddfc26796312f68d9e88680c00c24ea2fdc6a8eff94240"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/photo-landscape/PHOTO-LANDSCAPE.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "3867a7d9f87bed764d38e4dfe046e34f53c199a80a170ef224be8a36ae909a8f",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/photo-landscape/PHOTO-LANDSCAPE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "6e84a22adc3897ee89ccf1468d528d2cd5b35dd73b931460af2c83b45da2ab0b",
+              "role": "fixed-pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/pixel-art-portrait.png",
+          "source_sha256": "5f1102b1953a5ea29e01d9e4ddc3e7aa93ae2839d6db3df089725e4b9fac3ddc",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/pixel-art-portrait/pixel-art-portrait.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "e74b31f112035067f3e903cd4d0b56f93117b283c1fdfdd6a9312fd85ff0fce5"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "6a8a687faece8cab680dc5cb14db1a653eb6882bd889d12bf29f9a3bb412416d",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "6e84a22adc3897ee89ccf1468d528d2cd5b35dd73b931460af2c83b45da2ab0b",
+              "role": "fixed-pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/flat-cartoon-square.png",
+          "source_sha256": "32a76eaa5516044c925e9205d61f4ded09547e68ec16bb45e483d4a64b08c352",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/flat-cartoon-square/flat-cartoon-square.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "c6dc399c7129e872292d6425d9fc62487563ae839cf28560a80c42a7d4917fdd"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "a2697a443a9a0291f3c4ff6fd2d4ff9cb4218df287670409462c5221d7f7188f",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "6e84a22adc3897ee89ccf1468d528d2cd5b35dd73b931460af2c83b45da2ab0b",
+              "role": "fixed-pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/greyscale-gradient.png",
+          "source_sha256": "c1d4b1233021233392b7b4763fc8daa2bddfff5270885578fa6d430c510a4b57",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/greyscale-gradient/greyscale-gradient.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "f593203a2cbda8cc9ca8028c6f001d267d651fbaa4cfe9e9dc36a08ca8edf04e"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "f11d5169afd8ab3854ceb1006f6437805a84ec59cd86dcb76a16d0d508409031",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "6e84a22adc3897ee89ccf1468d528d2cd5b35dd73b931460af2c83b45da2ab0b",
+              "role": "fixed-pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/black-white-pattern.png",
+          "source_sha256": "ab2998d9699132b2e9e238e9f93c6157b1834b5b659aa70091eb1dc10e5139d4",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/black-white-pattern/black-white-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "cf0ef28f383ef1a9c5e4f7fe4bc996e29f131b53725e9eb0b5a22668d0fa4de3"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "a204fd7cdb35f7f8307371bc3c4703090ac862d9eea210987c6e6394dfdd5d3a",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "6e84a22adc3897ee89ccf1468d528d2cd5b35dd73b931460af2c83b45da2ab0b",
+              "role": "fixed-pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/tiny-rgba.png",
+          "source_sha256": "bf9e02d079280ea9740c7c2a2e106230ec5e62454f85ca82c72b1536f4c44584",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/tiny-rgba/tiny-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "630a0ed086fbd120ef456f9230e3d208a8224cc6a7d450b45150d734abda737c"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/tiny-rgba/TINY-RGBA.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "522e29640b87a13c3ccc9626f1118e6d7008a4b3aa25425581b1e88097b85a07",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/tiny-rgba/TINY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "6e84a22adc3897ee89ccf1468d528d2cd5b35dd73b931460af2c83b45da2ab0b",
+              "role": "fixed-pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/transparency-rgba.png",
+          "source_sha256": "fbd066d449d25e618dffcc5127561e1242fb50dfe880f97d50a0ffbdd21e6346",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/transparency-rgba/transparency-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "090550c2e82cc17a393359c6c5af10759f9a801714344899098fe4964ddb1392"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "380f2ee56e1beebff8bda573cf426993b0aa884cafc961fdda8d412a8739c40f",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "6e84a22adc3897ee89ccf1468d528d2cd5b35dd73b931460af2c83b45da2ab0b",
+              "role": "fixed-pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/large-pattern.png",
+          "source_sha256": "9c098b0d522b3ff7ecbf9a697c3324e8ab7b7fce7002c27819fd77331bc09447",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/large-pattern/large-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "d7b50b1ec2d85dca8e85296e22577701ce3be0907906375a75254a67e7c10693"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/large-pattern/LARGE-PATTERN.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "1e3c0ba134d7785e6ce8842fca5307bb78517114846598452f24851aecd44cfc",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/bitmap-color-only-9918a/default/large-pattern/LARGE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "6e84a22adc3897ee89ccf1468d528d2cd5b35dd73b931460af2c83b45da2ab0b",
+              "role": "fixed-pattern",
+              "payload_size": 6144
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conversion_mode_index": 7,
+      "conversion_mode": "Paletted Bitmap F18A",
+      "directory": "paletted-bitmap-f18a",
+      "preview_available": true,
+      "table_payloads": [
+        {
+          "extension": "TIAP",
+          "role": "pattern",
+          "payload_size": 6144
+        },
+        {
+          "extension": "TIAC",
+          "role": "color",
+          "payload_size": 6144
+        },
+        {
+          "extension": "TIAM",
+          "role": "palette",
+          "payload_size": 32
+        }
+      ],
+      "captures": [
+        {
+          "source": "tests/golden/source/photo-landscape.png",
+          "source_sha256": "44e858cf043538125bbab7a817fb07bde3e1dcdd36720696b544c6774a8df8d7",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/photo-landscape/photo-landscape.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "f2cc1763a7edd0f4f45f2d8f572f2dea5eb67e7297f4c878b0995f4249225ae2"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/photo-landscape/PHOTO-LANDSCAPE.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "0d0a1ea6c859213d322d615a7939402cf85a905b57f16fcd7cbdb324aa29832b",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/photo-landscape/PHOTO-LANDSCAPE.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 160,
+              "sha256": "ad32e0632280aa1c7ea885e539b590a883c304127e4d3faf58df2d791cb1e6df",
+              "role": "palette",
+              "payload_size": 32
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/photo-landscape/PHOTO-LANDSCAPE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "c61806e1c1b63a0872920f51c48421b5de9c08fa2c31b8c7d77ca63defc149d9",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/pixel-art-portrait.png",
+          "source_sha256": "5f1102b1953a5ea29e01d9e4ddc3e7aa93ae2839d6db3df089725e4b9fac3ddc",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/pixel-art-portrait/pixel-art-portrait.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "d78755b10b49ac6ade9b664e11af474d3e69ed86903afac2ee7467acb697264d"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "6be793b3a8e340a880d10ac83abb9f77db1c629d8c21d3b3b53c7c6a8c0cc78a",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 160,
+              "sha256": "2be40b88a9441465db41f9e39e6d1e54c72fef4e91806cf54124ac7b184525c8",
+              "role": "palette",
+              "payload_size": 32
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "b613a38d54f1d244042ed72c661f0c8e1cc0b737592bd38d07f695f19c28ef94",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/flat-cartoon-square.png",
+          "source_sha256": "32a76eaa5516044c925e9205d61f4ded09547e68ec16bb45e483d4a64b08c352",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/flat-cartoon-square/flat-cartoon-square.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "2d5835b0e29c14361a855d0faab4a999e5b88fb531449227dac60fde36084bc8"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "e22c922607f2037c40aa1d773c81850183f700b91bceca3845733c697d918ebc",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 160,
+              "sha256": "861c96189bbc1b017312f1fe1fdd2b25b94469bf095a564a9e9b9d169faf8312",
+              "role": "palette",
+              "payload_size": 32
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "8646806d7cdac8f0bd125389ab9618340fff41bae2ceb5c869adfd9ba0b5778c",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/greyscale-gradient.png",
+          "source_sha256": "c1d4b1233021233392b7b4763fc8daa2bddfff5270885578fa6d430c510a4b57",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/greyscale-gradient/greyscale-gradient.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "d14e60c4ac1e76fc93c807f92f23d406f24a76418b68a3b3f846122a5e126e81"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "b0db8f700c09ac57b3d952e4af629a14e3847ce28edfec4a655deedc0f295bbe",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 160,
+              "sha256": "b232fbee04f0b873b73a770d9ce798dbc6974060035ab9cb27bebed153f3e1b5",
+              "role": "palette",
+              "payload_size": 32
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "37f0ad473893991274eeab1fad09c940c7cd9c2528da316d13b7438fc74c4c98",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/black-white-pattern.png",
+          "source_sha256": "ab2998d9699132b2e9e238e9f93c6157b1834b5b659aa70091eb1dc10e5139d4",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/black-white-pattern/black-white-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "e6faf908a9e37f32647d3871aacd68880fee8ec0432356a5d585eead83ff5cc3"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "4d896aa74b89f745509b19a6431d5597dbac86c2f65f08d5d5d8cff013b4d3ad",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 160,
+              "sha256": "a22b61808202c3a0e8532e571cd12f8bca6e10dbb8e06489e773122fa80fb983",
+              "role": "palette",
+              "payload_size": 32
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "e8536f9c3ae6f53ed58ca0bc6a00fe3d9eb27da55cb8ab4dae95375fff9ddb1c",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/tiny-rgba.png",
+          "source_sha256": "bf9e02d079280ea9740c7c2a2e106230ec5e62454f85ca82c72b1536f4c44584",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/tiny-rgba/tiny-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "d996844f341943a1f3cc2a15dd51b747d0ccc47c8ec4ce928de2c4c3c57c177c"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/tiny-rgba/TINY-RGBA.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "cb036b1e674ee6d3884c9c76492c012a48ff06eeadced8c807e923b7b6167ad4",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/tiny-rgba/TINY-RGBA.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 160,
+              "sha256": "c227d582d43ffd88ee0cace63cda50f422596f6a32926d8f2ed51551e8d853fe",
+              "role": "palette",
+              "payload_size": 32
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/tiny-rgba/TINY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "af950a08283db3d2f9bccd481215518ce121877f8c2c470aa9a1e8ca916c7e95",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/transparency-rgba.png",
+          "source_sha256": "fbd066d449d25e618dffcc5127561e1242fb50dfe880f97d50a0ffbdd21e6346",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/transparency-rgba/transparency-rgba.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "0a29172140bb91a35037e342b40f8e6c71424e0c995ae73a7a5d78ee3d52a261"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "874cbf547926bac022de9dd544abab9a98e34e48f4bd7a04506a6c1aa7812b5c",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 160,
+              "sha256": "d1733f2f28f8443f84b3fdb1c9b03be8d0404b53ecb0b315f589b8d08e6fe3f4",
+              "role": "palette",
+              "payload_size": 32
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "857be7b64bdb3305b05eaa2f544bc16c9f6a4bb57b2fd8a9fcd01954e7fb208c",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/large-pattern.png",
+          "source_sha256": "9c098b0d522b3ff7ecbf9a697c3324e8ab7b7fce7002c27819fd77331bc09447",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/large-pattern/large-pattern.BMP",
+              "kind": "preview",
+              "extension": "BMP",
+              "size": 50230,
+              "sha256": "74cbd23d1fdd037b6da980e1b5eb89222d7fefc2f0b0e5d877e0c0e9653a2a9a"
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/large-pattern/LARGE-PATTERN.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "fd2684c47a842e8fa66f1232c94268cab8bde91f556956a178de63c549ad9190",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/large-pattern/LARGE-PATTERN.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 160,
+              "sha256": "6dfd983b4f6572534d0afd6a3905541c44c3215e12e4195a59186fac601bc768",
+              "role": "palette",
+              "payload_size": 32
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/paletted-bitmap-f18a/default/large-pattern/LARGE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "112f59cde9855d1e7ef77442230b698223bea335d0a1febbe0a72bca57d02399",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conversion_mode_index": 8,
+      "conversion_mode": "Scanline Palette Bitmap F18A",
+      "directory": "scanline-palette-bitmap-f18a",
+      "preview_available": false,
+      "table_payloads": [
+        {
+          "extension": "TIAP",
+          "role": "pattern",
+          "payload_size": 6144
+        },
+        {
+          "extension": "TIAC",
+          "role": "color",
+          "payload_size": 6144
+        },
+        {
+          "extension": "TIAM",
+          "role": "scanline-palettes",
+          "payload_size": 6144
+        }
+      ],
+      "captures": [
+        {
+          "source": "tests/golden/source/photo-landscape.png",
+          "source_sha256": "44e858cf043538125bbab7a817fb07bde3e1dcdd36720696b544c6774a8df8d7",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/photo-landscape/PHOTO-LANDSCAPE.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "75d5a1e56704d7c1010e8c21ef63060dabc9d71717a72216a4ad58acedf67afe",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/photo-landscape/PHOTO-LANDSCAPE.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 6272,
+              "sha256": "ed5d8198d8e59ca78f9303c050f6a4ac12d45750301b3f9d8a545575f9cf9a7e",
+              "role": "scanline-palettes",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/photo-landscape/PHOTO-LANDSCAPE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "674568d6d0ee40dbe1298cb7362069342e7591b8acadd024ea02a2a7ffc40d9b",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/pixel-art-portrait.png",
+          "source_sha256": "5f1102b1953a5ea29e01d9e4ddc3e7aa93ae2839d6db3df089725e4b9fac3ddc",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "5ab8e1f2d7bfd5c88b0a20219f53764e257fc8d6ea9c28eeccd1605b843ae0de",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 6272,
+              "sha256": "4523d2ec0bb6bf629a3983eccca580445741c628f95e711fc2912ee65f918db6",
+              "role": "scanline-palettes",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/pixel-art-portrait/PIXEL-ART-PORTRAIT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "f25522686f883b7d323ef64cdfa7c004806c2224158d2556b6f9069850852960",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/flat-cartoon-square.png",
+          "source_sha256": "32a76eaa5516044c925e9205d61f4ded09547e68ec16bb45e483d4a64b08c352",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "ae6ee8b4c274e28bf5619f2cb6c2c9df91a9e7a5358182b393b390525cdeff73",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 6272,
+              "sha256": "1de7f72ddd0f5fd2216b277a553fcfbffd7441c0c16cddaa9d2a0a6a92c83264",
+              "role": "scanline-palettes",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/flat-cartoon-square/FLAT-CARTOON-SQUARE.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "6c0e60a61bf39c70759cd941af4df63dae0f4b68b7ad2d9b7536d3fefc465e9d",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/greyscale-gradient.png",
+          "source_sha256": "c1d4b1233021233392b7b4763fc8daa2bddfff5270885578fa6d430c510a4b57",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "93c6c7a5d86f044622765aa96b3bd909ac319620961690ea3a68aba064fa776f",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 6272,
+              "sha256": "dbb2451881cdd9af6ae5aac38a3077cc2cb009469f2addccc4bb6ed3fed51221",
+              "role": "scanline-palettes",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/greyscale-gradient/GREYSCALE-GRADIENT.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "17d6b8e14429473142e9390a92751460275c138c5d2dfce34575b9117d7f0881",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/black-white-pattern.png",
+          "source_sha256": "ab2998d9699132b2e9e238e9f93c6157b1834b5b659aa70091eb1dc10e5139d4",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "bd72179c851872955865a6b5ae6c720664f855a4fc4e45236b45e79897537ab6",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 6272,
+              "sha256": "90373eef6f3023426290132f4204ba81e73a9b422385ae2b39d3f161571e4ff6",
+              "role": "scanline-palettes",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/black-white-pattern/BLACK-WHITE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "e8d2022b8af5497ccfc905fb80fb150688d98c4daaf2da87e0cf5de55488ad89",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/tiny-rgba.png",
+          "source_sha256": "bf9e02d079280ea9740c7c2a2e106230ec5e62454f85ca82c72b1536f4c44584",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/tiny-rgba/TINY-RGBA.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "dcf494ee8020e76e678fa7f9135dc6f2e54f50ee4c82ab9d4fd4626c93c9bee8",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/tiny-rgba/TINY-RGBA.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 6272,
+              "sha256": "fae66cde49261ff2299a2fa85cd2f3521a7b9c20fb164a756b564022c7fd5299",
+              "role": "scanline-palettes",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/tiny-rgba/TINY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "65fc16e18d47c1e8da9a5674f724a35295ffea9bbb133649661bbc1c12c6abe1",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/transparency-rgba.png",
+          "source_sha256": "fbd066d449d25e618dffcc5127561e1242fb50dfe880f97d50a0ffbdd21e6346",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "72b84902ea7f3daf5180d0184f5349b2d768bbb432e9aa5f00ac0db5c5a5e7fe",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 6272,
+              "sha256": "40f413ed7bd16252b93a327793735d334f1802fb88e2e0987350e1166b1c8e22",
+              "role": "scanline-palettes",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/transparency-rgba/TRANSPARENCY-RGBA.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "2bf48f3a6f6ed4fd978716016854ce8cadbe53a8aa4e6af49b671dc9727caf70",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        },
+        {
+          "source": "tests/golden/source/large-pattern.png",
+          "source_sha256": "9c098b0d522b3ff7ecbf9a697c3324e8ab7b7fce7002c27819fd77331bc09447",
+          "outputs": [
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/large-pattern/LARGE-PATTERN.TIAC",
+              "kind": "table",
+              "extension": "TIAC",
+              "size": 6272,
+              "sha256": "689d4727c4b893d4d8a03a26a8b6b333fd3fba52bd5e5045fff9c98c9e8c0f90",
+              "role": "color",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/large-pattern/LARGE-PATTERN.TIAM",
+              "kind": "table",
+              "extension": "TIAM",
+              "size": 6272,
+              "sha256": "35f37762f3ea84be3175c78f7d0b9bdda0dbd825ca29b974399f222d9633c7dc",
+              "role": "scanline-palettes",
+              "payload_size": 6144
+            },
+            {
+              "path": "tests/golden/reference/original-1_9_1/scanline-palette-bitmap-f18a/default/large-pattern/LARGE-PATTERN.TIAP",
+              "kind": "table",
+              "extension": "TIAP",
+              "size": 6272,
+              "sha256": "af1b93089282dfa128058c90610b4ce2bbf44be275d5daae1759b10769f7d8dc",
+              "role": "pattern",
+              "payload_size": 6144
+            }
+          ]
+        }
+      ],
+      "preview_note": "The original command-line path suppresses BMP output for per-scanline palettes."
+    }
+  ]
+}

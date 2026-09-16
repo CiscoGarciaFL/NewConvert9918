@@ -85,6 +85,8 @@ improvement.
   checks.
 - [x] Captured the original 1.9.1 default Bitmap 9918A preview and TIFILES
   tables for all eight valid source fixtures.
+- [x] Captured the remaining eight conversion modes with every applicable
+  command-line TIFILES table and BMP preview for all eight valid sources.
 
 ### Development environment
 
@@ -189,6 +191,8 @@ target operating systems.
 - [ ] Capture original preview images and every applicable binary export.
 - [x] Capture default Bitmap 9918A previews plus TIFILES pattern and color
   tables for every valid source image.
+- [x] Capture the remaining conversion modes with their applicable TIFILES
+  pattern, color, multicolor, and palette tables for every valid source.
 - [x] Record the original settings alongside each expected output.
 - [x] Decide whether golden assets may be committed publicly.
 - [x] Document known original defects separately from compatibility behavior.
@@ -425,8 +429,10 @@ When opening this project again:
 10. [x] Select and license the representative Phase 2 source-image corpus.
 11. [x] Capture default Bitmap 9918A previews and TIFILES exports from the
     original Windows executable for each valid corpus image.
-12. [ ] Expand reference capture across the remaining conversion modes and
-    applicable export formats.
+12. [x] Expand command-line reference capture across the remaining conversion
+    modes and their applicable TIFILES outputs.
+13. [ ] Capture applicable non-TIFILES export formats through a controlled,
+    reproducible Windows UI workflow.
 
 Suggested opening prompt:
 

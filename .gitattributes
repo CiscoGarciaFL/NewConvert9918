@@ -3,4 +3,5 @@
 tests/golden/**/*.png -text -diff
 tests/golden/reference/**/*.BMP -text -diff
 tests/golden/reference/**/*.TIAC -text -diff
+tests/golden/reference/**/*.TIAM -text -diff
 tests/golden/reference/**/*.TIAP -text -diff
