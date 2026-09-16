@@ -4,12 +4,14 @@
 #include "newconvert9918/core/Dithering.hpp"
 #include "newconvert9918/core/Validation.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -54,6 +56,20 @@ RgbSample sourceSample(const RgbImage& source, std::uint32_t x, std::uint32_t y)
         static_cast<double>(row[offset + 1]),
         static_cast<double>(row[offset + 2]),
     };
+}
+
+RgbSample greyscaleSourceSample(RgbSample source,
+                                const ConversionSettings& settings)
+{
+    double luminanceValue = luminance(source);
+    if (settings.perceptualColorMatching) {
+        luminanceValue = source.red * settings.perceptualRedWeight
+            + source.green * settings.perceptualGreenWeight
+            + source.blue * settings.perceptualBlueWeight + 0.5;
+    }
+    luminanceValue = std::clamp(luminanceValue, 0.0, 255.0);
+    const double grey = static_cast<double>(static_cast<int>(luminanceValue));
+    return {grey, grey, grey};
 }
 
 double rgbDistanceSquared(RgbSample left, RgbColor right)
@@ -284,32 +300,51 @@ Palette defaultBitmap9918Palette()
     return std::move(*palette);
 }
 
-ConversionResult convertBitmap9918(const RgbImage& source,
-                                   const Palette& workingPalette,
-                                   const ConversionSettings& settings)
+Palette greyscaleBitmap9918Palette(const Palette& colorPalette)
 {
-    if (settings.mode != ConversionMode::Bitmap9918) {
-        return failure("bitmap9918-wrong-mode",
-                       "Bitmap 9918A conversion requires Bitmap9918 mode.");
+    std::vector<RgbColor> colors;
+    colors.reserve(colorPalette.size());
+    for (const RgbColor color : colorPalette.colors()) {
+        const int luminanceValue = static_cast<int>(
+            color.blue * 0.0722 + color.green * 0.7152 + color.red * 0.2126);
+        const auto grey = static_cast<std::uint8_t>(luminanceValue);
+        colors.push_back({grey, grey, grey});
+    }
+    return std::move(*Palette::create(std::move(colors)));
+}
+
+namespace {
+
+ConversionResult convertBitmap9918Impl(const RgbImage& source,
+                                       const Palette& workingPalette,
+                                       const ConversionSettings& settings,
+                                       ConversionMode requiredMode,
+                                       bool greyscaleSource,
+                                       std::string_view diagnosticPrefix)
+{
+    const std::string codePrefix(diagnosticPrefix);
+    if (settings.mode != requiredMode) {
+        return failure(codePrefix + "-wrong-mode",
+                       "The requested Bitmap 9918A converter does not match the selected mode.");
     }
     if (!validate(settings).empty()) {
-        return failure("bitmap9918-invalid-settings",
+        return failure(codePrefix + "-invalid-settings",
                        "Bitmap 9918A conversion settings are invalid.");
     }
     if (settings.targetWidth != static_cast<int>(bitmapWidth)
         || settings.targetHeight != static_cast<int>(bitmapHeight)
         || source.width() != bitmapWidth || source.height() != bitmapHeight) {
-        return failure("bitmap9918-invalid-dimensions",
+        return failure(codePrefix + "-invalid-dimensions",
                        "Bitmap 9918A conversion requires a 256x192 source and target.");
     }
     if (workingPalette.size() != workingColorCount) {
-        return failure("bitmap9918-invalid-palette",
+        return failure(codePrefix + "-invalid-palette",
                        "Bitmap 9918A conversion requires fifteen working colors.");
     }
 
     const auto dithering = ditherConfiguration(settings.dither);
     if (!dithering) {
-        return failure("bitmap9918-invalid-dither",
+        return failure(codePrefix + "-invalid-dither",
                        "Bitmap 9918A conversion received an unsupported dither mode.");
     }
 
@@ -317,7 +352,7 @@ ConversionResult convertBitmap9918(const RgbImage& source,
     if (dithering->distributeError) {
         errors = ErrorDiffusionBuffer::create(bitmapWidth, bitmapHeight);
         if (!errors) {
-            return failure("bitmap9918-error-buffer",
+            return failure(codePrefix + "-error-buffer",
                            "The Bitmap 9918A error buffer could not be allocated.");
         }
     }
@@ -352,8 +387,12 @@ ConversionResult convertBitmap9918(const RgbImage& source,
             std::array<RgbSample, 8> desired{};
             for (std::uint32_t bit = 0; bit < 8; ++bit) {
                 const std::uint32_t x = blockX + bit;
+                RgbSample input = sourceSample(source, x, y);
+                if (greyscaleSource) {
+                    input = greyscaleSourceSample(input, settings);
+                }
                 RgbSample sample = shiftTowardPalette(
-                    sourceSample(source, x, y),
+                    input,
                     workingPalette,
                     settings.maximumColorShiftPercent);
                 if (!bypassIncomingDither(sample)) {
@@ -428,13 +467,13 @@ ConversionResult convertBitmap9918(const RgbImage& source,
 
     auto preview = makePreview(indexed, workingPalette);
     if (!preview) {
-        return failure("bitmap9918-preview-allocation",
+        return failure(codePrefix + "-preview-allocation",
                        "The Bitmap 9918A preview could not be allocated.");
     }
 
     auto [patterns, colors] = encodeTables(indexed);
     TargetMemoryImage target{
-        .mode = ConversionMode::Bitmap9918,
+        .mode = requiredMode,
         .palette = std::nullopt,
         .tables = {
             {TargetTableRole::Pattern, std::move(patterns)},
@@ -447,6 +486,36 @@ ConversionResult convertBitmap9918(const RgbImage& source,
         .diagnostics = {},
         .target = std::move(target),
     };
+}
+
+} // namespace
+
+ConversionResult convertBitmap9918(const RgbImage& source,
+                                   const Palette& workingPalette,
+                                   const ConversionSettings& settings)
+{
+    return convertBitmap9918Impl(source,
+                                 workingPalette,
+                                 settings,
+                                 ConversionMode::Bitmap9918,
+                                 false,
+                                 "bitmap9918");
+}
+
+ConversionResult convertGreyscaleBitmap9918(const RgbImage& source,
+                                            const Palette& workingPalette,
+                                            const ConversionSettings& settings)
+{
+    if (workingPalette.size() != workingColorCount) {
+        return failure("greyscale-bitmap9918-invalid-palette",
+                       "Greyscale Bitmap 9918A conversion requires fifteen working colors.");
+    }
+    return convertBitmap9918Impl(source,
+                                 greyscaleBitmap9918Palette(workingPalette),
+                                 settings,
+                                 ConversionMode::GreyscaleBitmap9918,
+                                 true,
+                                 "greyscale-bitmap9918");
 }
 
 } // namespace newconvert9918::core
