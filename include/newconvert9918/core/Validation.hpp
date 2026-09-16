@@ -1,6 +1,7 @@
 #pragma once
 
 #include "newconvert9918/core/ConversionSettings.hpp"
+#include "newconvert9918/core/ConversionTypes.hpp"
 
 #include <string>
 #include <vector>
@@ -15,5 +16,7 @@ struct ValidationIssue {
 [[nodiscard]] std::vector<ValidationIssue>
 validate(const ConversionSettings& settings);
 
-} // namespace newconvert9918::core
+[[nodiscard]] std::vector<ValidationIssue>
+validate(const ConversionRequest& request);
 
+} // namespace newconvert9918::core

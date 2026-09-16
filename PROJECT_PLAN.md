@@ -92,6 +92,8 @@ improvement.
   explicitly broken ColecoVision RLE cartridge writer as excluded.
 - [x] Added the portable `RgbImage` buffer contract with RGB/RGBA formats,
   explicit stride semantics, checked size arithmetic, and allocation limits.
+- [x] Defined the shared conversion request/result boundary and structured
+  information, warning, and error diagnostics.
 
 ### Development environment
 
@@ -210,7 +212,7 @@ visual memory or subjective comparison.
 - [x] Define the initial conversion-mode and dither-mode enums.
 - [x] Define initial conversion settings and validation.
 - [x] Define `RgbImage`, pixel format, row stride, and size-limit rules.
-- [ ] Define `ConversionRequest`, `ConversionResult`, and diagnostic types.
+- [x] Define `ConversionRequest`, `ConversionResult`, and diagnostic types.
 - [ ] Define palette and target-memory-table types.
 - [ ] Implement scaling/crop positioning independently from conversion.
 - [ ] Implement color-space and distance calculations.
@@ -440,7 +442,8 @@ When opening this project again:
     reproducible Windows UI workflow.
 14. [x] Begin Phase 3 with the portable `RgbImage` model, explicit row-stride
     semantics, and checked image-allocation limits.
-15. [ ] Define `ConversionRequest`, `ConversionResult`, and diagnostic types.
+15. [x] Define `ConversionRequest`, `ConversionResult`, and diagnostic types.
+16. [ ] Define palette and target-memory-table types.
 
 Suggested opening prompt:
 

@@ -29,5 +29,16 @@ std::vector<ValidationIssue> validate(const ConversionSettings& settings)
     return issues;
 }
 
-} // namespace newconvert9918::core
+std::vector<ValidationIssue> validate(const ConversionRequest& request)
+{
+    std::vector<ValidationIssue> issues;
+    if (!request.source) {
+        issues.push_back({"source", "A source image is required."});
+    }
 
+    std::vector<ValidationIssue> settingsIssues = validate(request.settings);
+    issues.insert(issues.end(), settingsIssues.begin(), settingsIssues.end());
+    return issues;
+}
+
+} // namespace newconvert9918::core
