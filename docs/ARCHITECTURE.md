@@ -139,6 +139,12 @@ cells back to 256x192, while target output remaps working indexes to hardware
 color numbers and packs the four logical pixels in each 8x8 character into the
 TMS9918A's 1536-byte multicolor pattern-generator layout.
 
+Dual Multicolor 9918 searches ordered pairs of working colors for every 4x4
+logical pixel and previews their temporal RGB average. Pairs whose luminance
+difference exceeds `maximumMulticolorDifferencePercent` are rejected to bound
+visible flicker. The low-nibble color remains the first legacy output frame and
+the high-nibble color the second, each using the same 1536-byte hardware layout.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,

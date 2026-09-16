@@ -72,6 +72,7 @@ using newconvert9918::core::colorDistanceSquared;
 using newconvert9918::core::convertBlackAndWhiteBitmap9918;
 using newconvert9918::core::convertBitmapColorOnly9918;
 using newconvert9918::core::convertBitmap9918;
+using newconvert9918::core::convertDualMulticolor9918;
 using newconvert9918::core::convertGreyscaleBitmap9918;
 using newconvert9918::core::convertMulticolor9918;
 using newconvert9918::core::defaultBitmap9918Palette;
@@ -206,6 +207,13 @@ void testSettingsValidation(TestContext &test)
     issues = validate(settings);
     test.expect(issues.size() == 1 && issues.front().field == "maximumColorShiftPercent",
                 "color shift above 100 percent should produce one color-shift issue");
+
+    settings = ConversionSettings{};
+    settings.maximumMulticolorDifferencePercent = 0;
+    issues = validate(settings);
+    test.expect(issues.size() == 1
+                    && issues.front().field == "maximumMulticolorDifferencePercent",
+                "multicolor difference below one percent should be rejected");
 
     settings = ConversionSettings{};
     settings.perceptualRedWeight = -0.01;
@@ -670,6 +678,58 @@ void testMulticolor9918Conversion(TestContext &test)
     test.expect(!wrongMode.succeeded()
                     && wrongMode.diagnostics.front().code == "multicolor9918-wrong-mode",
                 "Multicolor 9918 should reject another selected mode");
+}
+
+void testDualMulticolor9918Conversion(TestContext &test)
+{
+    const Palette palette = defaultBitmap9918Palette();
+    auto source = RgbImage::createTightlyPacked(256, 192, PixelFormat::Rgb888);
+    test.expect(source.has_value(),
+                "the Dual Multicolor 9918 test source should be allocated");
+    for (std::uint32_t y = 0; y < source->height(); ++y) {
+        std::span<std::uint8_t> row = source->row(y);
+        for (std::uint32_t x = 0; x < source->width(); ++x) {
+            const std::size_t offset = static_cast<std::size_t>(x) * 3;
+            row[offset] = 56;
+            row[offset + 1] = 140;
+            row[offset + 2] = 148;
+        }
+    }
+
+    ConversionSettings settings;
+    settings.mode = ConversionMode::DualMulticolor9918;
+    settings.dither = DitherMode::None;
+    const ConversionResult result = convertDualMulticolor9918(
+        *source, palette, settings);
+    test.expect(result.succeeded() && result.preview && result.target,
+                "a valid image should convert to Dual Multicolor 9918");
+    test.expect(result.target->mode == ConversionMode::DualMulticolor9918
+                    && result.target->tables.size() == 2
+                    && validateTargetTables(*result.target),
+                "Dual Multicolor should emit two valid 1536-byte frame tables");
+    test.expect(result.target->tables[0].role == TargetTableRole::MulticolorFrame1
+                    && std::ranges::all_of(
+                        result.target->tables[0].bytes,
+                        [](std::uint8_t value) { return value == 0x44; })
+                    && result.target->tables[1].role
+                        == TargetTableRole::MulticolorFrame2
+                    && std::ranges::all_of(
+                        result.target->tables[1].bytes,
+                        [](std::uint8_t value) { return value == 0x22; }),
+                "the two legacy frame colors should retain low- then high-nibble order");
+
+    const std::span<const std::uint8_t> previewRow = result.preview->row(0);
+    test.expect(previewRow[0] == 56 && previewRow[1] == 140
+                    && previewRow[2] == 148,
+                "Dual Multicolor preview should show the temporal frame average");
+
+    settings.mode = ConversionMode::Multicolor9918;
+    const ConversionResult wrongMode = convertDualMulticolor9918(
+        *source, palette, settings);
+    test.expect(!wrongMode.succeeded()
+                    && wrongMode.diagnostics.front().code
+                        == "dual-multicolor9918-wrong-mode",
+                "Dual Multicolor should reject another selected mode");
 }
 
 void testColorMath(TestContext &test)
@@ -1665,6 +1725,7 @@ int main(int argc, char *argv[])
     testBlackAndWhiteBitmap9918Conversion(test);
     testBitmapColorOnly9918Conversion(test);
     testMulticolor9918Conversion(test);
+    testDualMulticolor9918Conversion(test);
     testImageAdjustments(test);
     testPaletteSelection(test);
     testRgbImage(test);
