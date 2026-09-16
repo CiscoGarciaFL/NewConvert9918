@@ -1,5 +1,6 @@
 #include "newconvert9918/core/ConversionTypes.hpp"
 #include "newconvert9918/core/RgbImage.hpp"
+#include "newconvert9918/core/TargetData.hpp"
 #include "newconvert9918/core/Validation.hpp"
 
 #include <QCoreApplication>
@@ -14,6 +15,7 @@
 #include <QHash>
 #include <QSet>
 
+#include <array>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -21,6 +23,7 @@
 
 using newconvert9918::core::ConversionSettings;
 using newconvert9918::core::ConversionDiagnostic;
+using newconvert9918::core::ConversionMode;
 using newconvert9918::core::ConversionRequest;
 using newconvert9918::core::ConversionResult;
 using newconvert9918::core::ConversionStatus;
@@ -28,11 +31,20 @@ using newconvert9918::core::DiagnosticSeverity;
 using newconvert9918::core::ImageLayout;
 using newconvert9918::core::ImageLayoutError;
 using newconvert9918::core::ImageSizeLimits;
+using newconvert9918::core::Palette;
+using newconvert9918::core::PaletteError;
 using newconvert9918::core::PixelFormat;
+using newconvert9918::core::RgbColor;
 using newconvert9918::core::RgbImage;
+using newconvert9918::core::TargetMemoryImage;
+using newconvert9918::core::TargetMemoryTable;
+using newconvert9918::core::TargetTableError;
+using newconvert9918::core::TargetTableRole;
 using newconvert9918::core::bytesPerPixel;
+using newconvert9918::core::expectedTargetTables;
 using newconvert9918::core::validate;
 using newconvert9918::core::validateImageLayout;
+using newconvert9918::core::validateTargetTables;
 
 namespace {
 
@@ -270,6 +282,125 @@ void testConversionTypes(TestContext &test)
     result.diagnostics.clear();
     test.expect(!result.succeeded() && !result.hasErrors(),
                 "cancellation should remain distinct from an error diagnostic");
+}
+
+void testTargetData(TestContext &test)
+{
+    PaletteError paletteError = PaletteError::TooManyColors;
+    auto palette = Palette::create({RgbColor{0, 0, 0}, RgbColor{255, 255, 255}},
+                                   &paletteError);
+    test.expect(palette.has_value() && paletteError == PaletteError::None,
+                "a palette containing one to sixteen colors should be created");
+    test.expect(palette->size() == 2 && palette->at(1) == RgbColor{255, 255, 255},
+                "palette entries should preserve their RGB channel values");
+
+    palette = Palette::create({}, &paletteError);
+    test.expect(!palette.has_value() && paletteError == PaletteError::Empty,
+                "an empty palette should be rejected");
+    palette = Palette::create(std::vector<RgbColor>(Palette::maximumColorCount + 1),
+                              &paletteError);
+    test.expect(!palette.has_value() && paletteError == PaletteError::TooManyColors,
+                "a palette with more than sixteen colors should be rejected");
+
+    const std::array modes{
+        ConversionMode::Bitmap9918,
+        ConversionMode::GreyscaleBitmap9918,
+        ConversionMode::BlackAndWhiteBitmap9918,
+        ConversionMode::Multicolor9918,
+        ConversionMode::DualMulticolor9918,
+        ConversionMode::HalfMulticolor9918,
+        ConversionMode::BitmapColorOnly9918,
+        ConversionMode::PalettedBitmapF18A,
+        ConversionMode::ScanlinePaletteBitmapF18A,
+    };
+
+    for (const auto mode : modes) {
+        const auto expected = expectedTargetTables(mode);
+        test.expect(!expected.empty(), "every conversion mode should define target tables");
+
+        std::vector<TargetMemoryTable> tables;
+        for (const auto layout : expected) {
+            tables.push_back({layout.role, std::vector<std::uint8_t>(layout.byteSize)});
+        }
+        test.expect(static_cast<bool>(validateTargetTables(mode, tables)),
+                    "tables matching their mode layout should be valid");
+    }
+
+    const auto bitmapLayout = expectedTargetTables(ConversionMode::Bitmap9918);
+    test.expect(bitmapLayout.size() == 2
+                    && bitmapLayout[0].role == TargetTableRole::Pattern
+                    && bitmapLayout[0].byteSize == 6144
+                    && bitmapLayout[1].role == TargetTableRole::Color
+                    && bitmapLayout[1].byteSize == 6144,
+                "Bitmap 9918A should define 6144-byte pattern and color tables");
+    const auto blackAndWhiteLayout =
+        expectedTargetTables(ConversionMode::BlackAndWhiteBitmap9918);
+    test.expect(blackAndWhiteLayout.size() == 1
+                    && blackAndWhiteLayout[0].role == TargetTableRole::Pattern
+                    && blackAndWhiteLayout[0].byteSize == 6144,
+                "black-and-white mode should define only a 6144-byte pattern table");
+    const auto multicolorLayout = expectedTargetTables(ConversionMode::Multicolor9918);
+    test.expect(multicolorLayout.size() == 1
+                    && multicolorLayout[0].role == TargetTableRole::Multicolor
+                    && multicolorLayout[0].byteSize == 1536,
+                "Multicolor 9918 should define one 1536-byte table");
+    const auto dualLayout = expectedTargetTables(ConversionMode::DualMulticolor9918);
+    test.expect(dualLayout.size() == 2
+                    && dualLayout[0].role == TargetTableRole::MulticolorFrame1
+                    && dualLayout[1].role == TargetTableRole::MulticolorFrame2
+                    && dualLayout[0].byteSize == 1536 && dualLayout[1].byteSize == 1536,
+                "dual multicolor should define two 1536-byte frame tables");
+    const auto halfLayout = expectedTargetTables(ConversionMode::HalfMulticolor9918);
+    test.expect(halfLayout.size() == 3 && halfLayout[2].role == TargetTableRole::Multicolor
+                    && halfLayout[2].byteSize == 2048,
+                "half multicolor should include its 2048-byte multicolor table");
+    const auto f18aLayout = expectedTargetTables(ConversionMode::PalettedBitmapF18A);
+    test.expect(f18aLayout.size() == 3 && f18aLayout[2].role == TargetTableRole::Palette
+                    && f18aLayout[2].byteSize == 32,
+                "paletted F18A mode should include a 32-byte palette table");
+    const auto scanlineLayout = expectedTargetTables(ConversionMode::ScanlinePaletteBitmapF18A);
+    test.expect(scanlineLayout.size() == 3
+                    && scanlineLayout[2].role == TargetTableRole::ScanlinePalettes
+                    && scanlineLayout[2].byteSize == 6144,
+                "scanline F18A mode should include a 6144-byte palette table");
+
+    test.expect(validateTargetTables(static_cast<ConversionMode>(255), {}).error
+                    == TargetTableError::UnsupportedConversionMode,
+                "unknown conversion modes should not validate as empty target layouts");
+
+    std::vector<TargetMemoryTable> bitmapTables{
+        {bitmapLayout[0].role, std::vector<std::uint8_t>(bitmapLayout[0].byteSize)},
+        {bitmapLayout[1].role, std::vector<std::uint8_t>(bitmapLayout[1].byteSize)},
+    };
+    bitmapTables.pop_back();
+    auto invalidTables = validateTargetTables(ConversionMode::Bitmap9918, bitmapTables);
+    test.expect(invalidTables.error == TargetTableError::TableCountMismatch,
+                "a mode should reject a missing target table");
+
+    bitmapTables.push_back(
+        {TargetTableRole::Palette, std::vector<std::uint8_t>(bitmapLayout[1].byteSize)});
+    invalidTables = validateTargetTables(ConversionMode::Bitmap9918, bitmapTables);
+    test.expect(invalidTables.error == TargetTableError::TableRoleMismatch,
+                "a mode should reject a target table in the wrong role");
+
+    bitmapTables[1].role = bitmapLayout[1].role;
+    bitmapTables[1].bytes.pop_back();
+    const auto invalidSize = validateTargetTables(ConversionMode::Bitmap9918, bitmapTables);
+    test.expect(invalidSize.error == TargetTableError::TableSizeMismatch
+                    && invalidSize.tableIndex == 1
+                    && invalidSize.expected.byteSize == bitmapLayout[1].byteSize,
+                "target-table size errors should identify the table and expected layout");
+
+    const TargetMemoryImage target{
+        .mode = ConversionMode::Bitmap9918,
+        .palette = std::nullopt,
+        .tables = {
+            {bitmapLayout[0].role, std::vector<std::uint8_t>(bitmapLayout[0].byteSize)},
+            {bitmapLayout[1].role, std::vector<std::uint8_t>(bitmapLayout[1].byteSize)},
+        },
+    };
+    test.expect(static_cast<bool>(validateTargetTables(target)),
+                "a target-memory image should validate against its recorded mode");
 }
 
 void testCorpusManifest(TestContext &test, const QJsonObject &manifest)
@@ -580,6 +711,7 @@ int main(int argc, char *argv[])
     testSettingsValidation(test);
     testRgbImage(test);
     testConversionTypes(test);
+    testTargetData(test);
     const QJsonObject manifest = loadCorpusManifest();
     testCorpusManifest(test, manifest);
     testCorpusImages(test, manifest);

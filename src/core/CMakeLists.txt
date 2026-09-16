@@ -1,6 +1,7 @@
 add_library(newconvert9918_core STATIC
     ConversionTypes.cpp
     RgbImage.cpp
+    TargetData.cpp
     Validation.cpp
 )
 

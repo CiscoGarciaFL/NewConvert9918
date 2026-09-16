@@ -2,6 +2,7 @@
 
 #include "newconvert9918/core/ConversionSettings.hpp"
 #include "newconvert9918/core/RgbImage.hpp"
+#include "newconvert9918/core/TargetData.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -38,6 +39,7 @@ struct ConversionResult {
     ConversionStatus status{ConversionStatus::Failed};
     std::optional<RgbImage> preview;
     std::vector<ConversionDiagnostic> diagnostics;
+    std::optional<TargetMemoryImage> target;
 
     [[nodiscard]] bool hasErrors() const;
     [[nodiscard]] bool succeeded() const;
