@@ -1,4 +1,5 @@
 add_library(newconvert9918_core STATIC
+    ColorMath.cpp
     ConversionTypes.cpp
     ImageTransform.cpp
     RgbImage.cpp
