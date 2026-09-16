@@ -152,6 +152,13 @@ original one-sided squared-luminance flicker constraint, rotates the lower two
 bitmap table thirds for the display sequence, and writes the underlay into its
 sparse 2 KiB legacy address layout.
 
+Paletted Bitmap F18A keeps palette policy outside the converter: callers use
+the independent RGB444 median-cut or popularity selector and pass the chosen
+fifteen colors into conversion. The converter rounds every channel by
+duplicating its high nibble, uses that exact palette for Graphics II matching
+and preview, and emits the F18A `0000RRRR GGGGBBBB` palette table in remapped
+hardware-color order.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,

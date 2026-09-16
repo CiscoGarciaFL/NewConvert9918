@@ -2,6 +2,7 @@
 #include "newconvert9918/core/ColorMath.hpp"
 #include "newconvert9918/core/ConversionTypes.hpp"
 #include "newconvert9918/core/Dithering.hpp"
+#include "newconvert9918/core/F18AConverter.hpp"
 #include "newconvert9918/core/ImageAdjustments.hpp"
 #include "newconvert9918/core/ImageTransform.hpp"
 #include "newconvert9918/core/Multicolor9918Converter.hpp"
@@ -73,6 +74,7 @@ using newconvert9918::core::convertBlackAndWhiteBitmap9918;
 using newconvert9918::core::convertBitmapColorOnly9918;
 using newconvert9918::core::convertBitmap9918;
 using newconvert9918::core::convertDualMulticolor9918;
+using newconvert9918::core::convertPalettedBitmapF18A;
 using newconvert9918::core::convertGreyscaleBitmap9918;
 using newconvert9918::core::convertHalfMulticolor9918;
 using newconvert9918::core::convertMulticolor9918;
@@ -781,6 +783,58 @@ void testHalfMulticolor9918Conversion(TestContext &test)
                     && wrongMode.diagnostics.front().code
                         == "half-multicolor9918-wrong-mode",
                 "Half Multicolor should reject another selected mode");
+}
+
+void testPalettedBitmapF18AConversion(TestContext &test)
+{
+    const Palette palette = defaultBitmap9918Palette();
+    auto source = RgbImage::createTightlyPacked(256, 192, PixelFormat::Rgb888);
+    test.expect(source.has_value(),
+                "the Paletted Bitmap F18A test source should be allocated");
+    for (std::uint32_t y = 0; y < source->height(); ++y) {
+        std::ranges::fill(source->row(y), std::uint8_t{0});
+    }
+
+    ConversionSettings settings;
+    settings.mode = ConversionMode::PalettedBitmapF18A;
+    settings.dither = DitherMode::None;
+    settings.maximumColorShiftPercent = 0.0;
+    const ConversionResult result = convertPalettedBitmapF18A(
+        *source, palette, settings);
+    test.expect(result.succeeded() && result.preview && result.target,
+                "a valid image and selected palette should convert to Paletted Bitmap F18A");
+    test.expect(result.target->mode == ConversionMode::PalettedBitmapF18A
+                    && result.target->palette
+                    && result.target->tables.size() == 3
+                    && validateTargetTables(*result.target),
+                "Paletted Bitmap F18A should emit bitmap and 32-byte palette tables");
+    test.expect(result.target->palette->at(0) == RgbColor{255, 255, 255}
+                    && result.target->palette->at(3) == RgbColor{34, 204, 68},
+                "the selected palette should be rounded to duplicated RGB444 nibbles");
+    const auto &paletteTable = result.target->tables[2];
+    test.expect(paletteTable.role == TargetTableRole::Palette
+                    && paletteTable.bytes[0] == 0x00
+                    && paletteTable.bytes[1] == 0x00
+                    && paletteTable.bytes[28] == 0x0c
+                    && paletteTable.bytes[29] == 0xcc
+                    && paletteTable.bytes[30] == 0x0f
+                    && paletteTable.bytes[31] == 0xff,
+                "the F18A palette should use hardware color remapping and 0000RRRR GGGGBBBB packing");
+    test.expect(std::ranges::all_of(
+                    result.target->tables[0].bytes,
+                    [](std::uint8_t value) { return value == 0x00; })
+                    && std::ranges::all_of(
+                        result.target->tables[1].bytes,
+                        [](std::uint8_t value) { return value == 0x11; }),
+                "uniform black should encode as solid black with the rounded palette");
+
+    settings.mode = ConversionMode::Bitmap9918;
+    const ConversionResult wrongMode = convertPalettedBitmapF18A(
+        *source, palette, settings);
+    test.expect(!wrongMode.succeeded()
+                    && wrongMode.diagnostics.front().code
+                        == "paletted-bitmap-f18a-wrong-mode",
+                "Paletted Bitmap F18A should reject another selected mode");
 }
 
 void testColorMath(TestContext &test)
@@ -1778,6 +1832,7 @@ int main(int argc, char *argv[])
     testMulticolor9918Conversion(test);
     testDualMulticolor9918Conversion(test);
     testHalfMulticolor9918Conversion(test);
+    testPalettedBitmapF18AConversion(test);
     testImageAdjustments(test);
     testPaletteSelection(test);
     testRgbImage(test);
