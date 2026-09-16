@@ -122,6 +122,8 @@ improvement.
   overlay, legacy flicker constraint, table rotations, and 2 KiB underlay data.
 - [x] Ported Paletted Bitmap F18A with an independently selected 15-color
   palette, RGB444 rounding, Graphics II tables, and 32-byte F18A palette data.
+- [x] Ported Scanline Palette Bitmap F18A with deterministic per-row RGB444
+  palettes, per-row Graphics II matching, preview, and 6 KiB palette data.
 
 ### Development environment
 
@@ -256,7 +258,7 @@ visual memory or subjective comparison.
   - [x] Dual Multicolor 9918
   - [x] Half Multicolor 9918A
   - [x] Paletted Bitmap F18A
-  - [ ] Scanline Palette Bitmap F18A
+  - [x] Scanline Palette Bitmap F18A
 - [ ] Add cancellation and generation IDs for interactive preview jobs.
 - [ ] Measure conversion performance and memory use.
 
@@ -485,7 +487,8 @@ When opening this project again:
 27. [x] Port Dual Multicolor 9918 conversion mode.
 28. [x] Port Half Multicolor 9918A conversion mode.
 29. [x] Port Paletted Bitmap F18A conversion mode.
-30. [ ] Port Scanline Palette Bitmap F18A conversion mode.
+30. [x] Port Scanline Palette Bitmap F18A conversion mode.
+31. [ ] Add cancellation and generation IDs for interactive preview jobs.
 
 Suggested opening prompt:
 

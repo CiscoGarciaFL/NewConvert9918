@@ -159,6 +159,14 @@ duplicating its high nibble, uses that exact palette for Graphics II matching
 and preview, and emits the F18A `0000RRRR GGGGBBBB` palette table in remapped
 hardware-color order.
 
+Scanline Palette Bitmap F18A selects an independent fifteen-color RGB444
+median-cut palette for every prepared source row, quantizes that row through
+the shared Graphics II constraints, and emits 192 hardware palette records.
+This intentionally replaces the original stateful neighborhood-weighted merge:
+the old result could depend on error accumulated from earlier scanlines, while
+the new selector is deterministic, independently testable, and parallelizable.
+Successful results include an informational diagnostic naming this difference.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,
