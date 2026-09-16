@@ -11,4 +11,11 @@ convertMulticolor9918(const RgbImage& source,
                       const Palette& workingPalette,
                       const ConversionSettings& settings);
 
+// Converts each 4x4 logical pixel to an ordered pair of colors displayed on
+// alternating frames. The preview contains their temporal average.
+[[nodiscard]] ConversionResult
+convertDualMulticolor9918(const RgbImage& source,
+                          const Palette& workingPalette,
+                          const ConversionSettings& settings);
+
 } // namespace newconvert9918::core

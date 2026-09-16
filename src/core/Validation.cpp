@@ -75,6 +75,14 @@ std::vector<ValidationIssue> validate(const ConversionSettings& settings)
         });
     }
 
+    if (settings.maximumMulticolorDifferencePercent < 1
+        || settings.maximumMulticolorDifferencePercent > 100) {
+        issues.push_back({
+            "maximumMulticolorDifferencePercent",
+            "Maximum multicolor difference must be between 1 and 100 percent.",
+        });
+    }
+
     if (!std::isfinite(settings.perceptualRedWeight)
         || settings.perceptualRedWeight < 0.0) {
         issues.push_back({

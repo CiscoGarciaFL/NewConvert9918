@@ -46,6 +46,7 @@ struct ConversionSettings {
     int targetHeight{192};
     double gamma{1.0};
     double maximumColorShiftPercent{1.0};
+    int maximumMulticolorDifferencePercent{95};
     bool perceptualColorMatching{false};
     double perceptualRedWeight{0.30};
     double perceptualGreenWeight{0.52};
