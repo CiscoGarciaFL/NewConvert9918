@@ -124,6 +124,8 @@ improvement.
   palette, RGB444 rounding, Graphics II tables, and 32-byte F18A palette data.
 - [x] Ported Scanline Palette Bitmap F18A with deterministic per-row RGB444
   palettes, per-row Graphics II matching, preview, and 6 KiB palette data.
+- [x] Added cooperative cancellation tokens and a thread-safe preview job
+  controller with monotonic generation IDs and stale-result rejection.
 
 ### Development environment
 
@@ -259,7 +261,7 @@ visual memory or subjective comparison.
   - [x] Half Multicolor 9918A
   - [x] Paletted Bitmap F18A
   - [x] Scanline Palette Bitmap F18A
-- [ ] Add cancellation and generation IDs for interactive preview jobs.
+- [x] Add cancellation and generation IDs for interactive preview jobs.
 - [ ] Measure conversion performance and memory use.
 
 **Exit criterion:** every conversion mode matches approved golden output or has
@@ -488,7 +490,8 @@ When opening this project again:
 28. [x] Port Half Multicolor 9918A conversion mode.
 29. [x] Port Paletted Bitmap F18A conversion mode.
 30. [x] Port Scanline Palette Bitmap F18A conversion mode.
-31. [ ] Add cancellation and generation IDs for interactive preview jobs.
+31. [x] Add cancellation and generation IDs for interactive preview jobs.
+32. [ ] Measure conversion performance and memory use.
 
 Suggested opening prompt:
 

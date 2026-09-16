@@ -1,6 +1,7 @@
 add_library(newconvert9918_core STATIC
     Bitmap9918Converter.cpp
     ColorMath.cpp
+    ConversionJobController.cpp
     ConversionTypes.cpp
     Dithering.cpp
     F18AConverter.cpp
