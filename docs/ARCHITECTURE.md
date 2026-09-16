@@ -44,6 +44,12 @@ Warnings do not make an otherwise successful result fail; error diagnostics
 do. Target palettes and memory tables are added independently as their types
 are defined.
 
+Target palettes contain one to sixteen 24-bit RGB colors. Encoded target
+memory is stored as role-tagged byte tables rather than host structs, avoiding
+padding and byte-order ambiguity. Each conversion mode publishes one exact
+ordered table layout derived from the approved original captures; validation
+checks table count, role, and byte size before data reaches an exporter.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,
