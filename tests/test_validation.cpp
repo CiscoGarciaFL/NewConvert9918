@@ -1,4 +1,5 @@
 #include "newconvert9918/core/ConversionTypes.hpp"
+#include "newconvert9918/core/ImageTransform.hpp"
 #include "newconvert9918/core/RgbImage.hpp"
 #include "newconvert9918/core/TargetData.hpp"
 #include "newconvert9918/core/Validation.hpp"
@@ -31,17 +32,23 @@ using newconvert9918::core::DiagnosticSeverity;
 using newconvert9918::core::ImageLayout;
 using newconvert9918::core::ImageLayoutError;
 using newconvert9918::core::ImageSizeLimits;
+using newconvert9918::core::ImageFillMode;
+using newconvert9918::core::ImageTransformError;
+using newconvert9918::core::ImageTransformOptions;
 using newconvert9918::core::Palette;
 using newconvert9918::core::PaletteError;
 using newconvert9918::core::PixelFormat;
 using newconvert9918::core::RgbColor;
 using newconvert9918::core::RgbImage;
+using newconvert9918::core::ScalingFilter;
 using newconvert9918::core::TargetMemoryImage;
 using newconvert9918::core::TargetMemoryTable;
 using newconvert9918::core::TargetTableError;
 using newconvert9918::core::TargetTableRole;
 using newconvert9918::core::bytesPerPixel;
 using newconvert9918::core::expectedTargetTables;
+using newconvert9918::core::planImageTransform;
+using newconvert9918::core::transformImage;
 using newconvert9918::core::validate;
 using newconvert9918::core::validateImageLayout;
 using newconvert9918::core::validateTargetTables;
@@ -403,6 +410,178 @@ void testTargetData(TestContext &test)
                 "a target-memory image should validate against its recorded mode");
 }
 
+void testImageTransform(TestContext &test)
+{
+    auto source = RgbImage::create(
+        {.width = 4, .height = 1, .pixelFormat = PixelFormat::Rgb888, .rowStride = 12},
+        {
+            10, 0, 0,
+            20, 0, 0,
+            30, 0, 0,
+            40, 0, 0,
+        });
+    test.expect(source.has_value(), "image-transform fixture should be created");
+
+    ImageTransformOptions options{
+        .targetWidth = 8,
+        .targetHeight = 6,
+        .filter = ScalingFilter::Bilinear,
+        .fillMode = ImageFillMode::Fit,
+    };
+    auto plan = planImageTransform(*source, options);
+    test.expect(plan.has_value() && plan->scaledWidth == 8 && plan->scaledHeight == 2
+                    && plan->destinationX == 0 && plan->destinationY == 2,
+                "fit mode should preserve aspect ratio and center letterboxing");
+
+    options.targetWidth = 2;
+    options.targetHeight = 2;
+    options.fillMode = ImageFillMode::CropCenter;
+    plan = planImageTransform(*source, options);
+    test.expect(plan.has_value() && plan->scaledWidth == 8 && plan->scaledHeight == 2
+                    && plan->cropX == 3 && plan->cropY == 0,
+                "center fill should scale to cover and crop the middle");
+
+    options.filter = ScalingFilter::None;
+    options.targetWidth = 2;
+    options.targetHeight = 1;
+    options.fillMode = ImageFillMode::CropStart;
+    plan = planImageTransform(*source, options);
+    test.expect(plan.has_value() && plan->scaledWidth == 4 && plan->cropX == 0,
+                "no-scale start crop should retain the first source pixels");
+    options.fillMode = ImageFillMode::CropCenter;
+    plan = planImageTransform(*source, options);
+    test.expect(plan.has_value() && plan->cropX == 1,
+                "no-scale center crop should retain the middle source pixels");
+    options.fillMode = ImageFillMode::CropEnd;
+    plan = planImageTransform(*source, options);
+    test.expect(plan.has_value() && plan->cropX == 2,
+                "no-scale end crop should retain the final source pixels");
+
+    options.fillMode = ImageFillMode::CropCenter;
+    options.horizontalOffset = 10;
+    plan = planImageTransform(*source, options);
+    test.expect(plan.has_value() && plan->cropX == 2,
+                "positive crop offsets should clamp at the final valid pixel");
+    options.horizontalOffset = -10;
+    plan = planImageTransform(*source, options);
+    test.expect(plan.has_value() && plan->cropX == 0,
+                "negative crop offsets should clamp at the first valid pixel");
+
+    options.horizontalOffset = 0;
+    auto transformed = transformImage(*source, options);
+    test.expect(static_cast<bool>(transformed),
+                "a valid no-scale crop should produce an image");
+    test.expect(transformed.image->bytes()
+                    == std::vector<std::uint8_t>({20, 0, 0, 30, 0, 0}),
+                "center cropping should copy the expected source pixels");
+
+    options.targetWidth = 6;
+    options.targetHeight = 3;
+    options.fillMode = ImageFillMode::Fit;
+    options.backgroundRed = 1;
+    options.backgroundGreen = 2;
+    options.backgroundBlue = 3;
+    transformed = transformImage(*source, options);
+    test.expect(static_cast<bool>(transformed) && transformed.plan.destinationX == 1
+                    && transformed.plan.destinationY == 1,
+                "an unscaled source should be centered in a larger target");
+    test.expect(transformed.image->bytes()[0] == 1 && transformed.image->bytes()[1] == 2
+                    && transformed.image->bytes()[2] == 3,
+                "letterbox pixels should use the configured background color");
+
+    auto verticalSource = RgbImage::create(
+        {.width = 1, .height = 4, .pixelFormat = PixelFormat::Rgb888, .rowStride = 3},
+        {10, 0, 0, 20, 0, 0, 30, 0, 0, 40, 0, 0});
+    options = {
+        .targetWidth = 1,
+        .targetHeight = 2,
+        .filter = ScalingFilter::None,
+        .fillMode = ImageFillMode::CropEnd,
+    };
+    transformed = transformImage(*verticalSource, options);
+    test.expect(static_cast<bool>(transformed) && transformed.plan.cropY == 2
+                    && transformed.image->bytes()[0] == 30
+                    && transformed.image->bytes()[3] == 40,
+                "end cropping should retain the final source rows");
+
+    auto rgbaSource = RgbImage::create(
+        {.width = 1, .height = 1, .pixelFormat = PixelFormat::Rgba8888, .rowStride = 4},
+        {9, 8, 7, 6});
+    options = {
+        .targetWidth = 3,
+        .targetHeight = 3,
+        .filter = ScalingFilter::None,
+        .fillMode = ImageFillMode::Fit,
+        .backgroundRed = 1,
+        .backgroundGreen = 2,
+        .backgroundBlue = 3,
+        .backgroundAlpha = 4,
+    };
+    transformed = transformImage(*rgbaSource, options);
+    test.expect(static_cast<bool>(transformed) && transformed.image->pixelFormat()
+                    == PixelFormat::Rgba8888,
+                "image transforms should preserve the source pixel format");
+    test.expect(transformed.image->bytes()[0] == 1 && transformed.image->bytes()[3] == 4
+                    && transformed.image->bytes()[16] == 9
+                    && transformed.image->bytes()[19] == 6,
+                "RGBA composition should preserve source and background alpha");
+
+    auto gradient = RgbImage::create(
+        {.width = 2, .height = 1, .pixelFormat = PixelFormat::Rgb888, .rowStride = 6},
+        {255, 0, 0, 0, 0, 255});
+    options = {
+        .targetWidth = 3,
+        .targetHeight = 1,
+        .filter = ScalingFilter::Bilinear,
+        .fillMode = ImageFillMode::CropCenter,
+    };
+    transformed = transformImage(*gradient, options);
+    test.expect(static_cast<bool>(transformed) && transformed.image->bytes()[3] == 85
+                    && transformed.image->bytes()[5] == 170,
+                "bilinear scaling should deterministically blend neighboring pixels");
+
+    for (const ScalingFilter filter : {ScalingFilter::Box,
+                                       ScalingFilter::Gaussian,
+                                       ScalingFilter::Hamming,
+                                       ScalingFilter::Blackman,
+                                       ScalingFilter::Bilinear}) {
+        options.filter = filter;
+        test.expect(static_cast<bool>(transformImage(*gradient, options)),
+                    "every supported resampling filter should produce an image");
+    }
+
+    options.targetWidth = 0;
+    test.expect(transformImage(*gradient, options).error
+                    == ImageTransformError::ZeroTargetDimension,
+                "zero target dimensions should be rejected");
+    options.targetWidth = 3;
+    options.filter = static_cast<ScalingFilter>(255);
+    test.expect(transformImage(*gradient, options).error
+                    == ImageTransformError::UnsupportedFilter,
+                "unknown scaling filters should be rejected");
+    options.filter = ScalingFilter::Bilinear;
+    options.fillMode = static_cast<ImageFillMode>(255);
+    test.expect(transformImage(*gradient, options).error
+                    == ImageTransformError::UnsupportedFillMode,
+                "unknown fill modes should be rejected");
+
+    options = {
+        .targetWidth = 1,
+        .targetHeight = 4,
+        .filter = ScalingFilter::Bilinear,
+        .fillMode = ImageFillMode::CropCenter,
+    };
+    const ImageSizeLimits transformLimits{
+        .maximumWidth = 8,
+        .maximumHeight = 8,
+        .maximumPixels = 64,
+        .maximumBytes = 256,
+    };
+    test.expect(transformImage(*source, options, transformLimits).error
+                    == ImageTransformError::ScaledImageLimitExceeded,
+                "an oversized resampling intermediate should be rejected before allocation");
+}
+
 void testCorpusManifest(TestContext &test, const QJsonObject &manifest)
 {
     test.expect(manifest.value(QStringLiteral("schema_version")).toInt() == 1,
@@ -712,6 +891,7 @@ int main(int argc, char *argv[])
     testRgbImage(test);
     testConversionTypes(test);
     testTargetData(test);
+    testImageTransform(test);
     const QJsonObject manifest = loadCorpusManifest();
     testCorpusManifest(test, manifest);
     testCorpusImages(test, manifest);
