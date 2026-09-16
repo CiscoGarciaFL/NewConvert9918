@@ -100,6 +100,8 @@ improvement.
   clamped crop positioning, and deterministic RGB/RGBA resampling filters.
 - [x] Added legacy-compatible YCrCb and perceptually weighted RGB color
   distances with configurable, validated weights and luma emphasis.
+- [x] Added deterministic brightness-histogram stretching and legacy-formula
+  gamma correction while preserving alpha and padded row bytes.
 
 ### Development environment
 
@@ -222,7 +224,7 @@ visual memory or subjective comparison.
 - [x] Define palette and target-memory-table types.
 - [x] Implement scaling/crop positioning independently from conversion.
 - [x] Implement color-space and distance calculations.
-- [ ] Implement histogram stretching and gamma correction.
+- [x] Implement histogram stretching and gamma correction.
 - [ ] Implement palette selection and median-cut behavior.
 - [ ] Implement error-distribution kernels and ordered dithering.
 - [ ] Port conversion modes in this order:
@@ -452,7 +454,8 @@ When opening this project again:
 16. [x] Define palette and target-memory-table types.
 17. [x] Implement scaling and crop positioning independently from conversion.
 18. [x] Implement color-space and distance calculations.
-19. [ ] Implement histogram stretching and gamma correction.
+19. [x] Implement histogram stretching and gamma correction.
+20. [ ] Implement palette selection and median-cut behavior.
 
 Suggested opening prompt:
 

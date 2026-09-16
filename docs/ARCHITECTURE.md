@@ -67,6 +67,17 @@ RGB differences with configurable channel weights. These routines accept
 double-precision, temporarily out-of-range RGB samples so error diffusion does
 not need to clamp before measuring a candidate palette color.
 
+Image preprocessing is also isolated from quantization. Histogram stretching
+uses a deterministic global brightness CDF mapped to the 32-224 output range
+passed by the original program to ImgSource. A shared delta is applied to the
+three RGB channels to retain chroma unless a channel reaches a limit. Gamma
+correction then applies `pow(channel / 255, 1 / gamma) * 255`, preserving the
+original operation order and truncation. RGBA alpha and row padding are never
+adjusted. The ImgSource equalizer's private implementation is unavailable, so
+its exact histogram parity remains a golden-output question; the portable
+algorithm is specified and tested independently rather than importing that
+abandoned binary dependency.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,
