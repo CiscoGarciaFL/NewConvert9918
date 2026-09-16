@@ -118,6 +118,13 @@ palette is converted separately with Rec.709 coefficients and truncation, as
 in the original application. The resulting preview has equal RGB channels but
 retains the same pattern and color-table memory contract as color bitmap mode.
 
+Black-and-White Bitmap 9918A also converts source samples to luminance, then
+restricts the shared block search to working-palette indexes zero and one
+(white and black). Encoding normalizes every row so set pattern bits always
+mean black and clear bits mean white. Because the target display uses a fixed
+black-on-white color setup, this mode emits only the 6 KiB pattern table and
+no redundant color table.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,

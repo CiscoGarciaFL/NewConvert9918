@@ -21,7 +21,7 @@ namespace {
 constexpr std::uint32_t bitmapWidth = 256;
 constexpr std::uint32_t bitmapHeight = 192;
 constexpr std::size_t bitmapTableSize = 6144;
-constexpr std::size_t workingColorCount = 15;
+constexpr std::size_t standardWorkingColorCount = 15;
 constexpr double distributionDivisor = 16.0;
 
 struct BlockChoice {
@@ -131,10 +131,10 @@ BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
     const double farRightScale = static_cast<double>(dithering.kernel.farRight)
         / distributionDivisor;
 
-    for (std::uint8_t foreground = 0; foreground < workingColorCount - 1;
+    for (std::size_t foreground = 0; foreground + 1 < palette.size();
          ++foreground) {
-        for (std::uint8_t background = foreground + 1;
-             background < workingColorCount;
+        for (std::size_t background = foreground + 1;
+             background < palette.size();
              ++background) {
             for (int pattern = 0; pattern < 256; ++pattern) {
                 RgbSample carried{};
@@ -143,9 +143,8 @@ BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
                 int mask = 0x80;
 
                 for (std::size_t bit = 0; bit < desired.size(); ++bit) {
-                    const std::uint8_t colorIndex = (pattern & mask) != 0
-                        ? foreground
-                        : background;
+                    const std::uint8_t colorIndex = static_cast<std::uint8_t>(
+                        (pattern & mask) != 0 ? foreground : background);
                     RgbSample candidate = desired[bit];
                     if (dithering.distributeError) {
                         candidate.red += carried.red / errorDivisor;
@@ -181,8 +180,8 @@ BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
 
                 if (distance < best.distance) {
                     best = {
-                        foreground,
-                        background,
+                        static_cast<std::uint8_t>(foreground),
+                        static_cast<std::uint8_t>(background),
                         static_cast<std::uint8_t>(pattern),
                         distance,
                     };
@@ -208,7 +207,7 @@ std::uint8_t hardwareColor(std::uint8_t workingColor)
 }
 
 std::pair<std::vector<std::uint8_t>, std::vector<std::uint8_t>>
-encodeTables(std::span<const std::uint8_t> indexed)
+encodeTables(std::span<const std::uint8_t> indexed, bool monochrome)
 {
     std::vector<std::uint8_t> patterns(bitmapTableSize);
     std::vector<std::uint8_t> colors(bitmapTableSize);
@@ -238,7 +237,13 @@ encodeTables(std::span<const std::uint8_t> indexed)
                     }
                 }
 
-                if (foregroundCount > backgroundCount) {
+                if (monochrome) {
+                    if (foreground != 1 || background == 1) {
+                        pattern = static_cast<std::uint8_t>(~pattern);
+                    }
+                    foreground = 1;
+                    background = 0;
+                } else if (foregroundCount > backgroundCount) {
                     std::swap(foreground, background);
                     pattern = static_cast<std::uint8_t>(~pattern);
                 }
@@ -320,6 +325,7 @@ ConversionResult convertBitmap9918Impl(const RgbImage& source,
                                        const ConversionSettings& settings,
                                        ConversionMode requiredMode,
                                        bool greyscaleSource,
+                                       bool monochrome,
                                        std::string_view diagnosticPrefix)
 {
     const std::string codePrefix(diagnosticPrefix);
@@ -337,7 +343,8 @@ ConversionResult convertBitmap9918Impl(const RgbImage& source,
         return failure(codePrefix + "-invalid-dimensions",
                        "Bitmap 9918A conversion requires a 256x192 source and target.");
     }
-    if (workingPalette.size() != workingColorCount) {
+    const std::size_t expectedPaletteSize = monochrome ? 2 : standardWorkingColorCount;
+    if (workingPalette.size() != expectedPaletteSize) {
         return failure(codePrefix + "-invalid-palette",
                        "Bitmap 9918A conversion requires fifteen working colors.");
     }
@@ -471,14 +478,16 @@ ConversionResult convertBitmap9918Impl(const RgbImage& source,
                        "The Bitmap 9918A preview could not be allocated.");
     }
 
-    auto [patterns, colors] = encodeTables(indexed);
+    auto [patterns, colors] = encodeTables(indexed, monochrome);
+    std::vector<TargetMemoryTable> tables;
+    tables.push_back({TargetTableRole::Pattern, std::move(patterns)});
+    if (!monochrome) {
+        tables.push_back({TargetTableRole::Color, std::move(colors)});
+    }
     TargetMemoryImage target{
         .mode = requiredMode,
         .palette = std::nullopt,
-        .tables = {
-            {TargetTableRole::Pattern, std::move(patterns)},
-            {TargetTableRole::Color, std::move(colors)},
-        },
+        .tables = std::move(tables),
     };
     return {
         .status = ConversionStatus::Succeeded,
@@ -499,6 +508,7 @@ ConversionResult convertBitmap9918(const RgbImage& source,
                                  settings,
                                  ConversionMode::Bitmap9918,
                                  false,
+                                 false,
                                  "bitmap9918");
 }
 
@@ -506,7 +516,7 @@ ConversionResult convertGreyscaleBitmap9918(const RgbImage& source,
                                             const Palette& workingPalette,
                                             const ConversionSettings& settings)
 {
-    if (workingPalette.size() != workingColorCount) {
+    if (workingPalette.size() != standardWorkingColorCount) {
         return failure("greyscale-bitmap9918-invalid-palette",
                        "Greyscale Bitmap 9918A conversion requires fifteen working colors.");
     }
@@ -515,7 +525,29 @@ ConversionResult convertGreyscaleBitmap9918(const RgbImage& source,
                                  settings,
                                  ConversionMode::GreyscaleBitmap9918,
                                  true,
+                                 false,
                                  "greyscale-bitmap9918");
+}
+
+ConversionResult convertBlackAndWhiteBitmap9918(const RgbImage& source,
+                                                const Palette& workingPalette,
+                                                const ConversionSettings& settings)
+{
+    if (workingPalette.size() != standardWorkingColorCount) {
+        return failure("black-white-bitmap9918-invalid-palette",
+                       "Black-and-White Bitmap 9918A conversion requires fifteen working colors.");
+    }
+    auto monochromePalette = Palette::create({
+        workingPalette.at(0),
+        workingPalette.at(1),
+    });
+    return convertBitmap9918Impl(source,
+                                 *monochromePalette,
+                                 settings,
+                                 ConversionMode::BlackAndWhiteBitmap9918,
+                                 true,
+                                 true,
+                                 "black-white-bitmap9918");
 }
 
 } // namespace newconvert9918::core

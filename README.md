@@ -12,9 +12,10 @@ The project is starting with two goals:
 ## Status
 
 The portable core now includes image geometry, preprocessing, color matching,
-palette selection, dithering, and the color and greyscale Bitmap 9918A modes.
-The Qt shell still presents the proposed workflow; connecting image loading
-and live conversion to that interface is a later integration milestone.
+palette selection, dithering, and the color, greyscale, and black-and-white
+Bitmap 9918A modes. The Qt shell still presents the proposed workflow;
+connecting image loading and live conversion to that interface is a later
+integration milestone.
 
 See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current
 status, acceptance criteria, and next-session checklist. The original
