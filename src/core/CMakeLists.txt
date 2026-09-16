@@ -5,6 +5,7 @@ add_library(newconvert9918_core STATIC
     Dithering.cpp
     ImageAdjustments.cpp
     ImageTransform.cpp
+    Multicolor9918Converter.cpp
     PaletteSelection.cpp
     RgbImage.cpp
     TargetData.cpp
