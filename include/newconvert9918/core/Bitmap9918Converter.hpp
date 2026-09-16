@@ -26,4 +26,9 @@ convertGreyscaleBitmap9918(const RgbImage& source,
                            const Palette& workingPalette,
                            const ConversionSettings& settings);
 
+[[nodiscard]] ConversionResult
+convertBlackAndWhiteBitmap9918(const RgbImage& source,
+                               const Palette& workingPalette,
+                               const ConversionSettings& settings);
+
 } // namespace newconvert9918::core

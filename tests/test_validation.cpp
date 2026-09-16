@@ -68,6 +68,7 @@ using newconvert9918::core::bytesPerPixel;
 using newconvert9918::core::adjustImage;
 using newconvert9918::core::applyOrderedDither;
 using newconvert9918::core::colorDistanceSquared;
+using newconvert9918::core::convertBlackAndWhiteBitmap9918;
 using newconvert9918::core::convertBitmap9918;
 using newconvert9918::core::convertGreyscaleBitmap9918;
 using newconvert9918::core::defaultBitmap9918Palette;
@@ -514,6 +515,56 @@ void testGreyscaleBitmap9918Conversion(TestContext &test)
                     && wrongMode.diagnostics.front().code
                         == "greyscale-bitmap9918-wrong-mode",
                 "greyscale conversion should reject another selected mode");
+}
+
+void testBlackAndWhiteBitmap9918Conversion(TestContext &test)
+{
+    const Palette palette = defaultBitmap9918Palette();
+    auto source = RgbImage::createTightlyPacked(256, 192, PixelFormat::Rgb888);
+    test.expect(source.has_value(),
+                "the black-and-white Bitmap test source should be allocated");
+    for (std::uint32_t y = 0; y < source->height(); ++y) {
+        std::span<std::uint8_t> row = source->row(y);
+        for (std::uint32_t x = 0; x < source->width(); ++x) {
+            const std::uint8_t value = (x & 1U) == 0 ? 0 : 248;
+            const std::size_t offset = static_cast<std::size_t>(x) * 3;
+            row[offset] = value;
+            row[offset + 1] = value;
+            row[offset + 2] = value;
+        }
+    }
+
+    ConversionSettings settings;
+    settings.mode = ConversionMode::BlackAndWhiteBitmap9918;
+    settings.dither = DitherMode::None;
+    settings.maximumColorShiftPercent = 0.0;
+    const ConversionResult result = convertBlackAndWhiteBitmap9918(
+        *source, palette, settings);
+    test.expect(result.succeeded() && result.preview && result.target,
+                "a valid image should convert to Black-and-White Bitmap 9918A");
+    test.expect(result.target->mode == ConversionMode::BlackAndWhiteBitmap9918
+                    && result.target->tables.size() == 1
+                    && validateTargetTables(*result.target),
+                "black-and-white conversion should emit only a valid pattern table");
+    test.expect(result.target->tables[0].role == TargetTableRole::Pattern
+                    && std::ranges::all_of(
+                        result.target->tables[0].bytes,
+                        [](std::uint8_t value) { return value == 0xaa; }),
+                "black pixels should be forced to the set pattern bits");
+
+    const std::span<const std::uint8_t> previewRow = result.preview->row(0);
+    test.expect(previewRow[0] == 0 && previewRow[1] == 0 && previewRow[2] == 0
+                    && previewRow[3] == 248 && previewRow[4] == 248
+                    && previewRow[5] == 248,
+                "the black-and-white preview should preserve alternating pixels");
+
+    settings.mode = ConversionMode::Bitmap9918;
+    const ConversionResult wrongMode = convertBlackAndWhiteBitmap9918(
+        *source, palette, settings);
+    test.expect(!wrongMode.succeeded()
+                    && wrongMode.diagnostics.front().code
+                        == "black-white-bitmap9918-wrong-mode",
+                "black-and-white conversion should reject another selected mode");
 }
 
 void testColorMath(TestContext &test)
@@ -1506,6 +1557,7 @@ int main(int argc, char *argv[])
     testDithering(test);
     testBitmap9918Conversion(test);
     testGreyscaleBitmap9918Conversion(test);
+    testBlackAndWhiteBitmap9918Conversion(test);
     testImageAdjustments(test);
     testPaletteSelection(test);
     testRgbImage(test);

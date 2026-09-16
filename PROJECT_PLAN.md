@@ -110,6 +110,8 @@ improvement.
   working palette, color-index remapping, preview, and 6 KiB target tables.
 - [x] Ported Greyscale Bitmap 9918A with legacy source-luminance and separate
   Rec.709 palette-luminance behavior.
+- [x] Ported Black-and-White Bitmap 9918A with a two-color search, normalized
+  black pattern bits, and pattern-only target output.
 
 ### Development environment
 
@@ -238,7 +240,7 @@ visual memory or subjective comparison.
 - [ ] Port conversion modes in this order:
   - [x] Bitmap 9918A / Graphics II
   - [x] Greyscale Bitmap 9918A
-  - [ ] Black-and-White Bitmap 9918A
+  - [x] Black-and-White Bitmap 9918A
   - [ ] Bitmap Color Only 9918A
   - [ ] Multicolor 9918
   - [ ] Dual Multicolor 9918
@@ -467,7 +469,8 @@ When opening this project again:
 21. [x] Implement error-distribution kernels and ordered dithering.
 22. [x] Port Bitmap 9918A / Graphics II conversion mode.
 23. [x] Port Greyscale Bitmap 9918A conversion mode.
-24. [ ] Port Black-and-White Bitmap 9918A conversion mode.
+24. [x] Port Black-and-White Bitmap 9918A conversion mode.
+25. [ ] Port Bitmap Color Only 9918A conversion mode.
 
 Suggested opening prompt:
 
