@@ -38,7 +38,7 @@ enum class ErrorAccumulationMode : std::uint8_t {
 
 struct ConversionSettings {
     ConversionMode mode{ConversionMode::Bitmap9918};
-    DitherMode dither{DitherMode::FloydSteinberg};
+    DitherMode dither{DitherMode::Atkinson};
     OrderedDitherMapSize orderedDitherMapSize{OrderedDitherMapSize::TwoByTwo};
     int orderedDitherBrightness{0};
     ErrorAccumulationMode errorAccumulation{ErrorAccumulationMode::Accumulate};

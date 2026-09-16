@@ -1,3 +1,4 @@
+#include "newconvert9918/core/Bitmap9918Converter.hpp"
 #include "newconvert9918/core/ColorMath.hpp"
 #include "newconvert9918/core/ConversionTypes.hpp"
 #include "newconvert9918/core/Dithering.hpp"
@@ -67,6 +68,8 @@ using newconvert9918::core::bytesPerPixel;
 using newconvert9918::core::adjustImage;
 using newconvert9918::core::applyOrderedDither;
 using newconvert9918::core::colorDistanceSquared;
+using newconvert9918::core::convertBitmap9918;
+using newconvert9918::core::defaultBitmap9918Palette;
 using newconvert9918::core::ditherConfiguration;
 using newconvert9918::core::expectedTargetTables;
 using newconvert9918::core::orderedDitherThreshold;
@@ -378,6 +381,82 @@ void testDithering(TestContext &test)
     test.expect(!ErrorDiffusionBuffer::create(2, 2, 3, &bufferError)
                     && bufferError == ErrorDiffusionBufferError::PixelLimitExceeded,
                 "error buffers should enforce their pixel limit");
+}
+
+void testBitmap9918Conversion(TestContext &test)
+{
+    const Palette palette = defaultBitmap9918Palette();
+    test.expect(palette.size() == 15,
+                "the Bitmap 9918A working palette should contain fifteen colors");
+    test.expect(palette.at(0) == RgbColor{248, 248, 248}
+                    && palette.at(1) == RgbColor{0, 0, 0}
+                    && palette.at(2) == RgbColor{200, 200, 200}
+                    && palette.at(14) == RgbColor{200, 88, 184},
+                "the Bitmap 9918A palette should preserve original working indexes");
+
+    auto source = RgbImage::createTightlyPacked(256, 192, PixelFormat::Rgb888);
+    test.expect(source.has_value(), "the Bitmap 9918A test source should be allocated");
+    for (std::uint32_t y = 0; y < source->height(); ++y) {
+        std::span<std::uint8_t> row = source->row(y);
+        for (std::uint32_t x = 0; x < source->width(); ++x) {
+            const std::uint8_t value = (x & 1U) == 0 ? 0 : 248;
+            const std::size_t offset = static_cast<std::size_t>(x) * 3;
+            row[offset] = value;
+            row[offset + 1] = value;
+            row[offset + 2] = value;
+        }
+    }
+
+    ConversionSettings settings;
+    settings.dither = DitherMode::None;
+    settings.maximumColorShiftPercent = 0.0;
+    const ConversionResult result = convertBitmap9918(*source, palette, settings);
+    test.expect(result.succeeded() && result.preview.has_value()
+                    && result.target.has_value(),
+                "a valid target-sized image should convert to Bitmap 9918A");
+    test.expect(result.target->mode == ConversionMode::Bitmap9918
+                    && result.target->tables.size() == 2
+                    && validateTargetTables(*result.target),
+                "Bitmap 9918A conversion should return valid pattern and color tables");
+
+    const auto &patterns = result.target->tables[0];
+    const auto &colors = result.target->tables[1];
+    test.expect(patterns.role == TargetTableRole::Pattern
+                    && std::ranges::all_of(patterns.bytes, [](std::uint8_t value) {
+                           return value == 0xaa;
+                       }),
+                "alternating black and white pixels should encode as pattern AA");
+    test.expect(colors.role == TargetTableRole::Color
+                    && std::ranges::all_of(colors.bytes, [](std::uint8_t value) {
+                           return value == 0x1f;
+                       }),
+                "alternating black and white should encode as TI black on white");
+
+    const std::span<const std::uint8_t> previewRow = result.preview->row(0);
+    test.expect(previewRow[0] == 0 && previewRow[1] == 0 && previewRow[2] == 0
+                    && previewRow[3] == 248 && previewRow[4] == 248
+                    && previewRow[5] == 248,
+                "the Bitmap 9918A preview should use the selected working colors");
+
+    auto wrongSize = RgbImage::createTightlyPacked(8, 8, PixelFormat::Rgb888);
+    const ConversionResult wrongSizeResult = convertBitmap9918(*wrongSize, palette, settings);
+    test.expect(!wrongSizeResult.succeeded() && wrongSizeResult.hasErrors()
+                    && wrongSizeResult.diagnostics.front().code
+                        == "bitmap9918-invalid-dimensions",
+                "Bitmap 9918A conversion should reject non-target-sized images");
+
+    const Palette shortPalette = *Palette::create({{0, 0, 0}, {255, 255, 255}});
+    const ConversionResult shortPaletteResult = convertBitmap9918(*source, shortPalette, settings);
+    test.expect(!shortPaletteResult.succeeded()
+                    && shortPaletteResult.diagnostics.front().code
+                        == "bitmap9918-invalid-palette",
+                "Bitmap 9918A conversion should reject nonstandard palette sizes");
+
+    settings.mode = ConversionMode::Multicolor9918;
+    const ConversionResult wrongModeResult = convertBitmap9918(*source, palette, settings);
+    test.expect(!wrongModeResult.succeeded()
+                    && wrongModeResult.diagnostics.front().code == "bitmap9918-wrong-mode",
+                "Bitmap 9918A conversion should reject another conversion mode");
 }
 
 void testColorMath(TestContext &test)
@@ -1368,6 +1447,7 @@ int main(int argc, char *argv[])
     testSettingsValidation(test);
     testColorMath(test);
     testDithering(test);
+    testBitmap9918Conversion(test);
     testImageAdjustments(test);
     testPaletteSelection(test);
     testRgbImage(test);

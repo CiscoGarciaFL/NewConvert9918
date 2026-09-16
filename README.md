@@ -11,9 +11,10 @@ The project is starting with two goals:
 
 ## Status
 
-The project is in its initial architecture and parity-testing phase. The Qt
-shell currently contains only the proposed application workflow; conversion
-algorithms and file-format codecs have not yet been ported.
+The portable core now includes image geometry, preprocessing, color matching,
+palette selection, dithering, and the first Bitmap 9918A conversion mode. The
+Qt shell still presents the proposed workflow; connecting image loading and
+live conversion to that interface is a later integration milestone.
 
 See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current
 status, acceptance criteria, and next-session checklist. The original
@@ -50,6 +51,16 @@ Choose `windows-mingw-debug`, `linux-debug`, or `macos-debug` for
 `C:\Qt` on the current development machine. Linux and macOS expect Qt, CMake,
 and Ninja to be discoverable in the shell environment. Machine-specific
 overrides belong in the ignored `CMakeUserPresets.json` file.
+
+After building on the current Windows development machine, launch the visible
+Qt shell from PowerShell with:
+
+```powershell
+.\tools\run_windows_preview.ps1
+```
+
+Close the preview window before rebuilding the application because Windows
+locks a running executable.
 
 Zed users can run the matching configure, build, and test entries from the
 task picker. CMake writes `compile_commands.json` into each build directory so
