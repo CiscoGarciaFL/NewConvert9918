@@ -114,6 +114,8 @@ improvement.
   black pattern bits, and pattern-only target output.
 - [x] Ported Bitmap Color Only 9918A with fixed `0xF0` patterns and an ordered
   two-color search for every eight-pixel row.
+- [x] Ported Multicolor 9918 with legacy 4x4 logical-pixel matching, hardware
+  color remapping, preview expansion, and the 1536-byte table layout.
 
 ### Development environment
 
@@ -244,7 +246,7 @@ visual memory or subjective comparison.
   - [x] Greyscale Bitmap 9918A
   - [x] Black-and-White Bitmap 9918A
   - [x] Bitmap Color Only 9918A
-  - [ ] Multicolor 9918
+  - [x] Multicolor 9918
   - [ ] Dual Multicolor 9918
   - [ ] Half Multicolor 9918A
   - [ ] Paletted Bitmap F18A
@@ -473,7 +475,8 @@ When opening this project again:
 23. [x] Port Greyscale Bitmap 9918A conversion mode.
 24. [x] Port Black-and-White Bitmap 9918A conversion mode.
 25. [x] Port Bitmap Color Only 9918A conversion mode.
-26. [ ] Port Multicolor 9918 conversion mode.
+26. [x] Port Multicolor 9918 conversion mode.
+27. [ ] Port Dual Multicolor 9918 conversion mode.
 
 Suggested opening prompt:
 

@@ -132,6 +132,13 @@ character row while retaining full Graphics II color-table addressing. The
 encoder preserves the original working-index ordering and emits separate
 6 KiB fixed-pattern and color tables.
 
+Multicolor 9918 treats the prepared image as a 64x48 grid of 4x4 logical
+pixels. Each cell is matched against the fifteen-color working palette using
+the selected legacy or perceptual distance metric. The preview expands those
+cells back to 256x192, while target output remaps working indexes to hardware
+color numbers and packs the four logical pixels in each 8x8 character into the
+TMS9918A's 1536-byte multicolor pattern-generator layout.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,

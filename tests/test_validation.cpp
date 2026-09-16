@@ -4,6 +4,7 @@
 #include "newconvert9918/core/Dithering.hpp"
 #include "newconvert9918/core/ImageAdjustments.hpp"
 #include "newconvert9918/core/ImageTransform.hpp"
+#include "newconvert9918/core/Multicolor9918Converter.hpp"
 #include "newconvert9918/core/PaletteSelection.hpp"
 #include "newconvert9918/core/RgbImage.hpp"
 #include "newconvert9918/core/TargetData.hpp"
@@ -72,6 +73,7 @@ using newconvert9918::core::convertBlackAndWhiteBitmap9918;
 using newconvert9918::core::convertBitmapColorOnly9918;
 using newconvert9918::core::convertBitmap9918;
 using newconvert9918::core::convertGreyscaleBitmap9918;
+using newconvert9918::core::convertMulticolor9918;
 using newconvert9918::core::defaultBitmap9918Palette;
 using newconvert9918::core::ditherConfiguration;
 using newconvert9918::core::expectedTargetTables;
@@ -622,6 +624,52 @@ void testBitmapColorOnly9918Conversion(TestContext &test)
                     && wrongMode.diagnostics.front().code
                         == "bitmap-color-only9918-wrong-mode",
                 "Bitmap Color Only should reject another selected mode");
+}
+
+void testMulticolor9918Conversion(TestContext &test)
+{
+    const Palette palette = defaultBitmap9918Palette();
+    auto source = RgbImage::createTightlyPacked(256, 192, PixelFormat::Rgb888);
+    test.expect(source.has_value(), "the Multicolor 9918 test source should be allocated");
+    for (std::uint32_t y = 0; y < source->height(); ++y) {
+        std::span<std::uint8_t> row = source->row(y);
+        for (std::uint32_t x = 0; x < source->width(); ++x) {
+            const RgbColor color = palette.at(((x / 4) & 1U) == 0 ? 1 : 0);
+            const std::size_t offset = static_cast<std::size_t>(x) * 3;
+            row[offset] = color.red;
+            row[offset + 1] = color.green;
+            row[offset + 2] = color.blue;
+        }
+    }
+
+    ConversionSettings settings;
+    settings.mode = ConversionMode::Multicolor9918;
+    settings.dither = DitherMode::None;
+    settings.maximumColorShiftPercent = 0.0;
+    const ConversionResult result = convertMulticolor9918(*source, palette, settings);
+    test.expect(result.succeeded() && result.preview && result.target,
+                "a valid image should convert to Multicolor 9918");
+    test.expect(result.target->mode == ConversionMode::Multicolor9918
+                    && result.target->tables.size() == 1
+                    && validateTargetTables(*result.target),
+                "Multicolor 9918 should emit one valid 1536-byte table");
+    test.expect(result.target->tables[0].role == TargetTableRole::Multicolor
+                    && std::ranges::all_of(
+                        result.target->tables[0].bytes,
+                        [](std::uint8_t value) { return value == 0x1f; }),
+                "alternating black and white 4x4 cells should pack as 1F bytes");
+
+    const std::span<const std::uint8_t> previewRow = result.preview->row(0);
+    test.expect(previewRow[0] == 0 && previewRow[1] == 0 && previewRow[2] == 0
+                    && previewRow[12] == 248 && previewRow[13] == 248
+                    && previewRow[14] == 248,
+                "Multicolor 9918 preview should expand each logical pixel to 4x4");
+
+    settings.mode = ConversionMode::Bitmap9918;
+    const ConversionResult wrongMode = convertMulticolor9918(*source, palette, settings);
+    test.expect(!wrongMode.succeeded()
+                    && wrongMode.diagnostics.front().code == "multicolor9918-wrong-mode",
+                "Multicolor 9918 should reject another selected mode");
 }
 
 void testColorMath(TestContext &test)
@@ -1616,6 +1664,7 @@ int main(int argc, char *argv[])
     testGreyscaleBitmap9918Conversion(test);
     testBlackAndWhiteBitmap9918Conversion(test);
     testBitmapColorOnly9918Conversion(test);
+    testMulticolor9918Conversion(test);
     testImageAdjustments(test);
     testPaletteSelection(test);
     testRgbImage(test);
