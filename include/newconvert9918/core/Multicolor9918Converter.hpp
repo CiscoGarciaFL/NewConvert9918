@@ -18,4 +18,11 @@ convertDualMulticolor9918(const RgbImage& source,
                           const Palette& workingPalette,
                           const ConversionSettings& settings);
 
+// Flickers a Graphics II bitmap overlay with a multicolor underlay. The three
+// returned tables use the legacy display-list rotations and addresses.
+[[nodiscard]] ConversionResult
+convertHalfMulticolor9918(const RgbImage& source,
+                          const Palette& workingPalette,
+                          const ConversionSettings& settings);
+
 } // namespace newconvert9918::core

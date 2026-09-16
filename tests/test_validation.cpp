@@ -74,6 +74,7 @@ using newconvert9918::core::convertBitmapColorOnly9918;
 using newconvert9918::core::convertBitmap9918;
 using newconvert9918::core::convertDualMulticolor9918;
 using newconvert9918::core::convertGreyscaleBitmap9918;
+using newconvert9918::core::convertHalfMulticolor9918;
 using newconvert9918::core::convertMulticolor9918;
 using newconvert9918::core::defaultBitmap9918Palette;
 using newconvert9918::core::ditherConfiguration;
@@ -730,6 +731,56 @@ void testDualMulticolor9918Conversion(TestContext &test)
                     && wrongMode.diagnostics.front().code
                         == "dual-multicolor9918-wrong-mode",
                 "Dual Multicolor should reject another selected mode");
+}
+
+void testHalfMulticolor9918Conversion(TestContext &test)
+{
+    const Palette palette = defaultBitmap9918Palette();
+    auto source = RgbImage::createTightlyPacked(256, 192, PixelFormat::Rgb888);
+    test.expect(source.has_value(),
+                "the Half Multicolor 9918A test source should be allocated");
+    for (std::uint32_t y = 0; y < source->height(); ++y) {
+        std::span<std::uint8_t> row = source->row(y);
+        std::ranges::fill(row, 0);
+    }
+
+    ConversionSettings settings;
+    settings.mode = ConversionMode::HalfMulticolor9918;
+    settings.dither = DitherMode::None;
+    settings.maximumColorShiftPercent = 0.0;
+    const ConversionResult result = convertHalfMulticolor9918(
+        *source, palette, settings);
+    test.expect(result.succeeded() && result.preview && result.target,
+                "a valid image should convert to Half Multicolor 9918A");
+    test.expect(result.target->mode == ConversionMode::HalfMulticolor9918
+                    && result.target->tables.size() == 3
+                    && validateTargetTables(*result.target),
+                "Half Multicolor should emit valid bitmap and multicolor tables");
+    test.expect(result.target->tables[0].role == TargetTableRole::Pattern
+                    && std::ranges::all_of(
+                        result.target->tables[0].bytes,
+                        [](std::uint8_t value) { return value == 0x00; })
+                    && result.target->tables[1].role == TargetTableRole::Color
+                    && std::ranges::all_of(
+                        result.target->tables[1].bytes,
+                        [](std::uint8_t value) { return value == 0x11; }),
+                "uniform black should retain black bitmap colors through table rotation");
+    const auto &multicolor = result.target->tables[2];
+    test.expect(multicolor.role == TargetTableRole::Multicolor
+                    && std::ranges::count(multicolor.bytes, std::uint8_t{0x11}) == 1536
+                    && std::ranges::count(multicolor.bytes, std::uint8_t{0x00}) == 512,
+                "Half Multicolor should populate the legacy 1536 used bytes in its 2 KiB table");
+    const std::span<const std::uint8_t> previewRow = result.preview->row(0);
+    test.expect(previewRow[0] == 0 && previewRow[1] == 0 && previewRow[2] == 0,
+                "Half Multicolor preview should show the temporal mixed color");
+
+    settings.mode = ConversionMode::DualMulticolor9918;
+    const ConversionResult wrongMode = convertHalfMulticolor9918(
+        *source, palette, settings);
+    test.expect(!wrongMode.succeeded()
+                    && wrongMode.diagnostics.front().code
+                        == "half-multicolor9918-wrong-mode",
+                "Half Multicolor should reject another selected mode");
 }
 
 void testColorMath(TestContext &test)
@@ -1726,6 +1777,7 @@ int main(int argc, char *argv[])
     testBitmapColorOnly9918Conversion(test);
     testMulticolor9918Conversion(test);
     testDualMulticolor9918Conversion(test);
+    testHalfMulticolor9918Conversion(test);
     testImageAdjustments(test);
     testPaletteSelection(test);
     testRgbImage(test);
