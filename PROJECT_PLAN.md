@@ -87,6 +87,9 @@ improvement.
   tables for all eight valid source fixtures.
 - [x] Captured the remaining eight conversion modes with every applicable
   command-line TIFILES table and BMP preview for all eight valid sources.
+- [x] Captured all eleven applicable non-TIFILES Save Pic choices through the
+  original Windows UI, pinned fourteen output files, and documented the
+  explicitly broken ColecoVision RLE cartridge writer as excluded.
 
 ### Development environment
 
@@ -431,8 +434,10 @@ When opening this project again:
     original Windows executable for each valid corpus image.
 12. [x] Expand command-line reference capture across the remaining conversion
     modes and their applicable TIFILES outputs.
-13. [ ] Capture applicable non-TIFILES export formats through a controlled,
+13. [x] Capture applicable non-TIFILES export formats through a controlled,
     reproducible Windows UI workflow.
+14. [ ] Begin Phase 3 by defining the common export request and generated-file
+    manifest used by GUI and CLI front ends.
 
 Suggested opening prompt:
 

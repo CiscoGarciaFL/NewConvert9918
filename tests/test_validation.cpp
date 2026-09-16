@@ -72,6 +72,18 @@ QJsonObject loadModeCaptureManifest()
     return document.isObject() ? document.object() : QJsonObject{};
 }
 
+QJsonObject loadExportCaptureManifest()
+{
+    QFile file(corpusDirectory
+               + QStringLiteral("/reference/original-1_9_1/export-captures.json"));
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
+    return document.isObject() ? document.object() : QJsonObject{};
+}
+
 QString corpusPath(const QJsonObject &entry)
 {
     const QString repositoryRelativePath = entry.value(QStringLiteral("path")).toString();
@@ -94,6 +106,12 @@ QByteArray sha256(const QString &path)
         return {};
     }
     return hash.result().toHex();
+}
+
+QByteArray readPrefix(const QString &path, qint64 maximumSize)
+{
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) ? file.read(maximumSize) : QByteArray{};
 }
 
 void testSettingsValidation(TestContext &test)
@@ -293,6 +311,125 @@ void testOriginalModeCaptures(TestContext &test)
     }
 }
 
+void testOriginalExportCaptures(TestContext &test)
+{
+    const QJsonObject manifest = loadExportCaptureManifest();
+    test.expect(manifest.value(QStringLiteral("schema_version")).toInt() == 1,
+                "original export-capture schema version should be 1");
+    test.expect(manifest.value(QStringLiteral("original"))
+                        .toObject()
+                        .value(QStringLiteral("version"))
+                        .toString()
+                    == QStringLiteral("1.9.1.0"),
+                "original export capture should identify Convert9918 1.9.1.0");
+
+    const QJsonObject workflow = manifest.value(QStringLiteral("workflow")).toObject();
+    test.expect(workflow.value(QStringLiteral("method")).toString()
+                    == QStringLiteral("controlled-ui"),
+                "export baseline should record the controlled UI workflow");
+    test.expect(workflow.value(QStringLiteral("conversion_mode_index")).toInt(-1) == 0,
+                "export baseline should use default Bitmap 9918A mode");
+    const QJsonObject source = workflow.value(QStringLiteral("source")).toObject();
+    test.expect(sha256(corpusPath(source))
+                    == source.value(QStringLiteral("sha256")).toString().toLatin1(),
+                "export baseline source digest should match its manifest");
+
+    const QSet<QString> expectedFormatIds = {
+        QStringLiteral("v9t9"),       QStringLiteral("raw"),
+        QStringLiteral("rle"),        QStringLiteral("ti-xb"),
+        QStringLiteral("ti-xb-rle"),  QStringLiteral("msx-sc2"),
+        QStringLiteral("cvpaint"),    QStringLiteral("powerpaint"),
+        QStringLiteral("hgr"),        QStringLiteral("coleco-rom"),
+        QStringLiteral("png"),
+    };
+    QSet<QString> capturedFormatIds;
+    int outputCount = 0;
+
+    const QJsonArray formats = manifest.value(QStringLiteral("formats")).toArray();
+    test.expect(formats.size() == expectedFormatIds.size(),
+                "export baseline should contain all eleven applicable choices");
+    for (const QJsonValue &formatValue : formats) {
+        const QJsonObject format = formatValue.toObject();
+        const QString id = format.value(QStringLiteral("id")).toString();
+        test.expect(expectedFormatIds.contains(id),
+                    "export capture should use a recognized format id");
+        test.expect(!capturedFormatIds.contains(id),
+                    "export capture format ids should be unique");
+        capturedFormatIds.insert(id);
+
+        const QJsonArray outputs = format.value(QStringLiteral("outputs")).toArray();
+        test.expect(!outputs.isEmpty(), "each captured export format should emit a file");
+        outputCount += outputs.size();
+        for (const QJsonValue &outputValue : outputs) {
+            const QJsonObject output = outputValue.toObject();
+            const QString path = corpusPath(output);
+            const QFileInfo file(path);
+            test.expect(file.exists(), "each recorded export output should exist");
+            test.expect(file.size() == output.value(QStringLiteral("size")).toInteger(),
+                        "export size should match its capture manifest");
+            test.expect(sha256(path)
+                            == output.value(QStringLiteral("sha256")).toString().toLatin1(),
+                        "export SHA-256 should match its capture manifest");
+
+            const QByteArray prefix = readPrefix(path, 16);
+            if (id == QStringLiteral("v9t9")) {
+                test.expect(file.size() == 6272 && prefix.startsWith("tinyv9_"),
+                            "V9T9 tables should have a 128-byte filename header");
+                test.expect(!prefix.startsWith(QByteArray("\x07TIFILES", 8)),
+                            "V9T9 tables should not contain a TIFILES signature");
+            } else if (id == QStringLiteral("raw")) {
+                test.expect(file.size() == 6144,
+                            "raw pattern and color tables should be exactly 6144 bytes");
+            } else if (id == QStringLiteral("rle")) {
+                test.expect(file.size() > 0 && file.size() < 6144,
+                            "RLE tables should be nonempty and smaller than raw tables");
+            } else if (id == QStringLiteral("ti-xb")
+                       || id == QStringLiteral("ti-xb-rle")) {
+                test.expect(prefix.startsWith(QByteArray("\x07TIFILES", 8)),
+                            "TI XB programs should use the original TIFILES wrapper");
+            } else if (id == QStringLiteral("msx-sc2")) {
+                test.expect(prefix.startsWith(QByteArray("\xFE\x00\x00\x00\x38\x00\x00", 7)),
+                            "MSX SC2 should contain the captured binary header");
+            } else if (id == QStringLiteral("cvpaint")) {
+                test.expect(file.size() == 12288,
+                            "CVPaint output should contain two 6144-byte tables");
+            } else if (id == QStringLiteral("powerpaint")) {
+                test.expect(file.size() == 10240,
+                            "PowerPaint output should retain its 10 KiB layout");
+            } else if (id == QStringLiteral("hgr")) {
+                test.expect(file.size() == 10261
+                                && prefix.startsWith(QByteArray("\x01\x00\x02", 3)),
+                            "Adam HGR should retain its captured header and size");
+            } else if (id == QStringLiteral("coleco-rom")) {
+                test.expect(prefix.startsWith(QByteArray("\x55\xAA", 2)),
+                            "ColecoVision cartridge should start with its ROM signature");
+            } else if (id == QStringLiteral("png")) {
+                const QImage image(path);
+                test.expect(image.size() == QSize(256, 192),
+                            "captured PNG export should be 256 by 192 pixels");
+            }
+        }
+    }
+
+    test.expect(capturedFormatIds == expectedFormatIds,
+                "every applicable non-TIFILES export choice should be captured");
+    test.expect(outputCount == 14, "the eleven export choices should emit fourteen files");
+
+    const QJsonArray excluded = manifest.value(QStringLiteral("excluded_formats")).toArray();
+    test.expect(excluded.size() == 1
+                    && excluded.first()
+                           .toObject()
+                           .value(QStringLiteral("id"))
+                           .toString()
+                        == QStringLiteral("coleco-rle-rom")
+                    && excluded.first()
+                           .toObject()
+                           .value(QStringLiteral("menu_label"))
+                           .toString()
+                           .contains(QStringLiteral("Broken")),
+                "the original's broken RLE cartridge writer should be explicitly excluded");
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -306,5 +443,6 @@ int main(int argc, char *argv[])
     testMalformedInputs(test, manifest);
     testOriginalCapture(test);
     testOriginalModeCaptures(test);
+    testOriginalExportCaptures(test);
     return test.result();
 }

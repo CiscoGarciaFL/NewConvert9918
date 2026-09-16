@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "capture_id": "original-1.9.1-bitmap-9918a-tiny-rgba-exports",
+  "captured_on": "2026-09-15",
+  "original": {
+    "version": "1.9.1.0",
+    "executable_sha256": "7a97a25cf58adcf55e81d714a62a51d1f65ff2298bd3ea6b05348415f17f0c9a"
+  },
+  "workflow": {
+    "platform": "Windows",
+    "method": "controlled-ui",
+    "source": {
+      "path": "tests/golden/source/tiny-rgba.png",
+      "sha256": "bf9e02d079280ea9740c7c2a2e106230ec5e62454f85ca82c72b1536f4c44584"
+    },
+    "conversion_mode_index": 0,
+    "conversion_mode": "Bitmap 9918A",
+    "settings": "Original 1.9.1 defaults after loading the source image",
+    "procedure": [
+      "Open the verified original executable and load the recorded source image.",
+      "Leave conversion mode and controls at their displayed defaults.",
+      "Open Save Pic, select one recorded menu label, enter its requested base path, and save.",
+      "Hash the emitted files without opening or rewriting them."
+    ],
+    "path_note": "Capture directories avoid dots because the original truncates output paths at the final dot anywhere in the full path."
+  },
+  "formats": [
+    {
+      "id": "v9t9",
+      "menu_label": "V9T9 Format Header (*.*)",
+      "requested_base": "v9t9/tinyv9",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/v9t9/TINYV9.TIAC",
+          "size": 6272,
+          "sha256": "a99f065e8cdac87161966bc7c82d653a069e9d6e0ccb480c16ba836cbc59eb62"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/v9t9/TINYV9.TIAP",
+          "size": 6272,
+          "sha256": "eb8f8bd7970c501b4b040ba57901156f16abf1739ba9422b83f1a0f85c3c2d00"
+        }
+      ]
+    },
+    {
+      "id": "raw",
+      "menu_label": "Raw Files (*.*)",
+      "requested_base": "raw/tinyraw",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/raw/TINYRAW.TIAC",
+          "size": 6144,
+          "sha256": "5a7d59f51a635962ba372bec92da62ca5abb38efffdc20fbc5f7566fad71b4b1"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/raw/TINYRAW.TIAP",
+          "size": 6144,
+          "sha256": "9a00f6a679b2e04798d2b7c319b5735c71fafd4db7bc2e1b827a8b342d71bb2c"
+        }
+      ]
+    },
+    {
+      "id": "rle",
+      "menu_label": "RLE Files (*.*)",
+      "requested_base": "rle/tinyrle",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/rle/TINYRLE.TIAC",
+          "size": 4070,
+          "sha256": "efcc7e81705c1ca0601419772f0aa47df7ea608568524b96c42dc775099d2a58"
+        },
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/rle/TINYRLE.TIAP",
+          "size": 5929,
+          "sha256": "a7e63b06562f8850f2b80d7e6ec59c496f688d16e8ea3efbfd049df6064b7433"
+        }
+      ]
+    },
+    {
+      "id": "ti-xb",
+      "menu_label": "TI XB Program (*.*)",
+      "requested_base": "ti-xb/tinyxb",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/ti-xb/tinyxb",
+          "size": 13952,
+          "sha256": "5a388cb4ab72f63356da092e1cdf85aab8600c41b7ca65cc1b7e00f8c854559b"
+        }
+      ]
+    },
+    {
+      "id": "ti-xb-rle",
+      "menu_label": "TI XB RLE Program (*.*)",
+      "requested_base": "ti-xb-rle/tinyxbr",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/ti-xb-rle/tinyxbr",
+          "size": 12416,
+          "sha256": "1ca4f9b1903dd57f86cac021d03dee16f30e5da1fa43d1552c9693bb71956b45"
+        }
+      ]
+    },
+    {
+      "id": "msx-sc2",
+      "menu_label": "MSX SC2 (*.SC2)",
+      "requested_base": "msx-sc2/tiny",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/msx-sc2/tiny.sc2",
+          "size": 14343,
+          "sha256": "f0dadd69789c41de3faf0ffac5385a1ba14adc49e8f6f4a59bf93eaed28bcc80"
+        }
+      ]
+    },
+    {
+      "id": "cvpaint",
+      "menu_label": "Coleco CVPaint (*.pc)",
+      "requested_base": "cvpaint/tiny",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/cvpaint/tiny.pc",
+          "size": 12288,
+          "sha256": "bab9b7effc443bc635c00cb4ae3b13b6e56cfbc086692372132d0a9a11474043"
+        }
+      ]
+    },
+    {
+      "id": "powerpaint",
+      "menu_label": "Adam PowerPaint 10k (*.pp)",
+      "requested_base": "powerpaint/tiny",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/powerpaint/tiny.pp",
+          "size": 10240,
+          "sha256": "e612fe1e8f805daa345a72c97f51dd62ed0154b5feaa3636f97ba28871d869e0"
+        }
+      ]
+    },
+    {
+      "id": "hgr",
+      "menu_label": "Adam HGR (*.hgr,*.hgrh)",
+      "requested_base": "hgr/tiny",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/hgr/tiny.HGRH",
+          "size": 10261,
+          "sha256": "3a6eba916432fedd4670644ad80f98268231ecc31db2e593ed38b9d9cc2d0062"
+        }
+      ]
+    },
+    {
+      "id": "coleco-rom",
+      "menu_label": "ColecoVision Cart (*.ROM)",
+      "requested_base": "coleco-rom/tiny",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/coleco-rom/tiny.rom",
+          "size": 13782,
+          "sha256": "69322e5716386f2d5c674c13b80ceda8033e0702daabd7c38c71a144f316c48d"
+        }
+      ]
+    },
+    {
+      "id": "png",
+      "menu_label": "PNG file (PC) (*.PNG)",
+      "requested_base": "png/tiny",
+      "outputs": [
+        {
+          "path": "tests/golden/reference/original-1_9_1/exports/bitmap-9918a/tiny-rgba/png/tiny.png",
+          "size": 10991,
+          "sha256": "d18173b608bd423c3af6a7d08b51d79ae3caa913fc7e4d70eae369fedb56b557"
+        }
+      ]
+    }
+  ],
+  "excluded_formats": [
+    {
+      "id": "coleco-rle-rom",
+      "menu_label": "ColecoVision RLE Cart (Broken) (*.ROM)",
+      "reason": "The original application explicitly labels this writer broken; it is not an approved compatibility target."
+    }
+  ]
+}
