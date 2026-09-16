@@ -89,6 +89,17 @@ optionally applies the original eight-band horizontal center weighting, merges
 neighboring colors among the leading candidates, and ranks equal counts by
 ascending packed RGB value.
 
+Dithering is represented by six-cell error-distribution kernels whose weights
+are sixteenths: down-left, down, down-right, right, two pixels right, and two
+rows down. The portable error buffer clips contributions at image edges and
+preserves the original Average behavior of dividing stored error by three on
+all rows after the first; Accumulate applies it directly. Ordered dithering
+uses the original x-first 2x2 and 4x4 threshold maps, subtracts the configured
+brightness in sixteenths, and scales each RGB channel by that threshold.
+Near-black and near-white samples bypass ordered adjustment, matching the
+original converter. Samples remain double precision and unclamped until color
+matching.
+
 ### Export codecs
 
 Exporters will consume a completed conversion result and produce RAW, RLE,

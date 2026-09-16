@@ -26,9 +26,22 @@ enum class DitherMode : std::uint8_t {
     OrderedWithError,
 };
 
+enum class OrderedDitherMapSize : std::uint8_t {
+    TwoByTwo = 2,
+    FourByFour = 4,
+};
+
+enum class ErrorAccumulationMode : std::uint8_t {
+    Average,
+    Accumulate,
+};
+
 struct ConversionSettings {
     ConversionMode mode{ConversionMode::Bitmap9918};
     DitherMode dither{DitherMode::FloydSteinberg};
+    OrderedDitherMapSize orderedDitherMapSize{OrderedDitherMapSize::TwoByTwo};
+    int orderedDitherBrightness{0};
+    ErrorAccumulationMode errorAccumulation{ErrorAccumulationMode::Accumulate};
     int targetWidth{256};
     int targetHeight{192};
     double gamma{1.0};

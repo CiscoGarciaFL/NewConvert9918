@@ -1,5 +1,6 @@
 #include "newconvert9918/core/ColorMath.hpp"
 #include "newconvert9918/core/ConversionTypes.hpp"
+#include "newconvert9918/core/Dithering.hpp"
 #include "newconvert9918/core/ImageAdjustments.hpp"
 #include "newconvert9918/core/ImageTransform.hpp"
 #include "newconvert9918/core/PaletteSelection.hpp"
@@ -34,6 +35,11 @@ using newconvert9918::core::ConversionRequest;
 using newconvert9918::core::ConversionResult;
 using newconvert9918::core::ConversionStatus;
 using newconvert9918::core::DiagnosticSeverity;
+using newconvert9918::core::DitherMode;
+using newconvert9918::core::ErrorAccumulationMode;
+using newconvert9918::core::ErrorDiffusionBuffer;
+using newconvert9918::core::ErrorDiffusionBufferError;
+using newconvert9918::core::ErrorDistributionKernel;
 using newconvert9918::core::ImageLayout;
 using newconvert9918::core::ImageLayoutError;
 using newconvert9918::core::ImageSizeLimits;
@@ -47,6 +53,7 @@ using newconvert9918::core::Palette;
 using newconvert9918::core::PaletteError;
 using newconvert9918::core::PaletteSelectionError;
 using newconvert9918::core::PixelFormat;
+using newconvert9918::core::OrderedDitherMapSize;
 using newconvert9918::core::PopularityWeighting;
 using newconvert9918::core::RgbColor;
 using newconvert9918::core::RgbSample;
@@ -58,8 +65,11 @@ using newconvert9918::core::TargetTableError;
 using newconvert9918::core::TargetTableRole;
 using newconvert9918::core::bytesPerPixel;
 using newconvert9918::core::adjustImage;
+using newconvert9918::core::applyOrderedDither;
 using newconvert9918::core::colorDistanceSquared;
+using newconvert9918::core::ditherConfiguration;
 using newconvert9918::core::expectedTargetTables;
+using newconvert9918::core::orderedDitherThreshold;
 using newconvert9918::core::planImageTransform;
 using newconvert9918::core::perceptualRgbDistanceSquared;
 using newconvert9918::core::toYCrCb;
@@ -213,6 +223,161 @@ void testSettingsValidation(TestContext &test)
     issues = validate(settings);
     test.expect(issues.size() == 1 && issues.front().field == "gamma",
                 "non-finite settings should be rejected");
+
+    settings = ConversionSettings{};
+    settings.dither = static_cast<DitherMode>(255);
+    issues = validate(settings);
+    test.expect(issues.size() == 1 && issues.front().field == "dither",
+                "unknown dither modes should be rejected");
+
+    settings = ConversionSettings{};
+    settings.orderedDitherMapSize = static_cast<OrderedDitherMapSize>(3);
+    issues = validate(settings);
+    test.expect(issues.size() == 1 && issues.front().field == "orderedDitherMapSize",
+                "unsupported ordered-map sizes should be rejected");
+
+    settings = ConversionSettings{};
+    settings.orderedDitherBrightness = 17;
+    issues = validate(settings);
+    test.expect(issues.size() == 1 && issues.front().field == "orderedDitherBrightness",
+                "ordered brightness above sixteen should be rejected");
+
+    settings = ConversionSettings{};
+    settings.errorAccumulation = static_cast<ErrorAccumulationMode>(255);
+    issues = validate(settings);
+    test.expect(issues.size() == 1 && issues.front().field == "errorAccumulation",
+                "unknown error accumulation modes should be rejected");
+}
+
+void testDithering(TestContext &test)
+{
+    const auto none = ditherConfiguration(DitherMode::None);
+    test.expect(none && !none->ordered && !none->distributeError
+                    && none->kernel.totalWeight() == 0,
+                "none should disable both dithering paths");
+
+    const auto floyd = ditherConfiguration(DitherMode::FloydSteinberg);
+    test.expect(floyd && !floyd->ordered && floyd->distributeError
+                    && floyd->kernel.downLeft == 3 && floyd->kernel.down == 5
+                    && floyd->kernel.downRight == 1 && floyd->kernel.right == 7
+                    && floyd->kernel.farRight == 0 && floyd->kernel.downTwo == 0
+                    && floyd->kernel.totalWeight() == 16,
+                "Floyd-Steinberg should retain the original six-cell kernel");
+
+    const auto atkinson = ditherConfiguration(DitherMode::Atkinson);
+    test.expect(atkinson && atkinson->kernel.totalWeight() == 10
+                    && atkinson->kernel.farRight == 1
+                    && atkinson->kernel.downTwo == 1,
+                "Atkinson should intentionally distribute ten sixteenths of error");
+
+    const auto pattern = ditherConfiguration(DitherMode::Pattern);
+    test.expect(pattern && pattern->kernel.totalWeight() == 16
+                    && pattern->kernel.down == 8 && pattern->kernel.right == 8,
+                "pattern dithering should split error down and right");
+
+    const auto diagonal = ditherConfiguration(DitherMode::Diagonal);
+    test.expect(diagonal && diagonal->kernel.totalWeight() == 11,
+                "diagonal dithering should retain its eleven-part kernel");
+
+    const auto ordered = ditherConfiguration(DitherMode::Ordered);
+    test.expect(ordered && ordered->ordered && !ordered->distributeError,
+                "ordered mode should use only its threshold map");
+
+    const auto orderedWithError = ditherConfiguration(DitherMode::OrderedWithError);
+    test.expect(orderedWithError && orderedWithError->ordered
+                    && orderedWithError->distributeError
+                    && orderedWithError->kernel.totalWeight() == 7,
+                "ordered-with-error should retain the original seven-part kernel");
+    test.expect(!ditherConfiguration(static_cast<DitherMode>(255)),
+                "unknown dither modes should not produce a configuration");
+
+    test.expectNear(*orderedDitherThreshold(OrderedDitherMapSize::TwoByTwo, 0, 0, 0),
+                    0.0, 1.0e-12, "2x2 threshold origin should be zero");
+    test.expectNear(*orderedDitherThreshold(OrderedDitherMapSize::TwoByTwo, 1, 0, 0),
+                    0.75, 1.0e-12, "2x2 threshold map should be indexed x first");
+    test.expectNear(*orderedDitherThreshold(OrderedDitherMapSize::TwoByTwo, 0, 1, 0),
+                    0.5, 1.0e-12, "2x2 threshold map should preserve its second row");
+    test.expectNear(*orderedDitherThreshold(OrderedDitherMapSize::TwoByTwo, 3, 2, 8),
+                    0.25, 1.0e-12,
+                    "2x2 threshold coordinates should wrap and subtract brightness");
+    test.expectNear(*orderedDitherThreshold(OrderedDitherMapSize::FourByFour, 1, 0, 0),
+                    0.75, 1.0e-12, "4x4 threshold map should be indexed x first");
+    test.expectNear(*orderedDitherThreshold(OrderedDitherMapSize::FourByFour, 5, 4, 0),
+                    0.75, 1.0e-12, "4x4 threshold coordinates should wrap");
+    test.expect(!orderedDitherThreshold(OrderedDitherMapSize::TwoByTwo, 0, 0, -1)
+                    && !orderedDitherThreshold(
+                        static_cast<OrderedDitherMapSize>(3), 0, 0, 0),
+                "invalid ordered-dither arguments should be rejected");
+
+    const auto adjusted = applyOrderedDither(
+        {100.0, 80.0, 40.0}, 1, 0, OrderedDitherMapSize::TwoByTwo, 0);
+    test.expect(adjusted.has_value(), "valid ordered dithering should produce a sample");
+    test.expectNear(adjusted->red, 175.0, 1.0e-12,
+                    "ordered dithering should scale the red channel");
+    test.expectNear(adjusted->green, 140.0, 1.0e-12,
+                    "ordered dithering should scale the green channel");
+    test.expectNear(adjusted->blue, 70.0, 1.0e-12,
+                    "ordered dithering should scale the blue channel");
+
+    const auto black = applyOrderedDither(
+        {8.0, 4.0, 0.0}, 1, 0, OrderedDitherMapSize::TwoByTwo, 0);
+    const auto white = applyOrderedDither(
+        {248.0, 250.0, 255.0}, 1, 0, OrderedDitherMapSize::TwoByTwo, 0);
+    test.expect(black && black->red == 8.0 && black->green == 4.0 && black->blue == 0.0,
+                "near-black samples should bypass ordered adjustment");
+    test.expect(white && white->red == 248.0 && white->green == 250.0
+                    && white->blue == 255.0,
+                "near-white samples should bypass ordered adjustment");
+
+    ErrorDiffusionBufferError bufferError = ErrorDiffusionBufferError::None;
+    auto buffer = ErrorDiffusionBuffer::create(4, 3, 12, &bufferError);
+    test.expect(buffer.has_value() && bufferError == ErrorDiffusionBufferError::None,
+                "a bounded error buffer should be created");
+    buffer->distribute(1, 0, {16.0, 32.0, 48.0}, floyd->kernel);
+    const auto rightError = buffer->errorAt(2, 0);
+    const auto downLeftError = buffer->errorAt(0, 1);
+    const auto downError = buffer->errorAt(1, 1);
+    const auto downRightError = buffer->errorAt(2, 1);
+    test.expectNear(rightError.red, 7.0, 1.0e-12,
+                    "right neighbor should receive seven sixteenths of red error");
+    test.expectNear(rightError.green, 14.0, 1.0e-12,
+                    "right neighbor should receive seven sixteenths of green error");
+    test.expectNear(rightError.blue, 21.0, 1.0e-12,
+                    "right neighbor should receive seven sixteenths of blue error");
+    test.expectNear(downLeftError.red, 3.0, 1.0e-12,
+                    "down-left neighbor should receive three sixteenths of error");
+    test.expectNear(downError.red, 5.0, 1.0e-12,
+                    "down neighbor should receive five sixteenths of error");
+    test.expectNear(downRightError.red, 1.0, 1.0e-12,
+                    "down-right neighbor should receive one sixteenth of error");
+
+    const ErrorDistributionKernel longKernel{0, 0, 0, 0, 8, 4};
+    buffer->distribute(0, 0, {16.0, 16.0, 16.0}, longKernel);
+    test.expectNear(buffer->errorAt(2, 0).red, 15.0, 1.0e-12,
+                    "far-right distribution should reach two columns ahead");
+    test.expectNear(buffer->errorAt(0, 2).red, 4.0, 1.0e-12,
+                    "down-two distribution should reach two rows ahead");
+
+    buffer->distribute(3, 2, {16.0, 16.0, 16.0}, floyd->kernel);
+    const auto accumulated = buffer->adjustedSample(
+        {10.0, 20.0, 30.0}, 1, 1, ErrorAccumulationMode::Accumulate);
+    const auto averaged = buffer->adjustedSample(
+        {10.0, 20.0, 30.0}, 1, 1, ErrorAccumulationMode::Average);
+    const auto firstRowAverage = buffer->adjustedSample(
+        {10.0, 20.0, 30.0}, 2, 0, ErrorAccumulationMode::Average);
+    test.expectNear(accumulated.red, 15.0, 1.0e-12,
+                    "accumulate mode should apply the complete stored error");
+    test.expectNear(averaged.red, 10.0 + 5.0 / 3.0, 1.0e-12,
+                    "average mode should divide later-row error by three");
+    test.expectNear(firstRowAverage.red, 25.0, 1.0e-12,
+                    "average mode should not divide first-row error");
+
+    test.expect(!ErrorDiffusionBuffer::create(0, 1, 1, &bufferError)
+                    && bufferError == ErrorDiffusionBufferError::ZeroDimension,
+                "zero-sized error buffers should be rejected");
+    test.expect(!ErrorDiffusionBuffer::create(2, 2, 3, &bufferError)
+                    && bufferError == ErrorDiffusionBufferError::PixelLimitExceeded,
+                "error buffers should enforce their pixel limit");
 }
 
 void testColorMath(TestContext &test)
@@ -1202,6 +1367,7 @@ int main(int argc, char *argv[])
     TestContext test;
     testSettingsValidation(test);
     testColorMath(test);
+    testDithering(test);
     testImageAdjustments(test);
     testPaletteSelection(test);
     testRgbImage(test);
