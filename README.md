@@ -11,13 +11,13 @@ The project is starting with two goals:
 
 ## Status
 
-The portable core includes image geometry, preprocessing, color matching,
-palette selection, dithering, all four Bitmap 9918A variants, all three
-Multicolor 9918/9918A variants, and both F18A bitmap palette modes. The Phase 4
-input pipeline now loads common Qt raster formats, PCX, and the original retro
-formats with explicit safety limits. The Qt shell can open, drop, paste, and
-display those sources. Connecting loaded images to live background conversion
-remains a later interface-integration milestone.
+The portable core includes every planned 9918A and F18A conversion mode. The
+input pipeline loads common Qt raster formats, PCX, and the original retro
+formats with explicit safety limits. Phase 5 adds deterministic RAW, RLE,
+TIFILES, V9T9, MSX, Coleco, Adam, Extended BASIC, ROM, and PNG exporters with
+generated-file manifests and overwrite preflight. The Qt shell can open, drop,
+paste, and display sources; connecting conversion and export to the redesigned
+workflow remains the next interface-integration milestone.
 
 See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current
 status, acceptance criteria, and next-session checklist. The original
@@ -33,6 +33,8 @@ and the remaining end-to-end golden dependency are recorded in
 [`docs/PHASE3_COMPATIBILITY.md`](docs/PHASE3_COMPATIBILITY.md).
 Image formats, color/alpha/orientation policy, and input limits are documented
 in [`docs/IMAGE_INPUT.md`](docs/IMAGE_INPUT.md).
+Export applicability, byte layouts, loader-template policy, and overwrite
+behavior are documented in [`docs/EXPORT_FORMATS.md`](docs/EXPORT_FORMATS.md).
 
 ## Technology
 
@@ -98,9 +100,11 @@ runners with AppleClang.
 
 - `app/` — Qt application shell and QML interface
 - `include/newconvert9918/core/` — public, platform-neutral core API
+- `include/newconvert9918/formats/` — portable export requests and manifests
 - `include/newconvert9918/imageio/` — Qt image-loading adapter API
 - `src/core/` — conversion and independent codec implementation
-- `src/imageio/` — common raster and file-routing implementation
+- `src/formats/` — deterministic retro output writers
+- `src/imageio/` — common raster, PNG, and filesystem adapters
 - `tests/` — unit and future golden-output tests
 - `docs/` — architecture and migration decisions
 
