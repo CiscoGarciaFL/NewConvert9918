@@ -16,17 +16,17 @@ baseline.
   deterministic replacement is documented in successful conversion diagnostics
   and is designed for independent testing and future parallel execution.
 - The approved original corpus and hashes remain in `tests/golden/reference`.
-  Exact end-to-end byte comparison is not asserted inside the core suite yet:
-  those captures include source decoding/scaling behavior assigned to Phase 4
-  and TIFILES framing assigned to Phase 5. Core tests currently validate raw
-  target-table bytes with controlled prepared-image fixtures.
+  Exact end-to-end byte comparison is not asserted inside the core suite yet.
+  Phase 4 now supplies the source decoding/scaling boundary; Phase 5 must add
+  TIFILES framing and connect the complete golden pipeline. Core tests currently
+  validate raw target-table bytes with controlled prepared-image fixtures.
 
 ## Exit decision
 
-The Phase 3 implementation checklist is complete. Its final golden-output gate
-remains open until the Phase 4 image-input adapter and Phase 5 table exporters
-can feed the captured corpus through the complete pipeline. At that point each
-raw target payload can be compared with the captured TIFILES payload, while the
+The Phase 3 implementation checklist is complete, as is the Phase 4 image-input
+adapter. Its final golden-output gate remains open until Phase 5 exporters feed
+the captured corpus through the complete pipeline. At that point each raw
+target payload can be compared with the captured TIFILES payload, while the
 scanline-palette mode is evaluated against the intentional difference above.
 This dependency is kept explicit rather than treating partial-pipeline hashes
 as proof of end-to-end parity.

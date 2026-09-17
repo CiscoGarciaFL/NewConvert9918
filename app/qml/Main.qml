@@ -13,16 +13,15 @@ ApplicationWindow {
     visible: true
     title: qsTr("New Convert 9918")
 
-    property url sourceUrl
-
     FileDialog {
         id: openDialog
         title: qsTr("Open source image")
         nameFilters: [
-            qsTr("Images (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp)"),
+            qsTr("Images (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp *.pcx)"),
+            qsTr("Retro images (*.tiap *.tiac *.tiam *_P *_C *_M *.sc2 *.pc *.pp *.hgr *.hgrh)"),
             qsTr("All files (*)")
         ]
-        onAccepted: window.sourceUrl = selectedFile
+        onAccepted: imageInput.openUrl(selectedFile)
     }
 
     header: ToolBar {
@@ -45,8 +44,13 @@ ApplicationWindow {
             }
 
             Button {
+                text: qsTr("Paste")
+                onClicked: imageInput.pasteClipboard()
+            }
+
+            Button {
                 text: qsTr("Export")
-                enabled: window.sourceUrl.toString().length > 0
+                enabled: imageInput.hasImage
             }
         }
     }
@@ -82,14 +86,14 @@ ApplicationWindow {
                         Image {
                             anchors.fill: parent
                             anchors.margins: 12
-                            source: window.sourceUrl
+                            source: imageInput.sourcePreview
                             fillMode: Image.PreserveAspectFit
                             asynchronous: true
                         }
 
                         Label {
                             anchors.centerIn: parent
-                            visible: window.sourceUrl.toString().length === 0
+                            visible: !imageInput.hasImage
                             text: qsTr("Drop an image here or choose Open Image")
                             color: palette.placeholderText
                         }
@@ -97,10 +101,28 @@ ApplicationWindow {
                         DropArea {
                             anchors.fill: parent
                             onDropped: drop => {
-                                if (drop.urls.length > 0)
-                                    window.sourceUrl = drop.urls[0]
+                                if (drop.urls.length > 0) {
+                                    imageInput.openUrl(drop.urls[0])
+                                    drop.acceptProposedAction()
+                                }
                             }
                         }
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        visible: imageInput.hasImage
+                        text: imageInput.sourceName + "\n" + imageInput.sourceDetails
+                        wrapMode: Text.WordWrap
+                        color: palette.placeholderText
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        visible: imageInput.errorMessage.length > 0
+                        text: imageInput.errorMessage
+                        wrapMode: Text.WordWrap
+                        color: palette.brightText
                     }
                 }
             }
