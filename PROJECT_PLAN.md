@@ -126,6 +126,11 @@ improvement.
   palettes, per-row Graphics II matching, preview, and 6 KiB palette data.
 - [x] Added cooperative cancellation tokens and a thread-safe preview job
   controller with monotonic generation IDs and stale-result rejection.
+- [x] Added a reproducible Release benchmark and conservative buffer-memory
+  estimates; the 2026-09-16 VM baseline is recorded in `docs/PERFORMANCE.md`.
+- [x] Completed the Phase 3 implementation review. Exact end-to-end golden
+  comparison remains an explicit Phase 4/5 integration dependency, and the
+  deterministic scanline-palette difference is documented.
 
 ### Development environment
 
@@ -262,10 +267,15 @@ visual memory or subjective comparison.
   - [x] Paletted Bitmap F18A
   - [x] Scanline Palette Bitmap F18A
 - [x] Add cancellation and generation IDs for interactive preview jobs.
-- [ ] Measure conversion performance and memory use.
+- [x] Measure conversion performance and memory use.
 
 **Exit criterion:** every conversion mode matches approved golden output or has
 a documented, reviewed reason for differing.
+
+**Exit review:** implementation is complete. Raw core table contracts are
+covered, but end-to-end golden payload comparison remains open until Phase 4
+source decoding/scaling and Phase 5 TIFILES framing are connected. See
+`docs/PHASE3_COMPATIBILITY.md`.
 
 ### Phase 4 — Image input and source formats
 
@@ -491,7 +501,9 @@ When opening this project again:
 29. [x] Port Paletted Bitmap F18A conversion mode.
 30. [x] Port Scanline Palette Bitmap F18A conversion mode.
 31. [x] Add cancellation and generation IDs for interactive preview jobs.
-32. [ ] Measure conversion performance and memory use.
+32. [x] Measure conversion performance and memory use.
+33. [x] Record the Phase 3 compatibility and exit review.
+34. [ ] Begin Phase 4 image input and source formats.
 
 Suggested opening prompt:
 

@@ -2,6 +2,7 @@
 #include "newconvert9918/core/ColorMath.hpp"
 #include "newconvert9918/core/ConversionTypes.hpp"
 #include "newconvert9918/core/ConversionJobController.hpp"
+#include "newconvert9918/core/ConversionPerformance.hpp"
 #include "newconvert9918/core/Dithering.hpp"
 #include "newconvert9918/core/F18AConverter.hpp"
 #include "newconvert9918/core/ImageAdjustments.hpp"
@@ -39,6 +40,7 @@ using newconvert9918::core::ConversionRequest;
 using newconvert9918::core::ConversionResult;
 using newconvert9918::core::ConversionStatus;
 using newconvert9918::core::ConversionJobController;
+using newconvert9918::core::ConversionMemoryEstimate;
 using newconvert9918::core::DiagnosticSeverity;
 using newconvert9918::core::DitherMode;
 using newconvert9918::core::ErrorAccumulationMode;
@@ -78,6 +80,7 @@ using newconvert9918::core::convertBitmap9918;
 using newconvert9918::core::convertDualMulticolor9918;
 using newconvert9918::core::convertPalettedBitmapF18A;
 using newconvert9918::core::convertScanlinePaletteBitmapF18A;
+using newconvert9918::core::estimateConversionMemory;
 using newconvert9918::core::convertGreyscaleBitmap9918;
 using newconvert9918::core::convertHalfMulticolor9918;
 using newconvert9918::core::convertMulticolor9918;
@@ -1325,6 +1328,34 @@ void testConversionJobController(TestContext &test)
                 "explicit cancellation should prevent publication of the current job");
 }
 
+void testConversionMemoryEstimate(TestContext &test)
+{
+    ConversionSettings settings;
+    const ConversionMemoryEstimate bitmap = estimateConversionMemory(settings);
+    test.expect(bitmap.sourceImageBytes == 147456
+                    && bitmap.previewImageBytes == 147456
+                    && bitmap.indexedImageBytes == 49152
+                    && bitmap.errorDiffusionBytes == 1179648
+                    && bitmap.targetTableBytes == 12288
+                    && bitmap.paletteBytes == 0
+                    && bitmap.totalBytes() == 1536000,
+                "default Bitmap memory accounting should cover its large owned buffers");
+
+    settings.mode = ConversionMode::Multicolor9918;
+    const ConversionMemoryEstimate multicolor = estimateConversionMemory(settings);
+    test.expect(multicolor.errorDiffusionBytes == 0
+                    && multicolor.targetTableBytes == 1536
+                    && multicolor.totalBytes() == 345600,
+                "Multicolor memory accounting should omit its unused error buffer");
+
+    settings.mode = ConversionMode::ScanlinePaletteBitmapF18A;
+    const ConversionMemoryEstimate scanline = estimateConversionMemory(settings);
+    test.expect(scanline.paletteBytes == 8640
+                    && scanline.targetTableBytes == 18432
+                    && scanline.totalBytes() == 1550784,
+                "scanline F18A memory accounting should include all row palettes");
+}
+
 void testTargetData(TestContext &test)
 {
     PaletteError paletteError = PaletteError::TooManyColors;
@@ -1938,6 +1969,7 @@ int main(int argc, char *argv[])
     testRgbImage(test);
     testConversionTypes(test);
     testConversionJobController(test);
+    testConversionMemoryEstimate(test);
     testTargetData(test);
     testImageTransform(test);
     const QJsonObject manifest = loadCorpusManifest();
