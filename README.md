@@ -11,13 +11,13 @@ The project is starting with two goals:
 
 ## Status
 
-The portable core now includes image geometry, preprocessing, color matching,
+The portable core includes image geometry, preprocessing, color matching,
 palette selection, dithering, all four Bitmap 9918A variants, all three
-Multicolor 9918/9918A variants, and both F18A bitmap palette modes. The Qt shell
-can use the core's cancellation tokens and generation gate to discard stale
-interactive previews. It still presents the proposed workflow; connecting
-image loading and live conversion to that interface is a later integration
-milestone.
+Multicolor 9918/9918A variants, and both F18A bitmap palette modes. The Phase 4
+input pipeline now loads common Qt raster formats, PCX, and the original retro
+formats with explicit safety limits. The Qt shell can open, drop, paste, and
+display those sources. Connecting loaded images to live background conversion
+remains a later interface-integration milestone.
 
 See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current
 status, acceptance criteria, and next-session checklist. The original
@@ -31,6 +31,8 @@ The optimized timing and owned-buffer baseline is in
 [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md). Phase 3 compatibility decisions
 and the remaining end-to-end golden dependency are recorded in
 [`docs/PHASE3_COMPATIBILITY.md`](docs/PHASE3_COMPATIBILITY.md).
+Image formats, color/alpha/orientation policy, and input limits are documented
+in [`docs/IMAGE_INPUT.md`](docs/IMAGE_INPUT.md).
 
 ## Technology
 
@@ -85,7 +87,9 @@ runners with AppleClang.
 
 - `app/` — Qt application shell and QML interface
 - `include/newconvert9918/core/` — public, platform-neutral core API
-- `src/core/` — conversion-core implementation
+- `include/newconvert9918/imageio/` — Qt image-loading adapter API
+- `src/core/` — conversion and independent codec implementation
+- `src/imageio/` — common raster and file-routing implementation
 - `tests/` — unit and future golden-output tests
 - `docs/` — architecture and migration decisions
 

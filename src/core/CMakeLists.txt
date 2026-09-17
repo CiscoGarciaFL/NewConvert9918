@@ -6,6 +6,7 @@ add_library(newconvert9918_core STATIC
     ConversionTypes.cpp
     Dithering.cpp
     F18AConverter.cpp
+    ImageDecoding.cpp
     ImageAdjustments.cpp
     ImageTransform.cpp
     Multicolor9918Converter.cpp

@@ -1,6 +1,6 @@
 # New Convert 9918 — Project Plan and Checklist
 
-Last updated: 2026-09-16
+Last updated: 2026-09-17
 
 This document is the durable handoff for future development sessions. Read it
 before starting work, update the checkboxes as milestones are completed, and
@@ -70,7 +70,7 @@ improvement.
 - [x] Installed Qt 6.10.3, MinGW 13.1, CMake 3.30.5, and Ninja 1.12.1.
 - [x] Installed Zed 1.19.2 on the Windows development VM.
 - [x] Configured and built the application shell with MinGW Makefiles.
-- [x] Ran the validation suite successfully (1/1 tests passing).
+- [x] Ran the validation suite successfully (2/2 tests passing).
 - [x] Added cross-platform CMake presets and Zed build/test tasks.
 - [x] Added shared C++ and QML formatting configuration.
 - [x] Added a GitHub Actions build/test matrix for Windows, Ubuntu, Intel macOS,
@@ -129,8 +129,17 @@ improvement.
 - [x] Added a reproducible Release benchmark and conservative buffer-memory
   estimates; the 2026-09-16 VM baseline is recorded in `docs/PERFORMANCE.md`.
 - [x] Completed the Phase 3 implementation review. Exact end-to-end golden
-  comparison remains an explicit Phase 4/5 integration dependency, and the
+  comparison remains an explicit Phase 5 integration dependency, and the
   deterministic scanline-palette difference is documented.
+- [x] Added bounded `QImageReader` input for PNG, JPEG, BMP, GIF, and available
+  TIFF/WebP plug-ins with explicit sRGB, alpha, orientation, and first-frame
+  policies.
+- [x] Added independent PCX and retro decoders for TI Artist, MSX SC2, Coleco
+  CVPaint, Adam PowerPaint, and Adam HGR/HGRH layouts.
+- [x] Routed file-open, command-line, clipboard, and drag-and-drop sources
+  through the same cross-platform loader.
+- [x] Added exact-pixel, format-routing, size-limit, malformed, and truncated
+  input tests and documented the complete Phase 4 policy.
 
 ### Development environment
 
@@ -273,29 +282,34 @@ visual memory or subjective comparison.
 a documented, reviewed reason for differing.
 
 **Exit review:** implementation is complete. Raw core table contracts are
-covered, but end-to-end golden payload comparison remains open until Phase 4
-source decoding/scaling and Phase 5 TIFILES framing are connected. See
-`docs/PHASE3_COMPATIBILITY.md`.
+covered and Phase 4 now supplies source decoding/scaling. End-to-end golden
+payload comparison remains open until Phase 5 TIFILES framing connects the
+complete pipeline. See `docs/PHASE3_COMPATIBILITY.md`.
 
 ### Phase 4 — Image input and source formats
 
-- [ ] Use `QImageReader` for PNG, JPEG, BMP, and GIF.
-- [ ] Use Qt Image Formats for TIFF and WebP where available.
-- [ ] Confirm color-space, alpha, orientation, and animation-frame policies.
-- [ ] Implement or select a permissively licensed PCX decoder.
-- [ ] Implement independently testable retro readers:
-  - [ ] TI Artist
-  - [ ] MSX SC2
-  - [ ] Coleco CVPaint (`.pc`)
-  - [ ] Adam PowerPaint (`.pp`)
-  - [ ] Adam HGR/HGRH
-- [ ] Add explicit allocation and input-size limits.
-- [ ] Add malformed and truncated input tests.
-- [ ] Add cross-platform clipboard image input.
-- [ ] Add cross-platform drag-and-drop input.
+- [x] Use `QImageReader` for PNG, JPEG, BMP, and GIF.
+- [x] Use Qt Image Formats for TIFF and WebP where available.
+- [x] Confirm color-space, alpha, orientation, and animation-frame policies.
+- [x] Implement or select a permissively licensed PCX decoder.
+- [x] Implement independently testable retro readers:
+  - [x] TI Artist
+  - [x] MSX SC2
+  - [x] Coleco CVPaint (`.pc`)
+  - [x] Adam PowerPaint (`.pp`)
+  - [x] Adam HGR/HGRH
+- [x] Add explicit allocation and input-size limits.
+- [x] Add malformed and truncated input tests.
+- [x] Add cross-platform clipboard image input.
+- [x] Add cross-platform drag-and-drop input.
 
 **Exit criterion:** supported source images load consistently and safely on
 Windows, Linux, and macOS without ImgSource.
+
+**Exit review:** complete. Common, PCX, and retro inputs share a bounded
+`RgbImage` boundary; all interactive paths use the same loader. Policies and
+format contracts are recorded in `docs/IMAGE_INPUT.md` and exercised in the
+cross-platform CTest matrix.
 
 ### Phase 5 — Export formats
 
@@ -461,6 +475,7 @@ A task is not complete merely because it compiles. Apply the relevant gates:
 | 2026-09-15 | Keep the audited original at commit `edbdf0f` in an external sibling checkout | Provides a stable behavioral reference without bringing original or ImgSource-related files into the clean implementation. |
 | 2026-09-15 | Use project-created image-generation output and deterministic procedural fixtures for the public corpus | Covers photographic and synthetic edge cases without copying upstream, ImgSource, or third-party stock assets. |
 | 2026-09-15 | Preserve default original outputs by hash and fix unsafe behavior intentionally | Byte-level output is the parity baseline, while confirmed path handling and misleading broken-format behavior are not copied. |
+| 2026-09-17 | Normalize all image inputs through a bounded `RgbImage` loader | Common, PCX, retro, clipboard, and drop paths now share color, alpha, safety, and error behavior on every platform. |
 
 ## Next session checklist
 
@@ -503,7 +518,8 @@ When opening this project again:
 31. [x] Add cancellation and generation IDs for interactive preview jobs.
 32. [x] Measure conversion performance and memory use.
 33. [x] Record the Phase 3 compatibility and exit review.
-34. [ ] Begin Phase 4 image input and source formats.
+34. [x] Complete Phase 4 image input and source formats.
+35. [ ] Begin Phase 5 export formats and generated-file manifests.
 
 Suggested opening prompt:
 

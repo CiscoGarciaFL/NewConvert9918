@@ -19,8 +19,11 @@ preferences, background jobs, and preview presentation.
 
 ### Image I/O
 
-Qt's image readers and writers handle common image formats. Dedicated codecs
-will handle PCX and machine-specific formats where Qt has no built-in support.
+The `newconvert9918_imageio` adapter uses Qt image readers for common formats,
+color-profile conversion, embedded orientation, and the first animation frame.
+Dedicated standard-C++ codecs handle PCX and machine-specific formats where Qt
+has no built-in support. Both paths produce the same bounded `RgbImage` value;
+the detailed format and trust-boundary policy is in `docs/IMAGE_INPUT.md`.
 
 ### Conversion core
 

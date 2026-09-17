@@ -1,4 +1,6 @@
 qt_add_executable(NewConvert9918
+    ImageInputController.cpp
+    ImageInputController.hpp
     main.cpp
 )
 
@@ -16,6 +18,7 @@ qt_add_qml_module(NewConvert9918
 target_link_libraries(NewConvert9918
     PRIVATE
         newconvert9918_core
+        newconvert9918_imageio
         Qt6::Core
         Qt6::Gui
         Qt6::Quick

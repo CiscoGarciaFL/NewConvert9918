@@ -18,6 +18,21 @@ set_target_properties(test_core_validation PROPERTIES AUTOMOC OFF)
 
 add_test(NAME core_validation COMMAND test_core_validation)
 
+add_executable(test_image_input
+    test_image_input.cpp
+)
+
+target_link_libraries(test_image_input
+    PRIVATE
+        newconvert9918_imageio
+        Qt6::Core
+        Qt6::Gui
+)
+
+set_target_properties(test_image_input PROPERTIES AUTOMOC OFF)
+
+add_test(NAME image_input_validation COMMAND test_image_input)
+
 add_executable(benchmark_core_conversion
     benchmark_conversion.cpp
 )

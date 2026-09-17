@@ -15,6 +15,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Quick QuickControls2)
 qt_standard_project_setup(REQUIRES 6.8)
 
 add_subdirectory(src/core)
+add_subdirectory(src/imageio)
 add_subdirectory(app)
 
 include(CTest)
