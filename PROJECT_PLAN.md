@@ -154,6 +154,9 @@ improvement.
 - [x] Added an end-to-end interface test covering background conversion,
   stale-result rejection, scanline palettes, persistence, safe export, 125%
   scaling, and narrow/wide layouts; also verified native Windows rendering.
+- [x] Replaced the action toolbar with File, View, and Help menus; added
+  tabbed, horizontal, and vertical preview arrangements plus hideable adjacent
+  and overlay Conversion-panel states.
 
 ### Development environment
 

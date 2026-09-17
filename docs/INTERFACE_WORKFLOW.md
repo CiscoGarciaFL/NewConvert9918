@@ -8,7 +8,7 @@ libraries. The primary path is deliberately linear:
 3. Choose a target mode or apply a named starting preset.
 4. Adjust common settings, then expand Advanced only when needed.
 5. Inspect the live converted preview, palette, and generated-file summary.
-6. Choose an export format and destination folder.
+6. Choose File → Export and a destination folder.
 
 Changing a conversion setting starts a 160 ms debounce. Work then runs through
 Qt's background thread pool, leaving the interface responsive. Each request has
@@ -19,9 +19,13 @@ while a replacement is calculated.
 ## Preview and framing
 
 The source and converted panes each provide zoom out, fit, 1:1, zoom in, mouse
-wheel zoom, and panning. Fit/crop changes update a 4:3 framing overlay on the
-source and schedule a fresh preview. Start, center, and end crop modes expose
-horizontal and vertical positioning controls.
+wheel zoom, and panning. View → Tabbed places them on Source and Converted
+tabs. View → Horizontal uses an adjustable side-by-side split, and View →
+Vertical uses an adjustable top-and-bottom split. Horizontal is the default.
+
+Fit/crop changes update a 4:3 framing overlay on the source and schedule a
+fresh preview. Start, center, and end crop modes expose horizontal and vertical
+positioning controls.
 
 The Palette section shows the active target colors. Scanline Palette Bitmap
 F18A additionally offers a 16-by-192 map of the palette selected for every
@@ -66,16 +70,18 @@ an explicit Replace choice.
 
 Interactive controls participate in tab navigation and provide accessible
 names where their visible label is not sufficient. The Fusion control style
-provides consistent contrast across the supported desktops. At wide sizes the
-settings panel remains beside the split previews; below 1100 logical pixels it
-moves into a right-side drawer, and the preview pair stacks when necessary.
+provides consistent contrast across the supported desktops. File contains
+Open, Paste, and Export, while Help contains About. View selects the preview
+arrangement, hides or shows the Conversion panel, and places that panel either
+adjacent to the workspace or in a non-modal overlay above it.
 
 ## Verification
 
 `interface_workflow_validation` exercises image load, debounced conversion,
 stale-result rejection, persistence, undo, scanline palette visualization,
-manifest export, overwrite preflight, QML loading, narrow/wide layout rules,
-and a rendered frame at 125% scale. The Windows development pass also renders
-through the native platform plug-in to verify real system fonts and DPI
-behavior. Conversion algorithms and export bytes remain covered by their
-independent core and golden tests.
+manifest export, overwrite preflight, QML loading, all three preview layouts,
+hidden/adjacent/overlay panel states, narrow/wide sizing, and a rendered frame
+at 125% scale. The Windows development pass also renders through the native
+platform plug-in to verify real system fonts and DPI behavior. Conversion
+algorithms and export bytes remain covered by their independent core and
+golden tests.

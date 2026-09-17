@@ -18,6 +18,20 @@ ApplicationWindow {
     // hosts and automated layout checks can supply their available width.
     property real layoutWidth: width
     readonly property bool compactLayout: layoutWidth < 1100
+    property int previewLayout: 1
+    property bool conversionPanelVisible: true
+    property int conversionPanelMode: 0
+
+    function synchronizeConversionPanel() {
+        if (conversionPanelMode === 1 && conversionPanelVisible)
+            overlayConversionPanel.open()
+        else
+            overlayConversionPanel.close()
+    }
+
+    onConversionPanelVisibleChanged: Qt.callLater(synchronizeConversionPanel)
+    onConversionPanelModeChanged: Qt.callLater(synchronizeConversionPanel)
+    Component.onCompleted: synchronizeConversionPanel()
 
     FileDialog {
         id: openDialog
@@ -102,65 +116,97 @@ ApplicationWindow {
         }
     }
 
-    Shortcut { sequence: "Ctrl+O"; onActivated: openDialog.open() }
-    Shortcut { sequence: "Ctrl+V"; onActivated: imageInput.pasteClipboard() }
-    Shortcut { sequence: "Ctrl+E"; enabled: imageInput.hasConversion; onActivated: exportDialog.open() }
+    Action {
+        id: openAction
+        text: qsTr("&Open…")
+        shortcut: "Ctrl+O"
+        onTriggered: openDialog.open()
+    }
+    Action {
+        id: pasteAction
+        text: qsTr("&Paste")
+        shortcut: "Ctrl+V"
+        onTriggered: imageInput.pasteClipboard()
+    }
+    Action {
+        id: exportAction
+        text: qsTr("&Export…")
+        shortcut: "Ctrl+E"
+        enabled: imageInput.hasConversion
+        onTriggered: exportDialog.open()
+    }
+    Action {
+        id: aboutAction
+        text: qsTr("&About New Convert 9918")
+        shortcut: "F1"
+        onTriggered: aboutDialog.open()
+    }
+
     Shortcut { sequence: "Ctrl+Z"; enabled: imageInput.canUndo; onActivated: imageInput.undoSettings() }
     Shortcut { sequence: "Ctrl+0"; onActivated: imageInput.resetSettings() }
-    Shortcut { sequence: "F1"; onActivated: aboutDialog.open() }
 
-    header: ToolBar {
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            spacing: 8
+    menuBar: MenuBar {
+        objectName: "mainMenuBar"
 
-            Label {
-                text: qsTr("New Convert 9918")
-                font.pixelSize: 18
-                font.weight: Font.DemiBold
-                Layout.fillWidth: true
-                elide: Text.ElideRight
+        Menu {
+            title: qsTr("&File")
+            MenuItem { action: openAction }
+            MenuItem { action: pasteAction }
+            MenuSeparator {}
+            MenuItem { action: exportAction }
+        }
+
+        Menu {
+            title: qsTr("&View")
+
+            MenuItem {
+                text: qsTr("&Tabbed")
+                checkable: true
+                checked: window.previewLayout === 0
+                onTriggered: window.previewLayout = 0
             }
-            Button {
-                text: qsTr("Open")
-                icon.name: "document-open"
-                onClicked: openDialog.open()
-                activeFocusOnTab: true
-                Accessible.name: qsTr("Open source image")
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Open image (Ctrl+O)")
+            MenuItem {
+                text: qsTr("&Horizontal")
+                checkable: true
+                checked: window.previewLayout === 1
+                onTriggered: window.previewLayout = 1
             }
-            Button {
-                text: qsTr("Paste")
-                visible: !window.compactLayout
-                onClicked: imageInput.pasteClipboard()
-                activeFocusOnTab: true
-                Accessible.name: qsTr("Paste image from clipboard")
+            MenuItem {
+                text: qsTr("&Vertical")
+                checkable: true
+                checked: window.previewLayout === 2
+                onTriggered: window.previewLayout = 2
             }
-            Button {
-                text: qsTr("Export")
-                enabled: imageInput.hasConversion
-                onClicked: exportDialog.open()
-                activeFocusOnTab: true
-                Accessible.name: qsTr("Export converted image")
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Export (Ctrl+E)")
+
+            MenuSeparator {}
+
+            MenuItem {
+                text: qsTr("Show &Conversion Panel")
+                checkable: true
+                checked: window.conversionPanelVisible
+                onTriggered: window.conversionPanelVisible = !window.conversionPanelVisible
             }
-            Button {
-                text: qsTr("Settings")
-                visible: window.compactLayout
-                onClicked: settingsDrawer.open()
-                activeFocusOnTab: true
-                Accessible.name: qsTr("Open conversion settings")
+
+            Menu {
+                title: qsTr("Conversion Panel &Placement")
+                MenuItem {
+                    text: qsTr("&Adjacent")
+                    checkable: true
+                    checked: window.conversionPanelMode === 0
+                    onTriggered: window.conversionPanelMode = 0
+                }
+                MenuItem {
+                    text: qsTr("&Overlay")
+                    checkable: true
+                    checked: window.conversionPanelMode === 1
+                    onTriggered: window.conversionPanelMode = 1
+                }
             }
-            ToolButton {
-                text: qsTr("About")
-                onClicked: aboutDialog.open()
-                activeFocusOnTab: true
-                Accessible.name: qsTr("About New Convert 9918")
-            }
+        }
+
+        Menu {
+            title: qsTr("&Help")
+            MenuItem { action: aboutAction }
         }
     }
 
@@ -169,46 +215,17 @@ ApplicationWindow {
         anchors.margins: 12
         spacing: 12
 
-        SplitView {
+        PreviewWorkspace {
             id: previews
+            objectName: "previewWorkspace"
+            layoutMode: window.previewLayout
             Layout.fillWidth: true
             Layout.fillHeight: true
-            orientation: width < 820 ? Qt.Vertical : Qt.Horizontal
-
-            PreviewPane {
-                objectName: "sourcePreview"
-                title: qsTr("Source")
-                imageSource: imageInput.sourcePreview
-                details: imageInput.hasImage
-                         ? imageInput.sourceName + "\n" + imageInput.sourceDetails : ""
-                emptyText: qsTr("Drop an image here or choose Open")
-                acceptDrops: true
-                cropOverlay: imageInput.hasImage && imageInput.fillMode !== 0
-                SplitView.fillWidth: true
-                SplitView.fillHeight: true
-                SplitView.minimumWidth: 260
-                SplitView.minimumHeight: 180
-                onFileDropped: fileUrl => imageInput.openUrl(fileUrl)
-            }
-
-            PreviewPane {
-                objectName: "convertedPreview"
-                title: qsTr("Converted preview")
-                imageSource: imageInput.convertedPreview
-                details: imageInput.conversionDetails
-                emptyText: imageInput.hasImage
-                           ? qsTr("The converted preview will appear here")
-                           : qsTr("Open a source image to begin")
-                busy: imageInput.busy
-                SplitView.fillWidth: true
-                SplitView.fillHeight: true
-                SplitView.minimumWidth: 260
-                SplitView.minimumHeight: 180
-            }
         }
 
         Frame {
-            visible: !window.compactLayout
+            objectName: "adjacentConversionPanel"
+            visible: window.conversionPanelVisible && window.conversionPanelMode === 0
             Layout.preferredWidth: 350
             Layout.maximumWidth: 420
             Layout.fillHeight: true
@@ -221,19 +238,23 @@ ApplicationWindow {
     }
 
     Drawer {
-        id: settingsDrawer
+        id: overlayConversionPanel
+        objectName: "overlayConversionPanel"
         edge: Qt.RightEdge
         width: Math.min(window.width * 0.9, 390)
         height: window.height
-        modal: true
+        modal: false
+        dim: false
+        closePolicy: Popup.CloseOnEscape
+        onClosed: {
+            if (window.conversionPanelMode === 1 && window.conversionPanelVisible)
+                window.conversionPanelVisible = false
+        }
 
         SettingsPanel {
             anchors.fill: parent
             anchors.margins: 12
-            onExportRequested: {
-                settingsDrawer.close()
-                exportDialog.open()
-            }
+            onExportRequested: exportDialog.open()
         }
     }
 

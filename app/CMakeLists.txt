@@ -38,6 +38,7 @@ qt_add_qml_module(NewConvert9918
     QML_FILES
         qml/Main.qml
         qml/PreviewPane.qml
+        qml/PreviewWorkspace.qml
         qml/SettingsPanel.qml
 )
 
