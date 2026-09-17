@@ -27,6 +27,21 @@
     "reveal": "always"
   },
   {
+    "label": "Deploy: Runnable Windows Preview",
+    "command": "powershell.exe",
+    "args": [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "tools/deploy_windows_preview.ps1"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
     "label": "CMake: Configure (Linux)",
     "command": "cmake",
     "args": ["--preset", "linux-debug"],

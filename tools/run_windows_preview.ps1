@@ -6,8 +6,9 @@ if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
     throw 'Build the windows-mingw-debug preset before launching the preview.'
 }
 
-$qtRuntime = 'C:\Qt\6.10.3\mingw_64\bin'
-$compilerRuntime = 'C:\Qt\Tools\mingw1310_64\bin'
-$env:Path = "$qtRuntime;$compilerRuntime;$env:Path"
+$runtime = Join-Path (Split-Path -Parent $executable) 'Qt6Core.dll'
+if (-not (Test-Path -LiteralPath $runtime -PathType Leaf)) {
+    & (Join-Path $PSScriptRoot 'deploy_windows_preview.ps1') -SkipBuild
+}
 
 & $executable
