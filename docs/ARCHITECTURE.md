@@ -179,6 +179,11 @@ both non-cancelled and still the newest generation.
 
 ### Export codecs
 
-Exporters will consume a completed conversion result and produce RAW, RLE,
-TIFILES, V9T9, MSX SC2, Coleco/Adam, Extended BASIC, ROM, and preview-image
-outputs as applicable.
+The standard-C++ `newconvert9918_formats` library consumes completed target
+tables and constructs an owned `GeneratedFileManifest` before any file is
+opened. It implements RAW, original RLE, TIFILES, V9T9, MSX SC2,
+Coleco/Adam, Extended BASIC, and ROM layouts. Machine-code formats accept
+validated caller-supplied loader templates rather than embedding opaque
+upstream binaries. The Qt image-I/O adapter supplies PNG encoding, complete
+overwrite preflight, and atomic file replacement. Detailed byte contracts and
+the conversion-mode matrix are in `docs/EXPORT_FORMATS.md`.

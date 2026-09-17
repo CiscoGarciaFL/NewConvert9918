@@ -140,6 +140,13 @@ improvement.
   through the same cross-platform loader.
 - [x] Added exact-pixel, format-routing, size-limit, malformed, and truncated
   input tests and documented the complete Phase 4 policy.
+- [x] Added the platform-neutral export request and generated-file manifest.
+- [x] Implemented and golden-tested RAW, RLE, TIFILES, V9T9, MSX SC2,
+  Coleco CVPaint/ROM, Adam PowerPaint/HGR, and Extended BASIC writers.
+- [x] Added Qt PNG export plus complete overwrite preflight and atomic writes.
+- [x] Validated export applicability and filenames across all nine conversion
+  layouts in the four-platform CI test matrix.
+- [x] Completed and documented the Phase 5 export-format contract.
 
 ### Development environment
 
@@ -241,7 +248,7 @@ target operating systems.
   - [x] Very small and very large sources
   - [x] Transparency and malformed-file cases
 - [x] Run each representative image through the original Windows executable.
-- [ ] Capture original preview images and every applicable binary export.
+- [x] Capture original preview images and every applicable binary export.
 - [x] Capture default Bitmap 9918A previews plus TIFILES pattern and color
   tables for every valid source image.
 - [x] Capture the remaining conversion modes with their applicable TIFILES
@@ -265,7 +272,7 @@ visual memory or subjective comparison.
 - [x] Implement histogram stretching and gamma correction.
 - [x] Implement palette selection and median-cut behavior.
 - [x] Implement error-distribution kernels and ordered dithering.
-- [ ] Port conversion modes in this order:
+- [x] Port conversion modes in this order:
   - [x] Bitmap 9918A / Graphics II
   - [x] Greyscale Bitmap 9918A
   - [x] Black-and-White Bitmap 9918A
@@ -282,9 +289,9 @@ visual memory or subjective comparison.
 a documented, reviewed reason for differing.
 
 **Exit review:** implementation is complete. Raw core table contracts are
-covered and Phase 4 now supplies source decoding/scaling. End-to-end golden
-payload comparison remains open until Phase 5 TIFILES framing connects the
-complete pipeline. See `docs/PHASE3_COMPATIBILITY.md`.
+covered, Phase 4 supplies source decoding/scaling, and Phase 5 verifies export
+framing from approved captured payloads. Full source-to-target golden parity
+remains a separate review item. See `docs/PHASE3_COMPATIBILITY.md`.
 
 ### Phase 4 — Image input and source formats
 
@@ -313,24 +320,29 @@ cross-platform CTest matrix.
 
 ### Phase 5 — Export formats
 
-- [ ] Define a common export request and generated-file manifest.
-- [ ] Implement RAW pattern, color, and palette tables.
-- [ ] Implement the original RLE encoding.
-- [ ] Implement TIFILES headers.
-- [ ] Implement V9T9 headers.
-- [ ] Implement MSX SC2 output.
-- [ ] Implement Coleco CVPaint output.
-- [ ] Implement Adam PowerPaint output.
-- [ ] Implement Adam HGR output.
-- [ ] Implement ColecoVision ROM output.
-- [ ] Implement Extended BASIC program output.
-- [ ] Implement PNG preview/export with `QImageWriter`.
-- [ ] Validate which conversion modes apply to each export format.
-- [ ] Warn clearly when a requested export would overwrite existing files.
-- [ ] Test every generated filename and byte layout on all platforms.
+- [x] Define a common export request and generated-file manifest.
+- [x] Implement RAW pattern, color, and palette tables.
+- [x] Implement the original RLE encoding.
+- [x] Implement TIFILES headers.
+- [x] Implement V9T9 headers.
+- [x] Implement MSX SC2 output.
+- [x] Implement Coleco CVPaint output.
+- [x] Implement Adam PowerPaint output.
+- [x] Implement Adam HGR output.
+- [x] Implement ColecoVision ROM output.
+- [x] Implement Extended BASIC program output.
+- [x] Implement PNG preview/export with `QImageWriter`.
+- [x] Validate which conversion modes apply to each export format.
+- [x] Warn clearly when a requested export would overwrite existing files.
+- [x] Test every generated filename and byte layout on all platforms.
 
 **Exit criterion:** every supported export is deterministic and compatible
 with its intended emulator, computer, console, or downstream tool.
+
+**Exit review:** complete. Portable exporters construct all bytes before I/O;
+Qt supplies PNG encoding and conflict-safe atomic writes. Golden captures pin
+the legacy layouts, and injected validated loader templates keep opaque
+upstream machine code out of production. See `docs/EXPORT_FORMATS.md`.
 
 ### Phase 6 — Redesigned interface and workflow
 
@@ -476,6 +488,8 @@ A task is not complete merely because it compiles. Apply the relevant gates:
 | 2026-09-15 | Use project-created image-generation output and deterministic procedural fixtures for the public corpus | Covers photographic and synthetic edge cases without copying upstream, ImgSource, or third-party stock assets. |
 | 2026-09-15 | Preserve default original outputs by hash and fix unsafe behavior intentionally | Byte-level output is the parity baseline, while confirmed path handling and misleading broken-format behavior are not copied. |
 | 2026-09-17 | Normalize all image inputs through a bounded `RgbImage` loader | Common, PCX, retro, clipboard, and drop paths now share color, alpha, safety, and error behavior on every platform. |
+| 2026-09-17 | Keep ROM and Extended BASIC machine code in validated caller-supplied templates | Completes deterministic patching and golden verification without embedding opaque upstream binaries in the portable implementation. |
+| 2026-09-17 | Preflight complete export manifests before atomic Qt writes | Users see every collision before any output is changed, avoiding partial or silent overwrites. |
 
 ## Next session checklist
 
@@ -519,7 +533,8 @@ When opening this project again:
 32. [x] Measure conversion performance and memory use.
 33. [x] Record the Phase 3 compatibility and exit review.
 34. [x] Complete Phase 4 image input and source formats.
-35. [ ] Begin Phase 5 export formats and generated-file manifests.
+35. [x] Complete Phase 5 export formats and generated-file manifests.
+36. [ ] Begin Phase 6 live conversion and export workflow integration.
 
 Suggested opening prompt:
 
