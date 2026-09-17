@@ -15,7 +15,13 @@
 ### Application
 
 The Qt Quick application owns workflow, drag-and-drop, file dialogs,
-preferences, background jobs, and preview presentation.
+preferences, background jobs, export confirmation, and preview presentation.
+`ImageInputController` is the application boundary: it retains one immutable
+decoded source, snapshots UI settings into conversion requests, debounces
+changes, publishes only the newest generation, and adapts completed previews
+and manifests for QML. Reusable `PreviewPane` and `SettingsPanel` components
+keep zoom/pan and responsive control layout separate from conversion logic.
+The user-facing behavior is specified in `docs/INTERFACE_WORKFLOW.md`.
 
 ### Image I/O
 
@@ -27,7 +33,7 @@ the detailed format and trust-boundary policy is in `docs/IMAGE_INPUT.md`.
 
 ### Conversion core
 
-The core will own scaling policy, palette selection, color matching,
+The core owns scaling policy, palette selection, color matching,
 dithering, TMS9918A constraints, F18A extensions, and conversion diagnostics.
 It must be callable from the GUI, tests, and a future command-line frontend.
 

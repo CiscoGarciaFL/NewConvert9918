@@ -66,6 +66,33 @@ set_target_properties(test_export_writer PROPERTIES AUTOMOC OFF)
 
 add_test(NAME export_writer_validation COMMAND test_export_writer)
 
+add_executable(test_interface_workflow
+    test_interface_workflow.cpp
+)
+
+target_link_libraries(test_interface_workflow
+    PRIVATE
+        newconvert9918_app_support
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::QuickControls2
+)
+
+target_compile_definitions(test_interface_workflow
+    PRIVATE
+        NEWCONVERT9918_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
+        NEWCONVERT9918_QML_DIR="${PROJECT_SOURCE_DIR}/app/qml"
+)
+
+set_target_properties(test_interface_workflow PROPERTIES AUTOMOC OFF)
+
+add_test(NAME interface_workflow_validation COMMAND test_interface_workflow)
+set_tests_properties(interface_workflow_validation PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=1.25"
+)
+
 add_executable(benchmark_core_conversion
     benchmark_conversion.cpp
 )

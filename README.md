@@ -15,9 +15,11 @@ The portable core includes every planned 9918A and F18A conversion mode. The
 input pipeline loads common Qt raster formats, PCX, and the original retro
 formats with explicit safety limits. Phase 5 adds deterministic RAW, RLE,
 TIFILES, V9T9, MSX, Coleco, Adam, Extended BASIC, ROM, and PNG exporters with
-generated-file manifests and overwrite preflight. The Qt shell can open, drop,
-paste, and display sources; connecting conversion and export to the redesigned
-workflow remains the next interface-integration milestone.
+generated-file manifests and overwrite preflight. Phase 6 completes the
+redesigned Qt workflow with responsive split previews, debounced background
+conversion, presets, undo/reset, palette inspection, persistent settings,
+export summaries, and accessible narrow/wide layouts. The next implementation
+phase is the command-line and automation frontend.
 
 See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current
 status, acceptance criteria, and next-session checklist. The original
@@ -35,6 +37,9 @@ Image formats, color/alpha/orientation policy, and input limits are documented
 in [`docs/IMAGE_INPUT.md`](docs/IMAGE_INPUT.md).
 Export applicability, byte layouts, loader-template policy, and overwrite
 behavior are documented in [`docs/EXPORT_FORMATS.md`](docs/EXPORT_FORMATS.md).
+The completed live-preview workflow, controls, shortcuts, responsive behavior,
+and interface verification are documented in
+[`docs/INTERFACE_WORKFLOW.md`](docs/INTERFACE_WORKFLOW.md).
 
 ## Technology
 
@@ -105,7 +110,7 @@ runners with AppleClang.
 - `src/core/` — conversion and independent codec implementation
 - `src/formats/` — deterministic retro output writers
 - `src/imageio/` — common raster, PNG, and filesystem adapters
-- `tests/` — unit and future golden-output tests
+- `tests/` — unit, workflow, and golden-output tests
 - `docs/` — architecture and migration decisions
 
 The untouched upstream reference checkout is kept outside this repository so
