@@ -16,10 +16,11 @@ input pipeline loads common Qt raster formats, PCX, and the original retro
 formats with explicit safety limits. Phase 5 adds deterministic RAW, RLE,
 TIFILES, V9T9, MSX, Coleco, Adam, Extended BASIC, ROM, and PNG exporters with
 generated-file manifests and overwrite preflight. Phase 6 completes the
-redesigned Qt workflow with responsive split previews, debounced background
-conversion, presets, undo/reset, palette inspection, persistent settings,
-export summaries, and accessible narrow/wide layouts. The next implementation
-phase is the command-line and automation frontend.
+redesigned Qt workflow with menu-driven tabbed/horizontal/vertical previews,
+an adjacent or overlay Conversion panel, debounced background conversion,
+presets, undo/reset, palette inspection, persistent settings, export summaries,
+and accessible narrow/wide layouts. The next implementation phase is the
+command-line and automation frontend.
 
 See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current
 status, acceptance criteria, and next-session checklist. The original

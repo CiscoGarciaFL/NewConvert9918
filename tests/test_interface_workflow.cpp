@@ -110,6 +110,7 @@ void testLiveWorkflow(TestContext& test, ImageInputController& controller)
     controller.undoSettings();
     test.expect(!qFuzzyCompare(controller.gamma(), 1.2),
                 "the new post-undo settings step should be reversible");
+    controller.setConversionMode(0);
     controller.applyPreset(1);
     test.expect(waitFor([&] { return controller.hasConversion() && !controller.busy(); }),
                 "preview should settle after undo and preset changes");
@@ -147,12 +148,74 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     test.expect(window != nullptr, "Phase 6 root should be a QQuickWindow");
     if (window == nullptr) return;
 
+    test.expect(window->findChild<QObject*>(QStringLiteral("mainMenuBar")) != nullptr,
+                "application should expose its commands through a menu bar");
+    test.expect(window->property("previewLayout").toInt() == 1,
+                "horizontal split should remain the default preview layout");
+    test.expect(window->property("conversionPanelVisible").toBool()
+                    && window->property("conversionPanelMode").toInt() == 0,
+                "conversion panel should default to a visible adjacent panel");
+
+    window->setProperty("previewLayout", 0);
+    test.expect(waitFor([&] {
+                    const QObject* tabbed =
+                        window->findChild<QObject*>(QStringLiteral("tabbedPreviewLayout"));
+                    const QObject* sourceTab =
+                        window->findChild<QObject*>(QStringLiteral("sourcePreviewTab"));
+                    const QObject* convertedTab =
+                        window->findChild<QObject*>(QStringLiteral("convertedPreviewTab"));
+                    return tabbed != nullptr && sourceTab != nullptr && convertedTab != nullptr
+                        && sourceTab->property("text").toString() == QStringLiteral("Source")
+                        && convertedTab->property("text").toString()
+                            == QStringLiteral("Converted");
+                }),
+                "tabbed layout should expose Source and Converted tabs");
+
+    window->setProperty("previewLayout", 2);
+    test.expect(waitFor([&] {
+                    return window->findChild<QObject*>(
+                               QStringLiteral("verticalPreviewLayout"))
+                        != nullptr;
+                }),
+                "vertical layout should stack the two preview panes");
+
+    window->setProperty("previewLayout", 1);
+    test.expect(waitFor([&] {
+                    return window->findChild<QObject*>(
+                               QStringLiteral("horizontalPreviewLayout"))
+                        != nullptr;
+                }),
+                "horizontal layout should restore the adjustable side-by-side split");
+
+    auto* adjacentPanel =
+        window->findChild<QObject*>(QStringLiteral("adjacentConversionPanel"));
+    auto* overlayPanel =
+        window->findChild<QObject*>(QStringLiteral("overlayConversionPanel"));
+    test.expect(adjacentPanel != nullptr && overlayPanel != nullptr,
+                "both conversion-panel placements should be available");
+    window->setProperty("conversionPanelVisible", false);
+    QCoreApplication::processEvents();
+    test.expect(adjacentPanel != nullptr && !adjacentPanel->property("visible").toBool(),
+                "conversion panel should be hideable");
+
+    window->setProperty("conversionPanelMode", 1);
+    window->setProperty("conversionPanelVisible", true);
+    test.expect(waitFor([&] { return overlayPanel->property("opened").toBool(); }),
+                "overlay placement should open above the preview workspace");
+    window->setProperty("conversionPanelMode", 0);
+    test.expect(waitFor([&] {
+                    return !overlayPanel->property("opened").toBool()
+                        && !overlayPanel->property("visible").toBool()
+                        && adjacentPanel->property("visible").toBool();
+                }),
+                "adjacent placement should restore the docked conversion panel");
+
     window->setWidth(900);
     window->setHeight(640);
     window->setProperty("layoutWidth", 900);
     QCoreApplication::processEvents();
     test.expect(window->property("compactLayout").toBool(),
-                "narrow window should switch to the settings drawer layout");
+                "narrow window should report its compact breakpoint");
 
     window->setWidth(1280);
     window->setHeight(800);
@@ -168,7 +231,7 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                 }),
                 "source and converted preview images should finish loading in QML");
     test.expect(!window->property("compactLayout").toBool(),
-                "wide window should show the persistent settings layout");
+                "wide window should report its full-size breakpoint");
     const QImage screenshot = window->grabWindow();
     test.expect(QGuiApplication::primaryScreen() != nullptr
                     && QGuiApplication::primaryScreen()->devicePixelRatio() > 1.0,
