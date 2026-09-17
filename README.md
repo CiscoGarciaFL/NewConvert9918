@@ -61,8 +61,19 @@ Choose `windows-mingw-debug`, `linux-debug`, or `macos-debug` for
 and Ninja to be discoverable in the shell environment. Machine-specific
 overrides belong in the ignored `CMakeUserPresets.json` file.
 
-After building on the current Windows development machine, launch the visible
-Qt shell from PowerShell with:
+The build directory initially contains only the application executable. To
+copy Qt, MinGW, plug-ins, and QML runtime files beside it so the executable can
+be launched directly from Explorer, run:
+
+```powershell
+.\tools\deploy_windows_preview.ps1
+```
+
+The runnable folder is `build\windows-mingw-debug\bin`. Deployment explicitly
+uses the release Qt runtime shipped by the installed MinGW kit, even though the
+application itself retains Debug symbols.
+
+To deploy when needed and launch the visible Qt shell in one step, run:
 
 ```powershell
 .\tools\run_windows_preview.ps1
