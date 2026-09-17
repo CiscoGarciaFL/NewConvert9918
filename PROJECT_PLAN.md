@@ -147,6 +147,13 @@ improvement.
 - [x] Validated export applicability and filenames across all nine conversion
   layouts in the four-platform CI test matrix.
 - [x] Completed and documented the Phase 5 export-format contract.
+- [x] Completed the Phase 6 live workflow with responsive zoomable previews,
+  debounced and generation-safe background conversion, presets, undo/reset,
+  palette inspection, export summaries, persistent settings, shortcuts,
+  accessibility metadata, and complete attribution.
+- [x] Added an end-to-end interface test covering background conversion,
+  stale-result rejection, scanline palettes, persistence, safe export, 125%
+  scaling, and narrow/wide layouts; also verified native Windows rendering.
 
 ### Development environment
 
@@ -349,24 +356,30 @@ upstream machine code out of production. See `docs/EXPORT_FORMATS.md`.
 - [x] Create the first split-preview Qt Quick shell.
 - [x] Establish the primary flow:
   **Open → crop/scale → choose mode → adjust → preview → export**.
-- [ ] Add source and converted-image zoom, pan, fit, and 1:1 controls.
-- [ ] Add crop/fill positioning with immediate visual feedback.
-- [ ] Replace the manual Reload button with debounced background conversion.
-- [ ] Prevent stale background results from replacing newer previews.
-- [ ] Group common settings separately from advanced settings.
-- [ ] Add named presets for recommended dithering configurations.
-- [ ] Add undo/reset for settings changes.
-- [ ] Add palette inspection and optional scanline-palette visualization.
-- [ ] Add output-size and generated-file summaries before export.
-- [ ] Persist settings using Qt's cross-platform settings API.
-- [ ] Add useful keyboard shortcuts.
-- [ ] Add accessible names, keyboard navigation, and sufficient contrast.
-- [ ] Test high-DPI and fractional display scaling.
-- [ ] Test narrow and wide window layouts.
-- [ ] Add an About view containing the full attribution and license links.
+- [x] Add source and converted-image zoom, pan, fit, and 1:1 controls.
+- [x] Add crop/fill positioning with immediate visual feedback.
+- [x] Replace the manual Reload button with debounced background conversion.
+- [x] Prevent stale background results from replacing newer previews.
+- [x] Group common settings separately from advanced settings.
+- [x] Add named presets for recommended dithering configurations.
+- [x] Add undo/reset for settings changes.
+- [x] Add palette inspection and optional scanline-palette visualization.
+- [x] Add output-size and generated-file summaries before export.
+- [x] Persist settings using Qt's cross-platform settings API.
+- [x] Add useful keyboard shortcuts.
+- [x] Add accessible names, keyboard navigation, and sufficient contrast.
+- [x] Test high-DPI and fractional display scaling.
+- [x] Test narrow and wide window layouts.
+- [x] Add an About view containing the full attribution and license links.
 
 **Exit criterion:** common conversions are understandable without consulting
 documentation, while advanced controls remain available to expert users.
+
+**Exit review:** complete. The UI now drives the same portable conversion and
+manifest layers tested by the core suites, while cancellable generation-tagged
+workers keep interaction live and prevent stale publication. Common controls
+remain visible, expert controls collapse, and the workflow is verified at
+narrow, wide, and fractional-scale layouts. See `docs/INTERFACE_WORKFLOW.md`.
 
 ### Phase 7 — Command line and automation
 
@@ -418,19 +431,19 @@ can push or merge changes.
 
 ### v0.1 — First proven conversion
 
-- [ ] Buildable on all target platforms.
-- [ ] Load PNG/JPEG/BMP.
-- [ ] Convert to Bitmap 9918A.
-- [ ] Show a live converted preview.
-- [ ] Export RAW pattern and color tables.
-- [ ] Match the original golden outputs.
+- [x] Buildable on all target platforms.
+- [x] Load PNG/JPEG/BMP.
+- [x] Convert to Bitmap 9918A.
+- [x] Show a live converted preview.
+- [x] Export RAW pattern and color tables.
+- [x] Match the original golden outputs.
 
 ### v0.5 — Functional preview
 
-- [ ] All conversion modes implemented.
-- [ ] Common and retro source formats implemented.
-- [ ] Primary export formats implemented.
-- [ ] Redesigned workflow usable end-to-end.
+- [x] All conversion modes implemented.
+- [x] Common and retro source formats implemented.
+- [x] Primary export formats implemented.
+- [x] Redesigned workflow usable end-to-end.
 - [ ] CLI conversion available.
 
 ### v1.0 — Public cross-platform release
@@ -490,6 +503,8 @@ A task is not complete merely because it compiles. Apply the relevant gates:
 | 2026-09-17 | Normalize all image inputs through a bounded `RgbImage` loader | Common, PCX, retro, clipboard, and drop paths now share color, alpha, safety, and error behavior on every platform. |
 | 2026-09-17 | Keep ROM and Extended BASIC machine code in validated caller-supplied templates | Completes deterministic patching and golden verification without embedding opaque upstream binaries in the portable implementation. |
 | 2026-09-17 | Preflight complete export manifests before atomic Qt writes | Users see every collision before any output is changed, avoiding partial or silent overwrites. |
+| 2026-09-17 | Debounce UI conversion and publish only the newest generation | Keeps the interface responsive while guaranteeing that rapid settings changes cannot display stale output. |
+| 2026-09-17 | Use the Qt Fusion control style for the application | Provides consistent contrast and control rendering across Windows, Linux, and macOS while retaining platform font and DPI behavior. |
 
 ## Next session checklist
 
@@ -534,7 +549,8 @@ When opening this project again:
 33. [x] Record the Phase 3 compatibility and exit review.
 34. [x] Complete Phase 4 image input and source formats.
 35. [x] Complete Phase 5 export formats and generated-file manifests.
-36. [ ] Begin Phase 6 live conversion and export workflow integration.
+36. [x] Complete Phase 6 live conversion and export workflow integration.
+37. [ ] Begin Phase 7 command-line syntax and one-shot conversion workflow.
 
 Suggested opening prompt:
 
