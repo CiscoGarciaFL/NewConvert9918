@@ -17,3 +17,14 @@ target_compile_definitions(test_core_validation
 set_target_properties(test_core_validation PROPERTIES AUTOMOC OFF)
 
 add_test(NAME core_validation COMMAND test_core_validation)
+
+add_executable(benchmark_core_conversion
+    benchmark_conversion.cpp
+)
+
+target_link_libraries(benchmark_core_conversion
+    PRIVATE
+        newconvert9918_core
+)
+
+set_target_properties(benchmark_core_conversion PROPERTIES AUTOMOC OFF)

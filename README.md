@@ -16,8 +16,8 @@ palette selection, dithering, all four Bitmap 9918A variants, all three
 Multicolor 9918/9918A variants, and both F18A bitmap palette modes. The Qt shell
 can use the core's cancellation tokens and generation gate to discard stale
 interactive previews. It still presents the proposed workflow; connecting
-image loading and live
-conversion to that interface is a later integration milestone.
+image loading and live conversion to that interface is a later integration
+milestone.
 
 See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current
 status, acceptance criteria, and next-session checklist. The original
@@ -27,6 +27,10 @@ Confirmed original defects and compatibility policy are tracked separately in
 [`docs/ORIGINAL_DEFECTS.md`](docs/ORIGINAL_DEFECTS.md).
 The approved, redistribution-safe source-image corpus and its provenance are
 documented in [`tests/golden/README.md`](tests/golden/README.md).
+The optimized timing and owned-buffer baseline is in
+[`docs/PERFORMANCE.md`](docs/PERFORMANCE.md). Phase 3 compatibility decisions
+and the remaining end-to-end golden dependency are recorded in
+[`docs/PHASE3_COMPATIBILITY.md`](docs/PHASE3_COMPATIBILITY.md).
 
 ## Technology
 
