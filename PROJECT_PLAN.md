@@ -160,6 +160,8 @@ improvement.
 - [x] Polished tabbed previews with non-redundant titles and bottom-right zoom
   controls; added overlay close, automatic mouse-leave hiding, and a right-edge
   reopen control; eliminated QML binding errors during application shutdown.
+- [x] Added the New Convert 9918 logo as the cross-platform application icon,
+  generated native multi-size icon assets, and watermarked empty preview panes.
 
 ### Development environment
 

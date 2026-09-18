@@ -90,6 +90,20 @@ Frame {
                 }
             }
 
+            Image {
+                objectName: root.objectName + "Watermark"
+                anchors.centerIn: parent
+                width: Math.max(1, Math.min(parent.width, parent.height) / 4)
+                height: width
+                source: Qt.resolvedUrl("../assets/icons/NewConvert9918-256.png")
+                fillMode: Image.PreserveAspectFit
+                smooth: true
+                mipmap: true
+                opacity: 0.12
+                visible: root.imageSource.toString().length === 0 && !root.busy
+                Accessible.name: qsTr("New Convert 9918 logo")
+            }
+
             Label {
                 anchors.centerIn: parent
                 visible: root.imageSource.toString().length === 0 && !root.busy

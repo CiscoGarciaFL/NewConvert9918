@@ -1,6 +1,7 @@
 #include "ImageInputController.hpp"
 
 #include <QGuiApplication>
+#include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
@@ -15,6 +16,8 @@ int main(int argc, char* argv[])
     application.setApplicationDisplayName(QStringLiteral("New Convert 9918"));
     application.setApplicationVersion(QStringLiteral("0.1.0"));
     application.setOrganizationName(QStringLiteral("CiscoGarciaFL"));
+    application.setWindowIcon(QIcon(QStringLiteral(
+        ":/qt/qml/NewConvert9918/assets/icons/NewConvert9918-256.png")));
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
     // The context property must outlive the QML engine so bindings cannot
