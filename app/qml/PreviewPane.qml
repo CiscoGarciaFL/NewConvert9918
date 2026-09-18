@@ -12,6 +12,7 @@ Frame {
     property bool busy: false
     property bool cropOverlay: false
     property bool acceptDrops: false
+    property bool showTitle: true
     signal fileDropped(url fileUrl)
 
     property bool fitToView: true
@@ -33,55 +34,17 @@ Frame {
         anchors.fill: parent
         spacing: 8
 
-        RowLayout {
+        Label {
+            objectName: root.objectName + "Title"
             Layout.fillWidth: true
-
-            Label {
-                text: root.title
-                font.weight: Font.DemiBold
-                Layout.fillWidth: true
-            }
-            ToolButton {
-                text: qsTr("−")
-                enabled: root.imageSource.toString().length > 0
-                Accessible.name: qsTr("Zoom out %1").arg(root.title)
-                activeFocusOnTab: true
-                onClicked: root.zoomBy(0.8)
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Zoom out")
-            }
-            ToolButton {
-                text: qsTr("Fit")
-                checkable: true
-                checked: root.fitToView
-                enabled: root.imageSource.toString().length > 0
-                Accessible.name: qsTr("Fit %1 to view").arg(root.title)
-                activeFocusOnTab: true
-                onClicked: root.fitToView = true
-            }
-            ToolButton {
-                text: qsTr("1:1")
-                enabled: root.imageSource.toString().length > 0
-                Accessible.name: qsTr("Show %1 at actual size").arg(root.title)
-                activeFocusOnTab: true
-                onClicked: {
-                    root.fitToView = false
-                    root.manualZoom = 1.0
-                }
-            }
-            ToolButton {
-                text: qsTr("+")
-                enabled: root.imageSource.toString().length > 0
-                Accessible.name: qsTr("Zoom in %1").arg(root.title)
-                activeFocusOnTab: true
-                onClicked: root.zoomBy(1.25)
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Zoom in")
-            }
+            visible: root.showTitle
+            text: root.title
+            font.weight: Font.DemiBold
         }
 
         Rectangle {
             id: viewport
+            objectName: root.objectName + "Viewport"
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.minimumHeight: 180
@@ -161,12 +124,58 @@ Frame {
             }
         }
 
-        Label {
+        RowLayout {
+            objectName: root.objectName + "Controls"
             Layout.fillWidth: true
-            visible: root.details.length > 0
-            text: root.details
-            wrapMode: Text.WordWrap
-            color: palette.placeholderText
+
+            Label {
+                objectName: root.objectName + "Details"
+                Layout.fillWidth: true
+                text: root.details
+                wrapMode: Text.WordWrap
+                color: palette.placeholderText
+            }
+            ToolButton {
+                objectName: root.objectName + "ZoomOutButton"
+                text: qsTr("−")
+                enabled: root.imageSource.toString().length > 0
+                Accessible.name: qsTr("Zoom out %1").arg(root.title)
+                activeFocusOnTab: true
+                onClicked: root.zoomBy(0.8)
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Zoom out")
+            }
+            ToolButton {
+                objectName: root.objectName + "FitButton"
+                text: qsTr("Fit")
+                checkable: true
+                checked: root.fitToView
+                enabled: root.imageSource.toString().length > 0
+                Accessible.name: qsTr("Fit %1 to view").arg(root.title)
+                activeFocusOnTab: true
+                onClicked: root.fitToView = true
+            }
+            ToolButton {
+                objectName: root.objectName + "ActualSizeButton"
+                text: qsTr("1:1")
+                enabled: root.imageSource.toString().length > 0
+                Accessible.name: qsTr("Show %1 at actual size").arg(root.title)
+                activeFocusOnTab: true
+                onClicked: {
+                    root.fitToView = false
+                    root.manualZoom = 1.0
+                }
+            }
+            ToolButton {
+                objectName: root.objectName + "ZoomInButton"
+                text: qsTr("+")
+                enabled: root.imageSource.toString().length > 0
+                Accessible.name: qsTr("Zoom in %1").arg(root.title)
+                activeFocusOnTab: true
+                onClicked: root.zoomBy(1.25)
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Zoom in")
+            }
         }
     }
 }

@@ -18,10 +18,13 @@ while a replacement is calculated.
 
 ## Preview and framing
 
-The source and converted panes each provide zoom out, fit, 1:1, zoom in, mouse
-wheel zoom, and panning. View → Tabbed places them on Source and Converted
-tabs. View → Horizontal uses an adjustable side-by-side split, and View →
-Vertical uses an adjustable top-and-bottom split. Horizontal is the default.
+The source and converted panes each provide mouse-wheel zoom, panning, and a
+bottom-right control group for zoom out, fit, 1:1, and zoom in. View → Tabbed
+places them on Source and Converted tabs and suppresses the redundant title
+inside each pane. View → Horizontal uses an adjustable side-by-side split, and
+View → Vertical uses an adjustable top-and-bottom split. Horizontal is the
+default. Both split arrangements start with equal pane sizes and retain an
+adjustable separator.
 
 Fit/crop changes update a 4:3 framing overlay on the source and schedule a
 fresh preview. Start, center, and end crop modes expose horizontal and vertical
@@ -42,7 +45,7 @@ framing defaults. The most recent settings and export choice are stored with
 
 Common target, dither, framing, and color options stay visible. Maximum color
 shift, gamma, luma emphasis, flicker limit, and ordered-dither brightness are
-kept in the collapsible Advanced group.
+kept in the compact, collapsible Advanced settings section.
 
 ## Export feedback
 
@@ -64,6 +67,7 @@ an explicit Replace choice.
 | `Ctrl+O` | Open an image |
 | `Ctrl+V` | Paste an image |
 | `Ctrl+E` | Export the current result |
+| `Ctrl+Q` / `Cmd+Q` | Exit the application |
 | `Ctrl+Z` | Undo the last settings group |
 | `Ctrl+0` | Reset conversion settings |
 | `F1` | Open About and attribution |
@@ -71,17 +75,21 @@ an explicit Replace choice.
 Interactive controls participate in tab navigation and provide accessible
 names where their visible label is not sufficient. The Fusion control style
 provides consistent contrast across the supported desktops. File contains
-Open, Paste, and Export, while Help contains About. View selects the preview
-arrangement, hides or shows the Conversion panel, and places that panel either
-adjacent to the workspace or in a non-modal overlay above it.
+Open, Paste, Export, and a separated Exit command, while Help contains About.
+View selects the preview arrangement, hides or shows the Conversion panel, and
+places that panel either
+adjacent to the workspace or in a non-modal overlay above it. The overlay has
+a hide control in its top-right corner and automatically hides after the mouse
+leaves it. While hidden, a narrow right-edge rail provides its expand control.
 
 ## Verification
 
 `interface_workflow_validation` exercises image load, debounced conversion,
 stale-result rejection, persistence, undo, scanline palette visualization,
 manifest export, overwrite preflight, QML loading, all three preview layouts,
-hidden/adjacent/overlay panel states, narrow/wide sizing, and a rendered frame
-at 125% scale. The Windows development pass also renders through the native
-platform plug-in to verify real system fonts and DPI behavior. Conversion
-algorithms and export bytes remain covered by their independent core and
-golden tests.
+hidden/adjacent/overlay panel states, overlay hide and expand controls,
+bottom-positioned preview controls, narrow/wide sizing, clean QML teardown,
+and a rendered frame at 125% scale. The Windows development pass also renders
+through the native platform plug-in to verify real system fonts and DPI
+behavior. Conversion algorithms and export bytes remain covered by their
+independent core and golden tests.

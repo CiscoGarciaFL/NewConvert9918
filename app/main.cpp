@@ -17,8 +17,10 @@ int main(int argc, char* argv[])
     application.setOrganizationName(QStringLiteral("CiscoGarciaFL"));
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
-    QQmlApplicationEngine engine;
+    // The context property must outlive the QML engine so bindings cannot
+    // observe a null imageInput while the object tree is being destroyed.
     ImageInputController imageInput;
+    QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("imageInput"), &imageInput);
     QObject::connect(
         &engine,

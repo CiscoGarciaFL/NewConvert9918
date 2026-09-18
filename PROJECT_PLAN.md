@@ -157,6 +157,9 @@ improvement.
 - [x] Replaced the action toolbar with File, View, and Help menus; added
   tabbed, horizontal, and vertical preview arrangements plus hideable adjacent
   and overlay Conversion-panel states.
+- [x] Polished tabbed previews with non-redundant titles and bottom-right zoom
+  controls; added overlay close, automatic mouse-leave hiding, and a right-edge
+  reopen control; eliminated QML binding errors during application shutdown.
 
 ### Development environment
 

@@ -22,7 +22,7 @@ Item {
 
     component ConvertedPane: PreviewPane {
         objectName: "convertedPreview"
-        title: qsTr("Converted preview")
+        title: qsTr("Converted")
         imageSource: imageInput.convertedPreview
         details: imageInput.conversionDetails
         emptyText: imageInput.hasImage
@@ -66,10 +66,12 @@ Item {
                 currentIndex: previewTabs.currentIndex
 
                 SourcePane {
+                    showTitle: false
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                 }
                 ConvertedPane {
+                    showTitle: false
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                 }
@@ -81,20 +83,26 @@ Item {
         id: splitLayout
 
         SplitView {
+            id: splitPreviewLayout
+            readonly property real handleThickness: 2
             objectName: root.layoutMode === 1
                         ? "horizontalPreviewLayout" : "verticalPreviewLayout"
             orientation: root.layoutMode === 1 ? Qt.Horizontal : Qt.Vertical
 
             SourcePane {
-                SplitView.fillWidth: true
-                SplitView.fillHeight: true
+                SplitView.preferredWidth: (splitPreviewLayout.width
+                                           - splitPreviewLayout.handleThickness) / 2
+                SplitView.preferredHeight: (splitPreviewLayout.height
+                                            - splitPreviewLayout.handleThickness) / 2
                 SplitView.minimumWidth: 220
                 SplitView.minimumHeight: 180
             }
 
             ConvertedPane {
-                SplitView.fillWidth: true
-                SplitView.fillHeight: true
+                SplitView.preferredWidth: (splitPreviewLayout.width
+                                           - splitPreviewLayout.handleThickness) / 2
+                SplitView.preferredHeight: (splitPreviewLayout.height
+                                            - splitPreviewLayout.handleThickness) / 2
                 SplitView.minimumWidth: 220
                 SplitView.minimumHeight: 180
             }
