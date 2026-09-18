@@ -34,6 +34,12 @@ The Palette section shows the active target colors. Scanline Palette Bitmap
 F18A additionally offers a 16-by-192 map of the palette selected for every
 output row.
 
+The project logo supplies the application/window icon. Empty Source and
+Converted viewports show the same mark at one-quarter of the shorter viewport
+dimension with subdued opacity. The canonical SVG and generated 16–1024 pixel
+PNG, Windows ICO, and macOS ICNS assets live under `app/assets`; rerun
+`tools/generate_app_icons.py` after changing the SVG.
+
 ## Settings and presets
 
 Balanced restores the compatibility defaults. Crisp pixel art disables

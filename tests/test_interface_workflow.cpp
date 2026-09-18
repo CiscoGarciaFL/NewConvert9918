@@ -6,6 +6,7 @@
 #include <QEventLoop>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -156,6 +157,25 @@ void testExportWorkflow(TestContext& test, ImageInputController& controller)
 
 void testResponsiveQml(TestContext& test, ImageInputController& controller)
 {
+    const QDir qmlDirectory(QStringLiteral(NEWCONVERT9918_QML_DIR));
+    const QDir iconDirectory(qmlDirectory.filePath(QStringLiteral("../assets/icons")));
+    for (const int size : {16, 24, 32, 48, 64, 128, 256, 512, 1024}) {
+        const QImage icon(iconDirectory.filePath(
+            QStringLiteral("NewConvert9918-%1.png").arg(size)));
+        test.expect(!icon.isNull() && icon.size() == QSize(size, size),
+                    "generated application PNG should have its declared dimensions");
+    }
+    test.expect(QFileInfo::exists(
+                    iconDirectory.filePath(QStringLiteral("NewConvert9918.ico")))
+                    && QFileInfo::exists(
+                        iconDirectory.filePath(QStringLiteral("NewConvert9918.icns"))),
+                "native Windows and macOS application icons should be generated");
+    const QIcon applicationIcon(
+        iconDirectory.filePath(QStringLiteral("NewConvert9918-256.png")));
+    test.expect(!applicationIcon.isNull(),
+                "application icon PNG should load as a native Qt icon");
+    QGuiApplication::setWindowIcon(applicationIcon);
+
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("imageInput"), &controller);
     const QString mainQml = QDir(QStringLiteral(NEWCONVERT9918_QML_DIR))
@@ -175,6 +195,26 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
         }
         return nullptr;
     };
+
+    test.expect(!window->icon().isNull(),
+                "application window should load the New Convert 9918 icon");
+    const auto hasConfiguredWatermark = [&](const QString& paneName) {
+        QObject* pane = visiblePane(paneName);
+        if (pane == nullptr) return false;
+        QObject* viewport = pane->findChild<QObject*>(paneName + QStringLiteral("Viewport"));
+        QObject* watermark = pane->findChild<QObject*>(paneName + QStringLiteral("Watermark"));
+        if (viewport == nullptr || watermark == nullptr) return false;
+        const qreal expectedSize = qMin(viewport->property("width").toReal(),
+                                        viewport->property("height").toReal())
+            / 4.0;
+        return watermark->property("source").toUrl().isValid()
+            && qAbs(watermark->property("opacity").toReal() - 0.12) <= 0.001
+            && qAbs(watermark->property("width").toReal() - expectedSize) <= 1.0
+            && qAbs(watermark->property("height").toReal() - expectedSize) <= 1.0;
+    };
+    test.expect(hasConfiguredWatermark(QStringLiteral("sourcePreview"))
+                    && hasConfiguredWatermark(QStringLiteral("convertedPreview")),
+                "both preview panes should carry a subdued quarter-size logo watermark");
 
     test.expect(window->findChild<QObject*>(QStringLiteral("mainMenuBar")) != nullptr,
                 "application should expose its commands through a menu bar");
