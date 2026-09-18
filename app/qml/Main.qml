@@ -136,6 +136,13 @@ ApplicationWindow {
         onTriggered: exportDialog.open()
     }
     Action {
+        id: exitAction
+        objectName: "exitAction"
+        text: qsTr("E&xit")
+        shortcut: StandardKey.Quit
+        onTriggered: window.close()
+    }
+    Action {
         id: aboutAction
         text: qsTr("&About New Convert 9918")
         shortcut: "F1"
@@ -154,6 +161,11 @@ ApplicationWindow {
             MenuItem { action: pasteAction }
             MenuSeparator {}
             MenuItem { action: exportAction }
+            MenuSeparator { objectName: "exitMenuSeparator" }
+            MenuItem {
+                objectName: "exitMenuItem"
+                action: exitAction
+            }
         }
 
         Menu {
@@ -259,6 +271,8 @@ ApplicationWindow {
             anchors.centerIn: parent
             text: qsTr("‹")
             font.pixelSize: 24
+            leftPadding: 12
+            rightPadding: 0
             activeFocusOnTab: true
             Accessible.name: qsTr("Show Conversion panel")
             ToolTip.visible: hovered

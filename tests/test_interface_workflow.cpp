@@ -171,6 +171,14 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
 
     test.expect(window->findChild<QObject*>(QStringLiteral("mainMenuBar")) != nullptr,
                 "application should expose its commands through a menu bar");
+    const QObject* exitAction =
+        window->findChild<QObject*>(QStringLiteral("exitAction"));
+    test.expect(exitAction != nullptr
+                    && exitAction->property("text").toString() == QStringLiteral("E&xit")
+                    && window->findChild<QObject*>(QStringLiteral("exitMenuSeparator"))
+                        != nullptr
+                    && window->findChild<QObject*>(QStringLiteral("exitMenuItem")) != nullptr,
+                "File menu should end with a separated Exit command");
     test.expect(window->property("previewLayout").toInt() == 1,
                 "horizontal split should remain the default preview layout");
     test.expect(window->property("conversionPanelVisible").toBool()
@@ -219,13 +227,21 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                     const QObject* horizontal = window->findChild<QObject*>(
                         QStringLiteral("horizontalPreviewLayout"));
                     bool hasVisibleSourceTitle = false;
+                    bool hasNamedConvertedTitle = false;
                     for (const QObject* sourceTitle : window->findChildren<QObject*>(
                              QStringLiteral("sourcePreviewTitle"))) {
                         hasVisibleSourceTitle |= sourceTitle->property("visible").toBool();
                     }
-                    return horizontal != nullptr && hasVisibleSourceTitle;
+                    for (const QObject* convertedTitle : window->findChildren<QObject*>(
+                             QStringLiteral("convertedPreviewTitle"))) {
+                        hasNamedConvertedTitle |= convertedTitle->property("visible").toBool()
+                            && convertedTitle->property("text").toString()
+                                == QStringLiteral("Converted");
+                    }
+                    return horizontal != nullptr && hasVisibleSourceTitle
+                        && hasNamedConvertedTitle;
                 }),
-                "horizontal layout should restore pane titles and the adjustable split");
+                "horizontal layout should restore Source and Converted pane titles");
 
     auto* adjacentPanel =
         window->findChild<QObject*>(QStringLiteral("adjacentConversionPanel"));
@@ -255,9 +271,14 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                         window->findChild<QObject*>(QStringLiteral("overlayHideButton"));
                     return overlayPanel->property("opened").toBool()
                         && !overlayRail->property("visible").toBool()
-                        && hideButton != nullptr && hideButton->property("visible").toBool();
+                        && hideButton != nullptr && hideButton->property("visible").toBool()
+                        && hideButton->property("text").toString() == QStringLiteral("›")
+                        && overlayExpandButton->property("text").toString()
+                            == QStringLiteral("‹")
+                        && overlayExpandButton->property("leftPadding").toReal()
+                            > overlayExpandButton->property("rightPadding").toReal();
                 }),
-                "open overlay should replace the expand rail with a hide control");
+                "overlay arrows should point in opposite directions and align outward");
     test.expect(QMetaObject::invokeMethod(
                     overlayPanel, "handlePointerPresence", Q_ARG(QVariant, true))
                     && QMetaObject::invokeMethod(

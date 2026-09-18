@@ -26,8 +26,8 @@ ScrollView {
             ToolButton {
                 objectName: root.closable ? "overlayHideButton" : "adjacentHideButton"
                 visible: root.closable
-                text: qsTr("×")
-                font.pixelSize: 20
+                text: qsTr("›")
+                font.pixelSize: 24
                 activeFocusOnTab: true
                 Accessible.name: qsTr("Hide Conversion panel")
                 ToolTip.visible: hovered

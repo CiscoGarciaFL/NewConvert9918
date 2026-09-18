@@ -22,7 +22,7 @@ Item {
 
     component ConvertedPane: PreviewPane {
         objectName: "convertedPreview"
-        title: qsTr("Converted preview")
+        title: qsTr("Converted")
         imageSource: imageInput.convertedPreview
         details: imageInput.conversionDetails
         emptyText: imageInput.hasImage

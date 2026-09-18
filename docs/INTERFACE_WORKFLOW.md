@@ -66,6 +66,7 @@ an explicit Replace choice.
 | `Ctrl+O` | Open an image |
 | `Ctrl+V` | Paste an image |
 | `Ctrl+E` | Export the current result |
+| `Ctrl+Q` / `Cmd+Q` | Exit the application |
 | `Ctrl+Z` | Undo the last settings group |
 | `Ctrl+0` | Reset conversion settings |
 | `F1` | Open About and attribution |
@@ -73,8 +74,9 @@ an explicit Replace choice.
 Interactive controls participate in tab navigation and provide accessible
 names where their visible label is not sufficient. The Fusion control style
 provides consistent contrast across the supported desktops. File contains
-Open, Paste, and Export, while Help contains About. View selects the preview
-arrangement, hides or shows the Conversion panel, and places that panel either
+Open, Paste, Export, and a separated Exit command, while Help contains About.
+View selects the preview arrangement, hides or shows the Conversion panel, and
+places that panel either
 adjacent to the workspace or in a non-modal overlay above it. The overlay has
 a hide control in its top-right corner and automatically hides after the mouse
 leaves it. While hidden, a narrow right-edge rail provides its expand control.
