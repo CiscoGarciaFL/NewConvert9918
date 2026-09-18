@@ -45,7 +45,7 @@ framing defaults. The most recent settings and export choice are stored with
 
 Common target, dither, framing, and color options stay visible. Maximum color
 shift, gamma, luma emphasis, flicker limit, and ordered-dither brightness are
-kept in the collapsible Advanced group.
+kept in the compact, collapsible Advanced settings section.
 
 ## Export feedback
 

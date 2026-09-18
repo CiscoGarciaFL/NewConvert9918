@@ -182,76 +182,82 @@ ScrollView {
             }
         }
 
-        ToolButton {
-            id: advancedToggle
-            text: checked ? qsTr("▾ Advanced settings") : qsTr("▸ Advanced settings")
-            checkable: true
+        ColumnLayout {
             Layout.fillWidth: true
-            Accessible.name: qsTr("Show advanced conversion settings")
-            activeFocusOnTab: true
-        }
+            spacing: 4
 
-        GroupBox {
-            title: qsTr("Advanced")
-            visible: advancedToggle.checked
-            Layout.fillWidth: true
+            ToolButton {
+                id: advancedToggle
+                objectName: "advancedSettingsToggle"
+                text: checked ? qsTr("▾ Advanced settings") : qsTr("▸ Advanced settings")
+                checkable: true
+                Layout.fillWidth: true
+                Accessible.name: qsTr("Show advanced conversion settings")
+                activeFocusOnTab: true
+            }
 
-            ColumnLayout {
-                anchors.fill: parent
-                Label { text: qsTr("Maximum color shift: %1%").arg(imageInput.maximumColorShift.toFixed(1)) }
-                Slider {
-                    Layout.fillWidth: true
-                    from: 0
-                    to: 20
-                    stepSize: 0.1
-                    value: imageInput.maximumColorShift
-                    onMoved: imageInput.maximumColorShift = value
-                    activeFocusOnTab: true
-                    Accessible.name: qsTr("Maximum color shift")
-                }
-                Label { text: qsTr("Gamma: %1").arg(imageInput.gamma.toFixed(2)) }
-                Slider {
-                    Layout.fillWidth: true
-                    from: 0.1
-                    to: 3.0
-                    stepSize: 0.05
-                    value: imageInput.gamma
-                    onMoved: imageInput.gamma = value
-                    activeFocusOnTab: true
-                    Accessible.name: qsTr("Gamma")
-                }
-                Label { text: qsTr("Luma emphasis: %1").arg(imageInput.lumaEmphasis.toFixed(2)) }
-                Slider {
-                    Layout.fillWidth: true
-                    from: 0
-                    to: 4
-                    stepSize: 0.05
-                    value: imageInput.lumaEmphasis
-                    onMoved: imageInput.lumaEmphasis = value
-                    activeFocusOnTab: true
-                    Accessible.name: qsTr("Luma emphasis")
-                }
-                Label { text: qsTr("Flicker limit: %1%").arg(imageInput.maximumMulticolorDifference) }
-                Slider {
-                    Layout.fillWidth: true
-                    from: 0
-                    to: 100
-                    stepSize: 1
-                    value: imageInput.maximumMulticolorDifference
-                    onMoved: imageInput.maximumMulticolorDifference = Math.round(value)
-                    activeFocusOnTab: true
-                    Accessible.name: qsTr("Maximum multicolor flicker difference")
-                }
-                Label { text: qsTr("Ordered brightness: %1").arg(imageInput.orderedBrightness) }
-                Slider {
-                    Layout.fillWidth: true
-                    from: -16
-                    to: 16
-                    stepSize: 1
-                    value: imageInput.orderedBrightness
-                    onMoved: imageInput.orderedBrightness = Math.round(value)
-                    activeFocusOnTab: true
-                    Accessible.name: qsTr("Ordered dither brightness")
+            GroupBox {
+                objectName: "advancedSettingsGroup"
+                visible: advancedToggle.checked
+                Layout.fillWidth: true
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    Label { text: qsTr("Maximum color shift: %1%").arg(imageInput.maximumColorShift.toFixed(1)) }
+                    Slider {
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 20
+                        stepSize: 0.1
+                        value: imageInput.maximumColorShift
+                        onMoved: imageInput.maximumColorShift = value
+                        activeFocusOnTab: true
+                        Accessible.name: qsTr("Maximum color shift")
+                    }
+                    Label { text: qsTr("Gamma: %1").arg(imageInput.gamma.toFixed(2)) }
+                    Slider {
+                        Layout.fillWidth: true
+                        from: 0.1
+                        to: 3.0
+                        stepSize: 0.05
+                        value: imageInput.gamma
+                        onMoved: imageInput.gamma = value
+                        activeFocusOnTab: true
+                        Accessible.name: qsTr("Gamma")
+                    }
+                    Label { text: qsTr("Luma emphasis: %1").arg(imageInput.lumaEmphasis.toFixed(2)) }
+                    Slider {
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 4
+                        stepSize: 0.05
+                        value: imageInput.lumaEmphasis
+                        onMoved: imageInput.lumaEmphasis = value
+                        activeFocusOnTab: true
+                        Accessible.name: qsTr("Luma emphasis")
+                    }
+                    Label { text: qsTr("Flicker limit: %1%").arg(imageInput.maximumMulticolorDifference) }
+                    Slider {
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 100
+                        stepSize: 1
+                        value: imageInput.maximumMulticolorDifference
+                        onMoved: imageInput.maximumMulticolorDifference = Math.round(value)
+                        activeFocusOnTab: true
+                        Accessible.name: qsTr("Maximum multicolor flicker difference")
+                    }
+                    Label { text: qsTr("Ordered brightness: %1").arg(imageInput.orderedBrightness) }
+                    Slider {
+                        Layout.fillWidth: true
+                        from: -16
+                        to: 16
+                        stepSize: 1
+                        value: imageInput.orderedBrightness
+                        onMoved: imageInput.orderedBrightness = Math.round(value)
+                        activeFocusOnTab: true
+                        Accessible.name: qsTr("Ordered dither brightness")
+                    }
                 }
             }
         }

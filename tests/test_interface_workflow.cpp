@@ -192,6 +192,34 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                     && window->property("conversionPanelMode").toInt() == 0,
                 "conversion panel should default to a visible adjacent panel");
 
+    QObject* advancedToggle = nullptr;
+    for (QObject* toggle : window->findChildren<QObject*>(
+             QStringLiteral("advancedSettingsToggle"))) {
+        if (toggle->property("visible").toBool()) {
+            advancedToggle = toggle;
+            break;
+        }
+    }
+    auto* advancedGroup = advancedToggle != nullptr
+        ? advancedToggle->parent()->findChild<QObject*>(
+            QStringLiteral("advancedSettingsGroup"), Qt::FindDirectChildrenOnly)
+        : nullptr;
+    test.expect(advancedToggle != nullptr && advancedGroup != nullptr,
+                "conversion panel should expose its advanced settings section");
+    if (advancedToggle != nullptr && advancedGroup != nullptr) {
+        advancedToggle->setProperty("checked", true);
+        test.expect(waitFor([&] {
+                        const qreal gap = advancedGroup->property("y").toReal()
+                            - advancedToggle->property("y").toReal()
+                            - advancedToggle->property("height").toReal();
+                        return advancedGroup->property("visible").toBool()
+                            && advancedGroup->property("title").toString().isEmpty()
+                            && gap >= 0.0 && gap <= 4.5;
+                    }),
+                    "expanded advanced settings should have no redundant title and a tight gap");
+        advancedToggle->setProperty("checked", false);
+    }
+
     window->setProperty("previewLayout", 0);
     test.expect(waitFor([&] {
                     const QObject* tabbed =
