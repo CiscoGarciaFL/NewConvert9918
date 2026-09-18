@@ -269,10 +269,9 @@ ApplicationWindow {
         ToolButton {
             objectName: "overlayExpandButton"
             anchors.centerIn: parent
+            anchors.horizontalCenterOffset: 6
             text: qsTr("‹")
             font.pixelSize: 24
-            leftPadding: 12
-            rightPadding: 0
             activeFocusOnTab: true
             Accessible.name: qsTr("Show Conversion panel")
             ToolTip.visible: hovered

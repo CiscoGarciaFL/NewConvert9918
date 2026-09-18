@@ -169,6 +169,13 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     test.expect(window != nullptr, "Phase 6 root should be a QQuickWindow");
     if (window == nullptr) return;
 
+    const auto visiblePane = [window](const QString& objectName) -> QObject* {
+        for (QObject* pane : window->findChildren<QObject*>(objectName)) {
+            if (pane->property("visible").toBool()) return pane;
+        }
+        return nullptr;
+    };
+
     test.expect(window->findChild<QObject*>(QStringLiteral("mainMenuBar")) != nullptr,
                 "application should expose its commands through a menu bar");
     const QObject* exitAction =
@@ -216,16 +223,28 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
 
     window->setProperty("previewLayout", 2);
     test.expect(waitFor([&] {
-                    return window->findChild<QObject*>(
-                               QStringLiteral("verticalPreviewLayout"))
-                        != nullptr;
+                    const QObject* vertical = window->findChild<QObject*>(
+                        QStringLiteral("verticalPreviewLayout"));
+                    const QObject* source = visiblePane(QStringLiteral("sourcePreview"));
+                    const QObject* converted =
+                        visiblePane(QStringLiteral("convertedPreview"));
+                    return vertical != nullptr && source != nullptr && converted != nullptr
+                        && qAbs(source->property("width").toReal()
+                                - converted->property("width").toReal())
+                            <= 1.0
+                        && qAbs(source->property("height").toReal()
+                                - converted->property("height").toReal())
+                            <= 1.0;
                 }),
-                "vertical layout should stack the two preview panes");
+                "vertical layout should start with two equal-size stacked panes");
 
     window->setProperty("previewLayout", 1);
     test.expect(waitFor([&] {
                     const QObject* horizontal = window->findChild<QObject*>(
                         QStringLiteral("horizontalPreviewLayout"));
+                    const QObject* source = visiblePane(QStringLiteral("sourcePreview"));
+                    const QObject* converted =
+                        visiblePane(QStringLiteral("convertedPreview"));
                     bool hasVisibleSourceTitle = false;
                     bool hasNamedConvertedTitle = false;
                     for (const QObject* sourceTitle : window->findChildren<QObject*>(
@@ -238,10 +257,16 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                             && convertedTitle->property("text").toString()
                                 == QStringLiteral("Converted");
                     }
-                    return horizontal != nullptr && hasVisibleSourceTitle
-                        && hasNamedConvertedTitle;
+                    return horizontal != nullptr && source != nullptr && converted != nullptr
+                        && qAbs(source->property("width").toReal()
+                                - converted->property("width").toReal())
+                            <= 1.0
+                        && qAbs(source->property("height").toReal()
+                                - converted->property("height").toReal())
+                            <= 1.0
+                        && hasVisibleSourceTitle && hasNamedConvertedTitle;
                 }),
-                "horizontal layout should restore Source and Converted pane titles");
+                "horizontal layout should start with equal-size Source and Converted panes");
 
     auto* adjacentPanel =
         window->findChild<QObject*>(QStringLiteral("adjacentConversionPanel"));
@@ -275,10 +300,12 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                         && hideButton->property("text").toString() == QStringLiteral("›")
                         && overlayExpandButton->property("text").toString()
                             == QStringLiteral("‹")
-                        && overlayExpandButton->property("leftPadding").toReal()
-                            > overlayExpandButton->property("rightPadding").toReal();
+                        && qAbs(overlayExpandButton->property("x").toReal()
+                                + overlayExpandButton->property("width").toReal() / 2.0
+                                - overlayRail->property("width").toReal() / 2.0 - 6.0)
+                            <= 0.5;
                 }),
-                "overlay arrows should point in opposite directions and align outward");
+                "overlay arrows and the expand control should align outward");
     test.expect(QMetaObject::invokeMethod(
                     overlayPanel, "handlePointerPresence", Q_ARG(QVariant, true))
                     && QMetaObject::invokeMethod(

@@ -23,7 +23,8 @@ bottom-right control group for zoom out, fit, 1:1, and zoom in. View → Tabbed
 places them on Source and Converted tabs and suppresses the redundant title
 inside each pane. View → Horizontal uses an adjustable side-by-side split, and
 View → Vertical uses an adjustable top-and-bottom split. Horizontal is the
-default.
+default. Both split arrangements start with equal pane sizes and retain an
+adjustable separator.
 
 Fit/crop changes update a 4:3 framing overlay on the source and schedule a
 fresh preview. Start, center, and end crop modes expose horizontal and vertical
