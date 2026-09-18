@@ -66,10 +66,12 @@ Item {
                 currentIndex: previewTabs.currentIndex
 
                 SourcePane {
+                    showTitle: false
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                 }
                 ConvertedPane {
+                    showTitle: false
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                 }

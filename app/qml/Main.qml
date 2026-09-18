@@ -193,13 +193,19 @@ ApplicationWindow {
                     text: qsTr("&Adjacent")
                     checkable: true
                     checked: window.conversionPanelMode === 0
-                    onTriggered: window.conversionPanelMode = 0
+                    onTriggered: {
+                        window.conversionPanelMode = 0
+                        window.conversionPanelVisible = true
+                    }
                 }
                 MenuItem {
                     text: qsTr("&Overlay")
                     checkable: true
                     checked: window.conversionPanelMode === 1
-                    onTriggered: window.conversionPanelMode = 1
+                    onTriggered: {
+                        window.conversionPanelMode = 1
+                        window.conversionPanelVisible = true
+                    }
                 }
             }
         }
@@ -237,6 +243,30 @@ ApplicationWindow {
         }
     }
 
+    Frame {
+        id: overlayExpandRail
+        objectName: "overlayExpandRail"
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: 38
+        padding: 0
+        z: 20
+        visible: window.conversionPanelMode === 1 && !window.conversionPanelVisible
+
+        ToolButton {
+            objectName: "overlayExpandButton"
+            anchors.centerIn: parent
+            text: qsTr("‹")
+            font.pixelSize: 24
+            activeFocusOnTab: true
+            Accessible.name: qsTr("Show Conversion panel")
+            ToolTip.visible: hovered
+            ToolTip.text: Accessible.name
+            onClicked: window.conversionPanelVisible = true
+        }
+    }
+
     Drawer {
         id: overlayConversionPanel
         objectName: "overlayConversionPanel"
@@ -246,15 +276,32 @@ ApplicationWindow {
         modal: false
         dim: false
         closePolicy: Popup.CloseOnEscape
+        property bool pointerWasInside: false
+        function handlePointerPresence(inside) {
+            if (inside) {
+                pointerWasInside = true
+            } else if (pointerWasInside && opened
+                       && window.conversionPanelMode === 1) {
+                window.conversionPanelVisible = false
+            }
+        }
+        onOpened: pointerWasInside = false
         onClosed: {
             if (window.conversionPanelMode === 1 && window.conversionPanelVisible)
                 window.conversionPanelVisible = false
         }
 
+        HoverHandler {
+            acceptedDevices: PointerDevice.Mouse
+            onHoveredChanged: overlayConversionPanel.handlePointerPresence(hovered)
+        }
+
         SettingsPanel {
             anchors.fill: parent
             anchors.margins: 12
+            closable: true
             onExportRequested: exportDialog.open()
+            onCloseRequested: window.conversionPanelVisible = false
         }
     }
 

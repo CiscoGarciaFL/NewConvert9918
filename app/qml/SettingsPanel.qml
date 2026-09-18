@@ -6,17 +6,34 @@ ScrollView {
     id: root
     clip: true
     contentWidth: availableWidth
+    property bool closable: false
     signal exportRequested()
+    signal closeRequested()
 
     ColumnLayout {
         width: root.availableWidth
         spacing: 12
 
-        Label {
-            text: qsTr("Conversion")
-            font.pixelSize: 20
-            font.weight: Font.DemiBold
+        RowLayout {
             Layout.fillWidth: true
+
+            Label {
+                text: qsTr("Conversion")
+                font.pixelSize: 20
+                font.weight: Font.DemiBold
+                Layout.fillWidth: true
+            }
+            ToolButton {
+                objectName: root.closable ? "overlayHideButton" : "adjacentHideButton"
+                visible: root.closable
+                text: qsTr("×")
+                font.pixelSize: 20
+                activeFocusOnTab: true
+                Accessible.name: qsTr("Hide Conversion panel")
+                ToolTip.visible: hovered
+                ToolTip.text: Accessible.name
+                onClicked: root.closeRequested()
+            }
         }
 
         GroupBox {

@@ -16,11 +16,32 @@
 #include <QTemporaryDir>
 #include <QThread>
 #include <QUrl>
+#include <QVariant>
 
+#include <atomic>
 #include <functional>
 #include <iostream>
 
 namespace {
+
+std::atomic<int> qmlBindingErrors{};
+QtMessageHandler previousMessageHandler{};
+
+void captureQmlMessages(QtMsgType type,
+                        const QMessageLogContext& context,
+                        const QString& message)
+{
+    if ((type == QtWarningMsg || type == QtCriticalMsg)
+        && (message.contains(QStringLiteral("TypeError"))
+            || message.contains(QStringLiteral("of null")))) {
+        ++qmlBindingErrors;
+    }
+    if (previousMessageHandler != nullptr) {
+        previousMessageHandler(type, context, message);
+    } else if (type == QtWarningMsg || type == QtCriticalMsg || type == QtFatalMsg) {
+        std::cerr << message.toStdString() << '\n';
+    }
+}
 
 struct TestContext {
     int failures{};
@@ -164,7 +185,21 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                         window->findChild<QObject*>(QStringLiteral("sourcePreviewTab"));
                     const QObject* convertedTab =
                         window->findChild<QObject*>(QStringLiteral("convertedPreviewTab"));
+                    const QObject* sourceTitle =
+                        window->findChild<QObject*>(QStringLiteral("sourcePreviewTitle"));
+                    const QObject* convertedTitle =
+                        window->findChild<QObject*>(QStringLiteral("convertedPreviewTitle"));
+                    const QObject* sourceViewport =
+                        window->findChild<QObject*>(QStringLiteral("sourcePreviewViewport"));
+                    const QObject* sourceControls =
+                        window->findChild<QObject*>(QStringLiteral("sourcePreviewControls"));
                     return tabbed != nullptr && sourceTab != nullptr && convertedTab != nullptr
+                        && sourceTitle != nullptr && convertedTitle != nullptr
+                        && !sourceTitle->property("visible").toBool()
+                        && !convertedTitle->property("visible").toBool()
+                        && sourceViewport != nullptr && sourceControls != nullptr
+                        && sourceControls->property("y").toReal()
+                            > sourceViewport->property("y").toReal()
                         && sourceTab->property("text").toString() == QStringLiteral("Source")
                         && convertedTab->property("text").toString()
                             == QStringLiteral("Converted");
@@ -181,27 +216,68 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
 
     window->setProperty("previewLayout", 1);
     test.expect(waitFor([&] {
-                    return window->findChild<QObject*>(
-                               QStringLiteral("horizontalPreviewLayout"))
-                        != nullptr;
+                    const QObject* horizontal = window->findChild<QObject*>(
+                        QStringLiteral("horizontalPreviewLayout"));
+                    bool hasVisibleSourceTitle = false;
+                    for (const QObject* sourceTitle : window->findChildren<QObject*>(
+                             QStringLiteral("sourcePreviewTitle"))) {
+                        hasVisibleSourceTitle |= sourceTitle->property("visible").toBool();
+                    }
+                    return horizontal != nullptr && hasVisibleSourceTitle;
                 }),
-                "horizontal layout should restore the adjustable side-by-side split");
+                "horizontal layout should restore pane titles and the adjustable split");
 
     auto* adjacentPanel =
         window->findChild<QObject*>(QStringLiteral("adjacentConversionPanel"));
     auto* overlayPanel =
         window->findChild<QObject*>(QStringLiteral("overlayConversionPanel"));
-    test.expect(adjacentPanel != nullptr && overlayPanel != nullptr,
-                "both conversion-panel placements should be available");
+    auto* overlayRail =
+        window->findChild<QObject*>(QStringLiteral("overlayExpandRail"));
+    auto* overlayExpandButton =
+        window->findChild<QObject*>(QStringLiteral("overlayExpandButton"));
+    test.expect(adjacentPanel != nullptr && overlayPanel != nullptr
+                    && overlayRail != nullptr && overlayExpandButton != nullptr,
+                "both conversion-panel placements and the overlay reopen rail should exist");
     window->setProperty("conversionPanelVisible", false);
     QCoreApplication::processEvents();
     test.expect(adjacentPanel != nullptr && !adjacentPanel->property("visible").toBool(),
                 "conversion panel should be hideable");
 
     window->setProperty("conversionPanelMode", 1);
+    test.expect(waitFor([&] {
+                    return overlayRail->property("visible").toBool()
+                        && !overlayPanel->property("opened").toBool();
+                }),
+                "hidden overlay should expose its right-edge expand control");
+    window->setProperty("conversionPanelVisible", true);
+    test.expect(waitFor([&] {
+                    const QObject* hideButton =
+                        window->findChild<QObject*>(QStringLiteral("overlayHideButton"));
+                    return overlayPanel->property("opened").toBool()
+                        && !overlayRail->property("visible").toBool()
+                        && hideButton != nullptr && hideButton->property("visible").toBool();
+                }),
+                "open overlay should replace the expand rail with a hide control");
+    test.expect(QMetaObject::invokeMethod(
+                    overlayPanel, "handlePointerPresence", Q_ARG(QVariant, true))
+                    && QMetaObject::invokeMethod(
+                        overlayPanel, "handlePointerPresence", Q_ARG(QVariant, false)),
+                "overlay pointer-presence handling should be callable");
+    test.expect(waitFor([&] {
+                    return !window->property("conversionPanelVisible").toBool()
+                        && overlayRail->property("visible").toBool();
+                }),
+                "overlay should auto-hide after the pointer enters and leaves it");
     window->setProperty("conversionPanelVisible", true);
     test.expect(waitFor([&] { return overlayPanel->property("opened").toBool(); }),
-                "overlay placement should open above the preview workspace");
+                "overlay should reopen after automatic hiding");
+    window->setProperty("conversionPanelVisible", false);
+    test.expect(waitFor([&] {
+                    return !overlayPanel->property("visible").toBool()
+                        && overlayRail->property("visible").toBool();
+                }),
+                "hiding the overlay should restore the right-edge expand control");
+    window->setProperty("conversionPanelVisible", true);
     window->setProperty("conversionPanelMode", 0);
     test.expect(waitFor([&] {
                     return !overlayPanel->property("opened").toBool()
@@ -261,10 +337,14 @@ int main(int argc, char** argv)
     QSettings().clear();
 
     TestContext test;
+    previousMessageHandler = qInstallMessageHandler(captureQmlMessages);
     ImageInputController controller;
     testLiveWorkflow(test, controller);
     testExportWorkflow(test, controller);
     testResponsiveQml(test, controller);
+    qInstallMessageHandler(previousMessageHandler);
+    test.expect(qmlBindingErrors.load() == 0,
+                "QML bindings should remain valid through engine shutdown");
 
     QSettings().clear();
     if (test.failures != 0) {
