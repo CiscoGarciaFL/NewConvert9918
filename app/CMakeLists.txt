@@ -1,7 +1,14 @@
 add_library(newconvert9918_app_support STATIC
+    ConversionPipeline.cpp
+    ConversionPipeline.hpp
+    EditorProjectController.cpp
+    EditorProjectController.hpp
     ImageInputController.cpp
     ImageInputController.hpp
 )
+
+# Keep Qt's autogen subprocess count conservative on Windows developer hosts.
+set_property(TARGET newconvert9918_app_support PROPERTY AUTOGEN_PARALLEL 1)
 
 target_include_directories(newconvert9918_app_support
     PUBLIC
@@ -40,8 +47,17 @@ qt_add_qml_module(NewConvert9918
         qml/PreviewPane.qml
         qml/PreviewWorkspace.qml
         qml/SettingsPanel.qml
+        qml/EditorWorkspacePlaceholder.qml
+        qml/EditorSidePanelPlaceholder.qml
+        qml/SidePanelHost.qml
+        qml/OutputProfileControls.qml
+        qml/CharacterSetView.qml
+        qml/SpriteSetView.qml
+        qml/ThemedFrame.qml
+        qml/ThemedGroupBox.qml
     RESOURCES
         assets/icons/NewConvert9918-256.png
+        assets/icons/NewConvert9918-watermark-512.png
 )
 
 if(WIN32)
@@ -83,6 +99,32 @@ target_link_libraries(NewConvert9918
 
 install(TARGETS NewConvert9918
     BUNDLE DESTINATION .
+    RUNTIME DESTINATION bin
+)
+
+qt_add_executable(NewConvert9918Cli
+    cli_main.cpp
+)
+
+set_target_properties(NewConvert9918Cli PROPERTIES
+    OUTPUT_NAME newconvert9918-cli
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    WIN32_EXECUTABLE FALSE
+    MACOSX_BUNDLE FALSE
+)
+
+target_compile_definitions(NewConvert9918Cli
+    PRIVATE NEWCONVERT9918_VERSION="${PROJECT_VERSION}"
+)
+
+target_link_libraries(NewConvert9918Cli
+    PRIVATE
+        newconvert9918_app_support
+        Qt6::Core
+        Qt6::Gui
+)
+
+install(TARGETS NewConvert9918Cli
     RUNTIME DESTINATION bin
 )
 

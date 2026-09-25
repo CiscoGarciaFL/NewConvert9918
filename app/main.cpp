@@ -1,3 +1,4 @@
+#include "EditorProjectController.hpp"
 #include "ImageInputController.hpp"
 
 #include <QGuiApplication>
@@ -23,8 +24,10 @@ int main(int argc, char* argv[])
     // The context property must outlive the QML engine so bindings cannot
     // observe a null imageInput while the object tree is being destroyed.
     ImageInputController imageInput;
+    EditorProjectController editorProject(&imageInput);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("imageInput"), &imageInput);
+    engine.rootContext()->setContextProperty(QStringLiteral("editorProject"), &editorProject);
     QObject::connect(
         &engine,
         &QQmlApplicationEngine::objectCreationFailed,

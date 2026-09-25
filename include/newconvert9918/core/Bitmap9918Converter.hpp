@@ -19,21 +19,29 @@ namespace newconvert9918::core {
 [[nodiscard]] ConversionResult
 convertBitmap9918(const RgbImage& source,
                   const Palette& workingPalette,
-                  const ConversionSettings& settings = {});
+                  const ConversionSettings& settings = {},
+                  CancellationToken cancellation = {},
+                  ConversionProgressCallback progress = {});
 
 [[nodiscard]] ConversionResult
 convertGreyscaleBitmap9918(const RgbImage& source,
                            const Palette& workingPalette,
-                           const ConversionSettings& settings);
+                           const ConversionSettings& settings,
+                           CancellationToken cancellation = {},
+                           ConversionProgressCallback progress = {});
 
 [[nodiscard]] ConversionResult
 convertBlackAndWhiteBitmap9918(const RgbImage& source,
                                const Palette& workingPalette,
-                               const ConversionSettings& settings);
+                               const ConversionSettings& settings,
+                               CancellationToken cancellation = {},
+                               ConversionProgressCallback progress = {});
 
 [[nodiscard]] ConversionResult
 convertBitmapColorOnly9918(const RgbImage& source,
                            const Palette& workingPalette,
-                           const ConversionSettings& settings);
+                           const ConversionSettings& settings,
+                           CancellationToken cancellation = {},
+                           ConversionProgressCallback progress = {});
 
 } // namespace newconvert9918::core

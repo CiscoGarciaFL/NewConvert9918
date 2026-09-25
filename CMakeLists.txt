@@ -11,6 +11,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# The legacy Release build used whole-program optimization. Enable the
+# equivalent portable IPO/LTO mode when the active compiler supports it so
+# cross-translation-unit helpers can be inlined in production builds.
+include(CheckIPOSupported)
+check_ipo_supported(RESULT NEWCONVERT9918_IPO_SUPPORTED)
+if(NEWCONVERT9918_IPO_SUPPORTED)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+endif()
+
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Quick QuickControls2)
 qt_standard_project_setup(REQUIRES 6.8)
 

@@ -93,6 +93,26 @@ set_tests_properties(interface_workflow_validation PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=1.25"
 )
 
+add_executable(test_cli_workflow
+    test_cli_workflow.cpp
+)
+
+target_link_libraries(test_cli_workflow
+    PRIVATE Qt6::Core
+)
+
+target_compile_definitions(test_cli_workflow
+    PRIVATE
+        NEWCONVERT9918_CLI_PATH="$<TARGET_FILE:NewConvert9918Cli>"
+        NEWCONVERT9918_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
+)
+
+add_dependencies(test_cli_workflow NewConvert9918Cli)
+set_target_properties(test_cli_workflow PROPERTIES AUTOMOC OFF)
+
+add_test(NAME cli_workflow_validation COMMAND test_cli_workflow)
+set_tests_properties(cli_workflow_validation PROPERTIES TIMEOUT 120)
+
 add_executable(benchmark_core_conversion
     benchmark_conversion.cpp
 )

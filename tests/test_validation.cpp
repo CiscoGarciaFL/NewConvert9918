@@ -34,6 +34,7 @@
 #include <string_view>
 
 using newconvert9918::core::ConversionSettings;
+using newconvert9918::core::CancellationSource;
 using newconvert9918::core::ConversionDiagnostic;
 using newconvert9918::core::ConversionMode;
 using newconvert9918::core::ConversionRequest;
@@ -59,6 +60,7 @@ using newconvert9918::core::PerceptualRgbWeights;
 using newconvert9918::core::Palette;
 using newconvert9918::core::PaletteError;
 using newconvert9918::core::PaletteSelectionError;
+using newconvert9918::core::PaletteSelectionMode;
 using newconvert9918::core::PixelFormat;
 using newconvert9918::core::OrderedDitherMapSize;
 using newconvert9918::core::PopularityWeighting;
@@ -273,6 +275,34 @@ void testSettingsValidation(TestContext &test)
     issues = validate(settings);
     test.expect(issues.size() == 1 && issues.front().field == "errorAccumulation",
                 "unknown error accumulation modes should be rejected");
+
+    settings = ConversionSettings{};
+    settings.dither = DitherMode::Custom;
+    settings.errorDistribution.farRight = 17;
+    issues = validate(settings);
+    test.expect(issues.size() == 1 && issues.front().field == "errorDistribution",
+                "custom error-distribution weights above sixteen should be rejected");
+
+    settings = ConversionSettings{};
+    settings.paletteSelection = static_cast<PaletteSelectionMode>(255);
+    issues = validate(settings);
+    test.expect(issues.size() == 1 && issues.front().field == "paletteSelection",
+                "unknown palette-selection modes should be rejected");
+
+    settings = ConversionSettings{};
+    settings.scanlineStaticColorCount = 15;
+    issues = validate(settings);
+    test.expect(issues.size() == 1 && issues.front().field == "scanlineStaticColorCount",
+                "more than fourteen shared scanline colors should be rejected");
+
+    settings = ConversionSettings{};
+    settings.scanlineStaticColorCount = 1;
+    settings.scanlineRegion1 = false;
+    settings.scanlineRegion2 = false;
+    settings.scanlineRegion3 = false;
+    issues = validate(settings);
+    test.expect(issues.size() == 1 && issues.front().field == "scanlineRegions",
+                "shared scanline colors should require at least one source region");
 }
 
 void testDithering(TestContext &test)
@@ -314,6 +344,14 @@ void testDithering(TestContext &test)
                     && orderedWithError->distributeError
                     && orderedWithError->kernel.totalWeight() == 7,
                 "ordered-with-error should retain the original seven-part kernel");
+    const ErrorDistributionKernel customKernel{4, 3, 2, 1, 0, 5};
+    const auto custom = ditherConfiguration(DitherMode::Custom, customKernel);
+    test.expect(custom && !custom->ordered && custom->distributeError
+                    && custom->kernel.downLeft == 4 && custom->kernel.down == 3
+                    && custom->kernel.downRight == 2 && custom->kernel.right == 1
+                    && custom->kernel.farRight == 0 && custom->kernel.downTwo == 5
+                    && custom->kernel.totalWeight() == 15,
+                "custom dithering should use all six caller-provided weights");
     test.expect(!ditherConfiguration(static_cast<DitherMode>(255)),
                 "unknown dither modes should not produce a configuration");
 
@@ -344,6 +382,12 @@ void testDithering(TestContext &test)
                     "ordered dithering should scale the green channel");
     test.expectNear(adjusted->blue, 70.0, 1.0e-12,
                     "ordered dithering should scale the blue channel");
+    const auto darkened = applyOrderedDither(
+        {100.0, 80.0, 40.0}, 1, 0, OrderedDitherMapSize::TwoByTwo, 16);
+    test.expect(darkened && darkened->red < adjusted->red
+                    && darkened->green < adjusted->green
+                    && darkened->blue < adjusted->blue,
+                "increasing the legacy ordered slider should darken non-extreme samples");
 
     const auto black = applyOrderedDither(
         {8.0, 4.0, 0.0}, 1, 0, OrderedDitherMapSize::TwoByTwo, 0);
@@ -460,6 +504,35 @@ void testBitmap9918Conversion(TestContext &test)
                     && previewRow[3] == 248 && previewRow[4] == 248
                     && previewRow[5] == 248,
                 "the Bitmap 9918A preview should use the selected working colors");
+
+    std::vector<RgbColor> editedColors(palette.colors().begin(), palette.colors().end());
+    editedColors[1] = {248, 0, 248};
+    const Palette editedPalette = std::move(*Palette::create(std::move(editedColors)));
+    const ConversionResult editedPaletteResult = convertBitmap9918(
+        *source, editedPalette, settings);
+    test.expect(editedPaletteResult.succeeded()
+                    && editedPaletteResult.target->tables[1].bytes != colors.bytes,
+                "an edited working palette should affect deterministic bitmap output");
+
+    for (std::uint32_t y = 0; y < source->height(); ++y) {
+        std::span<std::uint8_t> row = source->row(y);
+        for (std::uint32_t x = 0; x < source->width(); ++x) {
+            const std::uint8_t value = static_cast<std::uint8_t>((x * 7U + y * 3U) % 249U);
+            const std::size_t offset = static_cast<std::size_t>(x) * 3;
+            row[offset] = value;
+            row[offset + 1] = value;
+            row[offset + 2] = value;
+        }
+    }
+    settings.dither = DitherMode::Custom;
+    settings.errorDistribution = {};
+    const ConversionResult zeroKernelResult = convertBitmap9918(*source, palette, settings);
+    settings.errorDistribution = {0, 0, 0, 16, 0, 0};
+    const ConversionResult rightKernelResult = convertBitmap9918(*source, palette, settings);
+    test.expect(zeroKernelResult.succeeded() && rightKernelResult.succeeded()
+                    && zeroKernelResult.target->tables[0].bytes
+                        != rightKernelResult.target->tables[0].bytes,
+                "Bitmap conversion should apply the editable custom error kernel");
 
     auto wrongSize = RgbImage::createTightlyPacked(8, 8, PixelFormat::Rgb888);
     const ConversionResult wrongSizeResult = convertBitmap9918(*wrongSize, palette, settings);
@@ -663,7 +736,24 @@ void testMulticolor9918Conversion(TestContext &test)
     settings.mode = ConversionMode::Multicolor9918;
     settings.dither = DitherMode::None;
     settings.maximumColorShiftPercent = 0.0;
-    const ConversionResult result = convertMulticolor9918(*source, palette, settings);
+    int progressFrames = 0;
+    std::uint32_t firstProgressRow = 0;
+    std::uint32_t lastProgressRow = 0;
+    const ConversionResult result = convertMulticolor9918(
+        *source,
+        palette,
+        settings,
+        {},
+        [&](const RgbImage& preview,
+            std::uint32_t completedRows,
+            std::uint32_t totalRows) {
+            ++progressFrames;
+            if (firstProgressRow == 0) firstProgressRow = completedRows;
+            lastProgressRow = completedRows;
+            test.expect(preview.width() == 256 && preview.height() == 192
+                            && totalRows == 192,
+                        "live conversion frames should retain target geometry");
+        });
     test.expect(result.succeeded() && result.preview && result.target,
                 "a valid image should convert to Multicolor 9918");
     test.expect(result.target->mode == ConversionMode::Multicolor9918
@@ -681,6 +771,8 @@ void testMulticolor9918Conversion(TestContext &test)
                     && previewRow[12] == 248 && previewRow[13] == 248
                     && previewRow[14] == 248,
                 "Multicolor 9918 preview should expand each logical pixel to 4x4");
+    test.expect(progressFrames == 24 && firstProgressRow == 8 && lastProgressRow == 192,
+                "live conversion should publish throttled completed-row frames");
 
     settings.mode = ConversionMode::Bitmap9918;
     const ConversionResult wrongMode = convertMulticolor9918(*source, palette, settings);
@@ -881,6 +973,23 @@ void testScanlinePaletteBitmapF18AConversion(TestContext &test)
                     && result.diagnostics.front().code
                         == "scanline-palette-deterministic-selection",
                 "scanline conversion should disclose its deterministic selection difference");
+
+    settings.scanlineStaticColorCount = 2;
+    settings.paletteSelection = PaletteSelectionMode::Popularity;
+    const ConversionResult staticResult = convertScanlinePaletteBitmapF18A(
+        *source, settings);
+    bool sharedSlotsStable = staticResult.succeeded() && staticResult.target
+        && staticResult.target->tables[2].bytes.size() == 6144U;
+    if (sharedSlotsStable) {
+        const auto& bytes = staticResult.target->tables[2].bytes;
+        for (std::size_t row = 1; row < 192U; ++row) {
+            sharedSlotsStable &= std::equal(
+                bytes.begin(), bytes.begin() + 4,
+                bytes.begin() + static_cast<std::ptrdiff_t>(row * 32U));
+        }
+    }
+    test.expect(sharedSlotsStable,
+                "shared scanline colors should occupy stable palette slots on every row");
 
     settings.mode = ConversionMode::PalettedBitmapF18A;
     const ConversionResult wrongMode = convertScanlinePaletteBitmapF18A(
@@ -1328,6 +1437,61 @@ void testConversionJobController(TestContext &test)
                 "explicit cancellation should prevent publication of the current job");
 }
 
+void testConverterCancellation(TestContext &test)
+{
+    auto image = RgbImage::createTightlyPacked(256, 192, PixelFormat::Rgb888);
+    test.expect(image.has_value(), "converter-cancellation fixture should be created");
+    if (!image) {
+        return;
+    }
+
+    const Palette palette = defaultBitmap9918Palette();
+    CancellationSource cancellationSource;
+    cancellationSource.requestCancellation();
+    const auto expectCancelled = [&test](const ConversionResult& result) {
+        test.expect(result.status == ConversionStatus::Cancelled
+                        && !result.preview && !result.target
+                        && result.diagnostics.empty(),
+                    "a pre-cancelled converter should stop without publishing output");
+    };
+
+    ConversionSettings settings;
+    expectCancelled(convertBitmap9918(
+        *image, palette, settings, cancellationSource.token()));
+
+    settings.mode = ConversionMode::GreyscaleBitmap9918;
+    expectCancelled(convertGreyscaleBitmap9918(
+        *image, palette, settings, cancellationSource.token()));
+
+    settings.mode = ConversionMode::BlackAndWhiteBitmap9918;
+    expectCancelled(convertBlackAndWhiteBitmap9918(
+        *image, palette, settings, cancellationSource.token()));
+
+    settings.mode = ConversionMode::Multicolor9918;
+    expectCancelled(convertMulticolor9918(
+        *image, palette, settings, cancellationSource.token()));
+
+    settings.mode = ConversionMode::DualMulticolor9918;
+    expectCancelled(convertDualMulticolor9918(
+        *image, palette, settings, cancellationSource.token()));
+
+    settings.mode = ConversionMode::HalfMulticolor9918;
+    expectCancelled(convertHalfMulticolor9918(
+        *image, palette, settings, cancellationSource.token()));
+
+    settings.mode = ConversionMode::BitmapColorOnly9918;
+    expectCancelled(convertBitmapColorOnly9918(
+        *image, palette, settings, cancellationSource.token()));
+
+    settings.mode = ConversionMode::PalettedBitmapF18A;
+    expectCancelled(convertPalettedBitmapF18A(
+        *image, palette, settings, cancellationSource.token()));
+
+    settings.mode = ConversionMode::ScanlinePaletteBitmapF18A;
+    expectCancelled(convertScanlinePaletteBitmapF18A(
+        *image, settings, cancellationSource.token()));
+}
+
 void testConversionMemoryEstimate(TestContext &test)
 {
     ConversionSettings settings;
@@ -1525,12 +1689,12 @@ void testImageTransform(TestContext &test)
     options.fillMode = ImageFillMode::CropCenter;
     options.horizontalOffset = 10;
     plan = planImageTransform(*source, options);
-    test.expect(plan.has_value() && plan->cropX == 2,
-                "positive crop offsets should clamp at the final valid pixel");
+    test.expect(plan.has_value() && plan->cropX == 0,
+                "positive position offsets should move the source toward the target end");
     options.horizontalOffset = -10;
     plan = planImageTransform(*source, options);
-    test.expect(plan.has_value() && plan->cropX == 0,
-                "negative crop offsets should clamp at the first valid pixel");
+    test.expect(plan.has_value() && plan->cropX == 2,
+                "negative position offsets should move the source toward the target start");
 
     options.horizontalOffset = 0;
     auto transformed = transformImage(*source, options);
@@ -1553,6 +1717,15 @@ void testImageTransform(TestContext &test)
     test.expect(transformed.image->bytes()[0] == 1 && transformed.image->bytes()[1] == 2
                     && transformed.image->bytes()[2] == 3,
                 "letterbox pixels should use the configured background color");
+
+    options.horizontalOffset = 10;
+    plan = planImageTransform(*source, options);
+    test.expect(plan.has_value() && plan->destinationX == 2,
+                "positive fit offsets should move a smaller source right within the target");
+    options.horizontalOffset = -10;
+    plan = planImageTransform(*source, options);
+    test.expect(plan.has_value() && plan->destinationX == 0,
+                "negative fit offsets should move a smaller source left within the target");
 
     auto verticalSource = RgbImage::create(
         {.width = 1, .height = 4, .pixelFormat = PixelFormat::Rgb888, .rowStride = 3},
@@ -1969,6 +2142,7 @@ int main(int argc, char *argv[])
     testRgbImage(test);
     testConversionTypes(test);
     testConversionJobController(test);
+    testConverterCancellation(test);
     testConversionMemoryEstimate(test);
     testTargetData(test);
     testImageTransform(test);

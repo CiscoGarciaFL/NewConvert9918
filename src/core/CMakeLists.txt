@@ -28,3 +28,19 @@ if(MSVC)
 else()
     target_compile_options(newconvert9918_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
+
+# Convert9918's Release quantizers used the fast floating-point model. Limit
+# that parity setting to the exhaustive-search implementation files so public
+# validation retains strict IEEE handling for NaN and infinity.
+set(NEWCONVERT9918_HOT_QUANTIZER_SOURCES
+    Bitmap9918Converter.cpp
+    F18AConverter.cpp
+    Multicolor9918Converter.cpp
+)
+if(MSVC)
+    set_property(SOURCE ${NEWCONVERT9918_HOT_QUANTIZER_SOURCES} APPEND PROPERTY
+        COMPILE_OPTIONS $<$<CONFIG:Release>:/fp:fast>)
+else()
+    set_property(SOURCE ${NEWCONVERT9918_HOT_QUANTIZER_SOURCES} APPEND PROPERTY
+        COMPILE_OPTIONS $<$<CONFIG:Release>:-ffast-math>)
+endif()

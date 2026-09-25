@@ -1,14 +1,16 @@
+param(
+    [ValidateSet('Debug', 'Release')]
+    [string]$Configuration = 'Release',
+    [switch]$SkipBuild
+)
+
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$executable = Join-Path $projectRoot 'build/windows-mingw-debug/bin/NewConvert9918.exe'
-if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
-    throw 'Build the windows-mingw-debug preset before launching the preview.'
-}
-
-$runtime = Join-Path (Split-Path -Parent $executable) 'Qt6Core.dll'
-if (-not (Test-Path -LiteralPath $runtime -PathType Leaf)) {
-    & (Join-Path $PSScriptRoot 'deploy_windows_preview.ps1') -SkipBuild
-}
+$preset = "windows-mingw-$($Configuration.ToLowerInvariant())"
+$executable = Join-Path $projectRoot "build/$preset/bin/NewConvert9918.exe"
+$deployArguments = @{ Configuration = $Configuration }
+if ($SkipBuild) { $deployArguments.SkipBuild = $true }
+& (Join-Path $PSScriptRoot 'deploy_windows_preview.ps1') @deployArguments
 
 & $executable

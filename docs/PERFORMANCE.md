@@ -4,6 +4,10 @@ This baseline measures the portable Phase 3 conversion core. It is intended to
 guide later background-work and optimization decisions; it is not a CI timing
 threshold.
 
+For the measured Convert9918 1.9.1 comparison, Debug-versus-Release impact,
+interactive cancellation analysis, and optimization priorities, see
+[`PERFORMANCE_COMPARISON.md`](PERFORMANCE_COMPARISON.md).
+
 ## Method
 
 - Date: 2026-09-16

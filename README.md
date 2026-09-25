@@ -19,8 +19,9 @@ generated-file manifests and overwrite preflight. Phase 6 completes the
 redesigned Qt workflow with menu-driven tabbed/horizontal/vertical previews,
 an adjacent or overlay Conversion panel, debounced background conversion,
 presets, undo/reset, palette inspection, persistent settings, export summaries,
-and accessible narrow/wide layouts. The next implementation phase is the
-command-line and automation frontend.
+and accessible narrow/wide layouts. Phase 7 adds a headless command-line
+frontend for deterministic one-shot conversion and export, stable exit codes,
+JSON diagnostics, and automation-friendly overwrite handling.
 
 See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the durable roadmap, current
 status, acceptance criteria, and next-session checklist. The original
@@ -34,6 +35,9 @@ The optimized timing and owned-buffer baseline is in
 [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md). Phase 3 compatibility decisions
 and the remaining end-to-end golden dependency are recorded in
 [`docs/PHASE3_COMPATIBILITY.md`](docs/PHASE3_COMPATIBILITY.md).
+The CPU-algorithm, SIMD, multicore, and portable-GPU acceleration study—with
+benchmark-based speed ranges and a gated implementation sequence—is in
+[`docs/CONVERSION_ACCELERATION_RESEARCH.md`](docs/CONVERSION_ACCELERATION_RESEARCH.md).
 Image formats, color/alpha/orientation policy, and input limits are documented
 in [`docs/IMAGE_INPUT.md`](docs/IMAGE_INPUT.md).
 Export applicability, byte layouts, loader-template policy, and overwrite
@@ -41,6 +45,14 @@ behavior are documented in [`docs/EXPORT_FORMATS.md`](docs/EXPORT_FORMATS.md).
 The completed live-preview workflow, controls, shortcuts, responsive behavior,
 and interface verification are documented in
 [`docs/INTERFACE_WORKFLOW.md`](docs/INTERFACE_WORKFLOW.md).
+The headless syntax, supported names, JSON contract, and exit codes are in
+[`docs/COMMAND_LINE.md`](docs/COMMAND_LINE.md).
+The post-v1 design for enumerating video, animated-image, slideshow, and still
+sequence sources into deterministic conversion jobs is in
+[`docs/BATCH_MODE.md`](docs/BATCH_MODE.md).
+The proposed hardware-aware sprite, composite-sprite, character-bank,
+pattern-reservation, and Multicolor authoring workspace is specified in
+[`docs/9918_DESIGN_TOOLS.md`](docs/9918_DESIGN_TOOLS.md).
 
 ## Technology
 
@@ -63,8 +75,11 @@ cmake --build --preset <platform-preset>
 ctest --preset <platform-preset>
 ```
 
-Choose `windows-mingw-debug`, `linux-debug`, or `macos-debug` for
-`<platform-preset>`. The Windows preset matches the toolchain installed at
+Choose `windows-mingw-debug`, `windows-mingw-release`, `linux-debug`, or
+`macos-debug` for `<platform-preset>`. Use the Windows Release preset for
+normal use and performance evaluation; Debug is intended for diagnostics and
+is substantially slower in the exhaustive-search modes. The Windows presets
+match the toolchain installed at
 `C:\Qt` on the current development machine. Linux and macOS expect Qt, CMake,
 and Ninja to be discoverable in the shell environment. Machine-specific
 overrides belong in the ignored `CMakeUserPresets.json` file.
@@ -77,18 +92,39 @@ be launched directly from Explorer, run:
 .\tools\deploy_windows_preview.ps1
 ```
 
-The runnable folder is `build\windows-mingw-debug\bin`. Deployment explicitly
-uses the release Qt runtime shipped by the installed MinGW kit, even though the
-application itself retains Debug symbols.
+The command above defaults to the Debug configuration; its runnable folder is
+`build\windows-mingw-debug\bin`. Deployment explicitly uses the release Qt
+runtime shipped by the installed MinGW kit, even though the application itself
+retains Debug symbols.
 
-To deploy when needed and launch the visible Qt shell in one step, run:
+To incrementally rebuild, deploy, and launch the optimized Release application
+in one step, run:
 
 ```powershell
 .\tools\run_windows_preview.ps1
 ```
 
+The release-specific launcher is an equivalent convenience alias. To reuse a
+known-current build without rebuilding, pass `-SkipBuild`:
+
+```powershell
+.\tools\run_windows_release_preview.ps1
+.\tools\run_windows_preview.ps1 -SkipBuild
+```
+
 Close the preview window before rebuilding the application because Windows
 locks a running executable.
+
+The same build also creates `newconvert9918-cli` in the `bin` directory. A
+minimal headless conversion is:
+
+```shell
+newconvert9918-cli --input artwork.png --output converted --mode bitmap-9918a --format tifiles
+```
+
+Add `--json` for machine-readable results. See
+[`docs/COMMAND_LINE.md`](docs/COMMAND_LINE.md) for all modes, presets, formats,
+overwrite behavior, and exit codes.
 
 Zed users can run the matching configure, build, and test entries from the
 task picker. CMake writes `compile_commands.json` into each build directory so
@@ -104,7 +140,7 @@ runners with AppleClang.
 
 ## Project structure
 
-- `app/` — Qt application shell and QML interface
+- `app/` — Qt desktop shell, QML interface, shared application pipeline, and CLI
 - `include/newconvert9918/core/` — public, platform-neutral core API
 - `include/newconvert9918/formats/` — portable export requests and manifests
 - `include/newconvert9918/imageio/` — Qt image-loading adapter API

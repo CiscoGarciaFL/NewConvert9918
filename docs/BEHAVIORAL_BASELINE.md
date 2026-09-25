@@ -4,6 +4,9 @@ This document records the behavior that New Convert 9918 must be able to test
 and intentionally reproduce or supersede. It is an inventory, not permission
 to copy implementation code from the original application.
 
+The completed user-facing decisions from this inventory are recorded in
+[`PHASE6A_PARITY_REVIEW.md`](PHASE6A_PARITY_REVIEW.md).
+
 ## Reference identity and isolation
 
 - Upstream repository: <https://github.com/tursilion/convert9918>

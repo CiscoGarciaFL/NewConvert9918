@@ -91,7 +91,7 @@ AxisPlacement placeAxis(std::uint32_t scaled,
         const auto base = static_cast<std::int64_t>(
             std::floor(static_cast<double>(overflow) * anchorValue));
         const auto adjusted = std::clamp<std::int64_t>(
-            base + static_cast<std::int64_t>(offset), 0, overflow);
+            base - static_cast<std::int64_t>(offset), 0, overflow);
         return {
             .crop = static_cast<std::uint32_t>(adjusted),
             .destination = 0,
@@ -100,10 +100,13 @@ AxisPlacement placeAxis(std::uint32_t scaled,
     }
 
     const std::uint32_t gap = target - scaled;
+    const auto base = static_cast<std::int64_t>(
+        std::floor(static_cast<double>(gap) * anchorValue));
+    const auto adjusted = std::clamp<std::int64_t>(
+        base + static_cast<std::int64_t>(offset), 0, gap);
     return {
         .crop = 0,
-        .destination = static_cast<std::uint32_t>(
-            std::floor(static_cast<double>(gap) * anchorValue)),
+        .destination = static_cast<std::uint32_t>(adjusted),
         .count = scaled,
     };
 }

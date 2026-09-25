@@ -45,6 +45,16 @@ ConversionResult failure(std::string code, std::string message)
     };
 }
 
+ConversionResult cancelled()
+{
+    return {
+        .status = ConversionStatus::Cancelled,
+        .preview = std::nullopt,
+        .diagnostics = {},
+        .target = std::nullopt,
+    };
+}
+
 std::uint8_t roundToF18A(std::uint8_t channel)
 {
     return static_cast<std::uint8_t>((channel & 0xf0) | (channel >> 4));
@@ -147,11 +157,14 @@ bool bypassIncomingDither(RgbSample sample)
         || (sample.red >= 248.0 && sample.green >= 248.0 && sample.blue >= 248.0);
 }
 
-BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
-                        const Palette& palette,
-                        const ConversionSettings& settings,
-                        const DitherConfiguration& dithering,
-                        double errorDivisor)
+template<bool DistributeError, bool Perceptual>
+BlockChoice chooseBlockSpecialized(
+    const std::array<RgbSample, 8>& desired,
+    const Palette& palette,
+    const std::vector<PreparedColorSample>& preparedPalette,
+    const ConversionSettings& settings,
+    const DitherConfiguration& dithering,
+    double errorDivisor)
 {
     BlockChoice best;
     const double rightScale = static_cast<double>(dithering.kernel.right)
@@ -172,17 +185,18 @@ BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
                         ? foreground
                         : background;
                     RgbSample candidate = desired[bit];
-                    if (dithering.distributeError) {
+                    if constexpr (DistributeError) {
                         candidate.red += carried.red / errorDivisor;
                         candidate.green += carried.green / errorDivisor;
                         candidate.blue += carried.blue / errorDivisor;
                     }
                     const RgbSample color{palette.at(colorIndex)};
-                    distance += colorDistanceSquared(candidate, color, settings);
+                    distance += preparedColorDistanceSquared<Perceptual>(
+                        candidate, preparedPalette[colorIndex], settings);
                     if (distance >= best.distance) {
                         break;
                     }
-                    if (dithering.distributeError) {
+                    if constexpr (DistributeError) {
                         const RgbSample error{
                             candidate.red - color.red,
                             candidate.green - color.green,
@@ -215,8 +229,83 @@ BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
     return best;
 }
 
-std::optional<Palette> selectScanlinePalette(const RgbImage& source,
-                                              std::uint32_t y)
+BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
+                        const Palette& palette,
+                        const std::vector<PreparedColorSample>& preparedPalette,
+                        const ConversionSettings& settings,
+                        const DitherConfiguration& dithering,
+                        double errorDivisor)
+{
+    if (settings.perceptualColorMatching) {
+        if (dithering.distributeError) {
+            return chooseBlockSpecialized<true, true>(
+                desired, palette, preparedPalette, settings, dithering, errorDivisor);
+        }
+        return chooseBlockSpecialized<false, true>(
+            desired, palette, preparedPalette, settings, dithering, errorDivisor);
+    }
+    if (dithering.distributeError) {
+        return chooseBlockSpecialized<true, false>(
+            desired, palette, preparedPalette, settings, dithering, errorDivisor);
+    }
+    return chooseBlockSpecialized<false, false>(
+        desired, palette, preparedPalette, settings, dithering, errorDivisor);
+}
+
+PaletteSelectionResult selectPalette(const RgbImage& source,
+                                     std::size_t colorCount,
+                                     PaletteSelectionMode mode)
+{
+    if (mode == PaletteSelectionMode::Popularity) {
+        return selectPopularPalette(
+            source, colorCount, PopularityWeighting::HorizontalCenter);
+    }
+    return selectMedianCutPalette(source, colorCount, MedianCutColorDepth::Rgb444);
+}
+
+std::optional<std::vector<RgbColor>> selectStaticColors(
+    const RgbImage& source,
+    const ConversionSettings& settings)
+{
+    if (settings.scanlineStaticColorCount == 0) {
+        return std::vector<RgbColor>{};
+    }
+    const std::array<bool, 3> included{
+        settings.scanlineRegion1,
+        settings.scanlineRegion2,
+        settings.scanlineRegion3,
+    };
+    const std::size_t includedCount = static_cast<std::size_t>(
+        std::count(included.begin(), included.end(), true));
+    auto sample = RgbImage::createTightlyPacked(
+        imageWidth,
+        static_cast<std::uint32_t>(includedCount * 64U),
+        source.pixelFormat());
+    if (!sample) return std::nullopt;
+
+    std::uint32_t destinationY = 0;
+    for (std::size_t region = 0; region < included.size(); ++region) {
+        if (!included[region]) continue;
+        for (std::uint32_t row = 0; row < 64; ++row) {
+            const auto sourceRow = source.row(
+                static_cast<std::uint32_t>(region * 64U) + row);
+            auto destinationRow = sample->row(destinationY++);
+            std::copy_n(sourceRow.begin(), source.minimumRowBytes(), destinationRow.begin());
+        }
+    }
+    auto selected = selectPalette(
+        *sample,
+        static_cast<std::size_t>(settings.scanlineStaticColorCount),
+        settings.paletteSelection);
+    if (!selected) return std::nullopt;
+    return std::vector<RgbColor>(
+        selected.palette->colors().begin(), selected.palette->colors().end());
+}
+
+std::optional<Palette> selectScanlinePalette(
+    const RgbImage& source,
+    std::uint32_t y,
+    std::span<const RgbColor> staticColors)
 {
     auto line = RgbImage::createTightlyPacked(imageWidth, 1, PixelFormat::Rgb888);
     if (!line) {
@@ -230,9 +319,15 @@ std::optional<Palette> selectScanlinePalette(const RgbImage& source,
         destination[offset + 1] = static_cast<std::uint8_t>(sample.green);
         destination[offset + 2] = static_cast<std::uint8_t>(sample.blue);
     }
+    const std::size_t dynamicCount = workingColorCount - staticColors.size();
     PaletteSelectionResult selected = selectMedianCutPalette(
-        *line, workingColorCount, MedianCutColorDepth::Rgb444);
-    return selected ? std::move(selected.palette) : std::nullopt;
+        *line, dynamicCount, MedianCutColorDepth::Rgb444);
+    if (!selected) return std::nullopt;
+    std::vector<RgbColor> colors(staticColors.begin(), staticColors.end());
+    colors.insert(colors.end(),
+                  selected.palette->colors().begin(),
+                  selected.palette->colors().end());
+    return Palette::create(std::move(colors));
 }
 
 std::pair<std::vector<std::uint8_t>, std::vector<std::uint8_t>>
@@ -279,14 +374,16 @@ encodeBitmapTables(std::span<const std::uint8_t> indexed)
 
 std::optional<RgbImage> makeScanlinePreview(
     std::span<const std::uint8_t> indexed,
-    std::span<const Palette> palettes)
+    std::span<const Palette> palettes,
+    std::uint32_t completedRows = imageHeight)
 {
     auto preview = RgbImage::createTightlyPacked(
         imageWidth, imageHeight, PixelFormat::Rgb888);
     if (!preview) {
         return std::nullopt;
     }
-    for (std::uint32_t y = 0; y < imageHeight; ++y) {
+    std::fill(preview->bytes().begin(), preview->bytes().end(), 0);
+    for (std::uint32_t y = 0; y < std::min(completedRows, imageHeight); ++y) {
         std::span<std::uint8_t> row = preview->row(y);
         for (std::uint32_t x = 0; x < imageWidth; ++x) {
             const RgbColor color = palettes[y].at(
@@ -314,7 +411,9 @@ std::vector<std::uint8_t> encodeScanlinePalettes(std::span<const Palette> palett
 
 ConversionResult convertPalettedBitmapF18A(const RgbImage& source,
                                            const Palette& selectedPalette,
-                                           const ConversionSettings& settings)
+                                           const ConversionSettings& settings,
+                                           CancellationToken cancellation,
+                                           ConversionProgressCallback progress)
 {
     if (settings.mode != ConversionMode::PalettedBitmapF18A) {
         return failure("paletted-bitmap-f18a-wrong-mode",
@@ -338,7 +437,11 @@ ConversionResult convertPalettedBitmapF18A(const RgbImage& source,
     const Palette palette = roundedPalette(selectedPalette);
     ConversionSettings bitmapSettings = settings;
     bitmapSettings.mode = ConversionMode::Bitmap9918;
-    ConversionResult result = convertBitmap9918(source, palette, bitmapSettings);
+    ConversionResult result = convertBitmap9918(
+        source, palette, bitmapSettings, std::move(cancellation), std::move(progress));
+    if (result.status == ConversionStatus::Cancelled) {
+        return result;
+    }
     if (!result.succeeded() || !result.target) {
         return failure("paletted-bitmap-f18a-conversion-failed",
                        "Paletted Bitmap F18A Graphics II conversion failed.");
@@ -352,7 +455,9 @@ ConversionResult convertPalettedBitmapF18A(const RgbImage& source,
 
 ConversionResult convertScanlinePaletteBitmapF18A(
     const RgbImage& source,
-    const ConversionSettings& settings)
+    const ConversionSettings& settings,
+    CancellationToken cancellation,
+    ConversionProgressCallback progress)
 {
     if (settings.mode != ConversionMode::ScanlinePaletteBitmapF18A) {
         return failure("scanline-palette-f18a-wrong-mode",
@@ -368,16 +473,29 @@ ConversionResult convertScanlinePaletteBitmapF18A(
         return failure("scanline-palette-f18a-invalid-dimensions",
                        "Scanline Palette Bitmap F18A requires a 256x192 source and target.");
     }
-    const auto dithering = ditherConfiguration(settings.dither);
+    const auto dithering = ditherConfiguration(settings.dither, settings.errorDistribution);
     if (!dithering) {
         return failure("scanline-palette-f18a-invalid-dither",
                        "Scanline Palette Bitmap F18A received an unsupported dither mode.");
     }
 
+    if (cancellation.isCancellationRequested()) {
+        return cancelled();
+    }
+
+    const auto staticColors = selectStaticColors(source, settings);
+    if (!staticColors) {
+        return failure("scanline-palette-f18a-static-selection",
+                       "The shared scanline colors could not be selected.");
+    }
+
     std::vector<Palette> palettes;
     palettes.reserve(imageHeight);
     for (std::uint32_t y = 0; y < imageHeight; ++y) {
-        auto palette = selectScanlinePalette(source, y);
+        if (cancellation.isCancellationRequested()) {
+            return cancelled();
+        }
+        auto palette = selectScanlinePalette(source, y, *staticColors);
         if (!palette) {
             return failure("scanline-palette-f18a-palette-selection",
                            "A scanline F18A palette could not be selected.");
@@ -411,8 +529,17 @@ ConversionResult convertScanlinePaletteBitmapF18A(
     };
     std::vector<std::uint8_t> indexed(
         static_cast<std::size_t>(imageWidth) * imageHeight);
+    const ColorDistanceEvaluator distanceEvaluator(settings);
     for (std::uint32_t y = 0; y < imageHeight; ++y) {
+        if (cancellation.isCancellationRequested()) {
+            return cancelled();
+        }
         const Palette& palette = palettes[y];
+        std::vector<PreparedColorSample> preparedPalette;
+        preparedPalette.reserve(palette.size());
+        for (const RgbColor color : palette.colors()) {
+            preparedPalette.push_back(distanceEvaluator.prepare(RgbSample{color}));
+        }
         const double errorDivisor = settings.errorAccumulation
                 == ErrorAccumulationMode::Average
                 && y != 0
@@ -444,7 +571,12 @@ ConversionResult convertScanlinePaletteBitmapF18A(
             }
 
             const BlockChoice choice = chooseBlock(
-                desired, palette, settings, *dithering, errorDivisor);
+                desired,
+                palette,
+                preparedPalette,
+                settings,
+                *dithering,
+                errorDivisor);
             int mask = 0x80;
             RgbSample carried{};
             RgbSample farCarried{};
@@ -491,6 +623,12 @@ ConversionResult convertScanlinePaletteBitmapF18A(
                 mask >>= 1;
             }
         }
+        const std::uint32_t completedRows = y + 1;
+        if (progress && completedRows % 8 == 0) {
+            if (auto partial = makeScanlinePreview(indexed, palettes, completedRows)) {
+                progress(*partial, completedRows, imageHeight);
+            }
+        }
     }
 
     auto preview = makeScanlinePreview(indexed, palettes);
@@ -514,7 +652,7 @@ ConversionResult convertScanlinePaletteBitmapF18A(
         .diagnostics = {{
             DiagnosticSeverity::Information,
             "scanline-palette-deterministic-selection",
-            "Scanline palettes use deterministic RGB444 median cut instead of the original stateful neighborhood merger.",
+            "Scanline palettes use deterministic RGB444 median cut with optional shared colors instead of the original stateful neighborhood merger.",
         }},
         .target = std::move(target),
     };

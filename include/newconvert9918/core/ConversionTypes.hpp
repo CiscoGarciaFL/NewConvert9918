@@ -6,12 +6,18 @@
 
 #include <cstdint>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
 namespace newconvert9918::core {
+
+using ConversionProgressCallback =
+    std::function<void(const RgbImage& preview,
+                       std::uint32_t completedRows,
+                       std::uint32_t totalRows)>;
 
 class CancellationToken final {
 public:

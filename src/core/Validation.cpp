@@ -16,6 +16,7 @@ std::vector<ValidationIssue> validate(const ConversionSettings& settings)
     case DitherMode::Diagonal:
     case DitherMode::Ordered:
     case DitherMode::OrderedWithError:
+    case DitherMode::Custom:
         break;
     default:
         issues.push_back({"dither", "Dither mode is not supported."});
@@ -52,6 +53,19 @@ std::vector<ValidationIssue> validate(const ConversionSettings& settings)
             "Error accumulation mode is not supported.",
         });
         break;
+    }
+
+    const auto validErrorWeight = [](std::uint8_t weight) { return weight <= 16; };
+    if (!validErrorWeight(settings.errorDistribution.downLeft)
+        || !validErrorWeight(settings.errorDistribution.down)
+        || !validErrorWeight(settings.errorDistribution.downRight)
+        || !validErrorWeight(settings.errorDistribution.right)
+        || !validErrorWeight(settings.errorDistribution.farRight)
+        || !validErrorWeight(settings.errorDistribution.downTwo)) {
+        issues.push_back({
+            "errorDistribution",
+            "Each error-distribution weight must be between 0 and 16.",
+        });
     }
 
     if (settings.targetWidth <= 0) {
@@ -113,6 +127,35 @@ std::vector<ValidationIssue> validate(const ConversionSettings& settings)
         issues.push_back({
             "perceptualColorWeights",
             "At least one perceptual color weight must be greater than zero.",
+        });
+    }
+
+    switch (settings.paletteSelection) {
+    case PaletteSelectionMode::MedianCut:
+    case PaletteSelectionMode::Popularity:
+        break;
+    default:
+        issues.push_back({
+            "paletteSelection",
+            "Palette selection mode is not supported.",
+        });
+        break;
+    }
+
+    if (settings.scanlineStaticColorCount < 0
+        || settings.scanlineStaticColorCount > 14) {
+        issues.push_back({
+            "scanlineStaticColorCount",
+            "Scanline static color count must be between 0 and 14.",
+        });
+    }
+    if (settings.scanlineStaticColorCount > 0
+        && !settings.scanlineRegion1
+        && !settings.scanlineRegion2
+        && !settings.scanlineRegion3) {
+        issues.push_back({
+            "scanlineRegions",
+            "At least one scanline region is required when static colors are selected.",
         });
     }
 

@@ -41,6 +41,16 @@ ConversionResult failure(std::string code, std::string message)
     };
 }
 
+ConversionResult cancelled()
+{
+    return {
+        .status = ConversionStatus::Cancelled,
+        .preview = std::nullopt,
+        .diagnostics = {},
+        .target = std::nullopt,
+    };
+}
+
 RgbSample paletteSample(const Palette& palette, std::size_t index)
 {
     return RgbSample{palette.at(index)};
@@ -119,12 +129,15 @@ bool bypassIncomingDither(RgbSample sample)
         || (sample.red >= 248.0 && sample.green >= 248.0 && sample.blue >= 248.0);
 }
 
-BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
-                        const Palette& palette,
-                        const ConversionSettings& settings,
-                        const DitherConfiguration& dithering,
-                        double errorDivisor,
-                        bool colorOnly)
+template<bool DistributeError, bool Perceptual>
+BlockChoice chooseBlockSpecialized(
+    const std::array<RgbSample, 8>& desired,
+    const Palette& palette,
+    const std::vector<PreparedColorSample>& preparedPalette,
+    const ConversionSettings& settings,
+    const DitherConfiguration& dithering,
+    double errorDivisor,
+    bool colorOnly)
 {
     BlockChoice best;
     const double rightScale = static_cast<double>(dithering.kernel.right)
@@ -150,19 +163,20 @@ BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
                     const std::uint8_t colorIndex = static_cast<std::uint8_t>(
                         (pattern & mask) != 0 ? foreground : background);
                     RgbSample candidate = desired[bit];
-                    if (dithering.distributeError) {
+                    if constexpr (DistributeError) {
                         candidate.red += carried.red / errorDivisor;
                         candidate.green += carried.green / errorDivisor;
                         candidate.blue += carried.blue / errorDivisor;
                     }
 
-                    const RgbSample color = paletteSample(palette, colorIndex);
-                    distance += colorDistanceSquared(candidate, color, settings);
+                    distance += preparedColorDistanceSquared<Perceptual>(
+                        candidate, preparedPalette[colorIndex], settings);
                     if (distance >= best.distance) {
                         break;
                     }
 
-                    if (dithering.distributeError) {
+                    if constexpr (DistributeError) {
+                        const RgbSample color = paletteSample(palette, colorIndex);
                         const RgbSample error{
                             candidate.red - color.red,
                             candidate.green - color.green,
@@ -197,6 +211,54 @@ BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
         }
     }
     return best;
+}
+
+BlockChoice chooseBlock(const std::array<RgbSample, 8>& desired,
+                        const Palette& palette,
+                        const std::vector<PreparedColorSample>& preparedPalette,
+                        const ConversionSettings& settings,
+                        const DitherConfiguration& dithering,
+                        double errorDivisor,
+                        bool colorOnly)
+{
+    if (settings.perceptualColorMatching) {
+        if (dithering.distributeError) {
+            return chooseBlockSpecialized<true, true>(
+                desired,
+                palette,
+                preparedPalette,
+                settings,
+                dithering,
+                errorDivisor,
+                colorOnly);
+        }
+        return chooseBlockSpecialized<false, true>(
+            desired,
+            palette,
+            preparedPalette,
+            settings,
+            dithering,
+            errorDivisor,
+            colorOnly);
+    }
+    if (dithering.distributeError) {
+        return chooseBlockSpecialized<true, false>(
+            desired,
+            palette,
+            preparedPalette,
+            settings,
+            dithering,
+            errorDivisor,
+            colorOnly);
+    }
+    return chooseBlockSpecialized<false, false>(
+        desired,
+        palette,
+        preparedPalette,
+        settings,
+        dithering,
+        errorDivisor,
+        colorOnly);
 }
 
 std::uint8_t hardwareColor(std::uint8_t workingColor)
@@ -272,7 +334,8 @@ encodeTables(std::span<const std::uint8_t> indexed,
 }
 
 std::optional<RgbImage> makePreview(std::span<const std::uint8_t> indexed,
-                                    const Palette& palette)
+                                    const Palette& palette,
+                                    std::uint32_t completedRows = bitmapHeight)
 {
     auto preview = RgbImage::createTightlyPacked(
         bitmapWidth, bitmapHeight, PixelFormat::Rgb888);
@@ -280,7 +343,8 @@ std::optional<RgbImage> makePreview(std::span<const std::uint8_t> indexed,
         return std::nullopt;
     }
 
-    for (std::uint32_t y = 0; y < bitmapHeight; ++y) {
+    std::fill(preview->bytes().begin(), preview->bytes().end(), 0);
+    for (std::uint32_t y = 0; y < std::min(completedRows, bitmapHeight); ++y) {
         std::span<std::uint8_t> row = preview->row(y);
         for (std::uint32_t x = 0; x < bitmapWidth; ++x) {
             const RgbColor color = palette.at(
@@ -336,11 +400,13 @@ namespace {
 ConversionResult convertBitmap9918Impl(const RgbImage& source,
                                        const Palette& workingPalette,
                                        const ConversionSettings& settings,
+                                       CancellationToken cancellation,
                                        ConversionMode requiredMode,
                                        bool greyscaleSource,
                                        bool monochrome,
                                        bool colorOnly,
-                                       std::string_view diagnosticPrefix)
+                                       std::string_view diagnosticPrefix,
+                                       const ConversionProgressCallback& progress)
 {
     const std::string codePrefix(diagnosticPrefix);
     if (settings.mode != requiredMode) {
@@ -363,10 +429,21 @@ ConversionResult convertBitmap9918Impl(const RgbImage& source,
                        "Bitmap 9918A conversion requires fifteen working colors.");
     }
 
-    const auto dithering = ditherConfiguration(settings.dither);
+    const auto dithering = ditherConfiguration(settings.dither, settings.errorDistribution);
     if (!dithering) {
         return failure(codePrefix + "-invalid-dither",
                        "Bitmap 9918A conversion received an unsupported dither mode.");
+    }
+
+    if (cancellation.isCancellationRequested()) {
+        return cancelled();
+    }
+
+    const ColorDistanceEvaluator distanceEvaluator(settings);
+    std::vector<PreparedColorSample> preparedPalette;
+    preparedPalette.reserve(workingPalette.size());
+    for (const RgbColor color : workingPalette.colors()) {
+        preparedPalette.push_back(distanceEvaluator.prepare(RgbSample{color}));
     }
 
     std::optional<ErrorDiffusionBuffer> errors;
@@ -398,6 +475,9 @@ ConversionResult convertBitmap9918Impl(const RgbImage& source,
     };
 
     for (std::uint32_t y = 0; y < bitmapHeight; ++y) {
+        if (cancellation.isCancellationRequested()) {
+            return cancelled();
+        }
         const double errorDivisor = settings.errorAccumulation
                 == ErrorAccumulationMode::Average
                 && y != 0
@@ -436,6 +516,7 @@ ConversionResult convertBitmap9918Impl(const RgbImage& source,
             const BlockChoice choice = chooseBlock(
                 desired,
                 workingPalette,
+                preparedPalette,
                 settings,
                 *dithering,
                 errorDivisor,
@@ -489,6 +570,14 @@ ConversionResult convertBitmap9918Impl(const RgbImage& source,
                 mask >>= 1;
             }
         }
+        constexpr std::uint32_t progressInterval = 8;
+        const std::uint32_t completedRows = y + 1;
+        if (progress
+            && (completedRows % progressInterval == 0 || completedRows == bitmapHeight)) {
+            if (auto partial = makePreview(indexed, workingPalette, completedRows)) {
+                progress(*partial, completedRows, bitmapHeight);
+            }
+        }
     }
 
     auto preview = makePreview(indexed, workingPalette);
@@ -522,21 +611,27 @@ ConversionResult convertBitmap9918Impl(const RgbImage& source,
 
 ConversionResult convertBitmap9918(const RgbImage& source,
                                    const Palette& workingPalette,
-                                   const ConversionSettings& settings)
+                                   const ConversionSettings& settings,
+                                   CancellationToken cancellation,
+                                   ConversionProgressCallback progress)
 {
     return convertBitmap9918Impl(source,
                                  workingPalette,
                                  settings,
+                                 std::move(cancellation),
                                  ConversionMode::Bitmap9918,
                                  false,
                                  false,
                                  false,
-                                 "bitmap9918");
+                                 "bitmap9918",
+                                 progress);
 }
 
 ConversionResult convertGreyscaleBitmap9918(const RgbImage& source,
                                             const Palette& workingPalette,
-                                            const ConversionSettings& settings)
+                                            const ConversionSettings& settings,
+                                            CancellationToken cancellation,
+                                            ConversionProgressCallback progress)
 {
     if (workingPalette.size() != standardWorkingColorCount) {
         return failure("greyscale-bitmap9918-invalid-palette",
@@ -545,16 +640,20 @@ ConversionResult convertGreyscaleBitmap9918(const RgbImage& source,
     return convertBitmap9918Impl(source,
                                  greyscaleBitmap9918Palette(workingPalette),
                                  settings,
+                                 std::move(cancellation),
                                  ConversionMode::GreyscaleBitmap9918,
                                  true,
                                  false,
                                  false,
-                                 "greyscale-bitmap9918");
+                                 "greyscale-bitmap9918",
+                                 progress);
 }
 
 ConversionResult convertBlackAndWhiteBitmap9918(const RgbImage& source,
                                                 const Palette& workingPalette,
-                                                const ConversionSettings& settings)
+                                                const ConversionSettings& settings,
+                                                CancellationToken cancellation,
+                                                ConversionProgressCallback progress)
 {
     if (workingPalette.size() != standardWorkingColorCount) {
         return failure("black-white-bitmap9918-invalid-palette",
@@ -567,25 +666,31 @@ ConversionResult convertBlackAndWhiteBitmap9918(const RgbImage& source,
     return convertBitmap9918Impl(source,
                                  *monochromePalette,
                                  settings,
+                                 std::move(cancellation),
                                  ConversionMode::BlackAndWhiteBitmap9918,
                                  true,
                                  true,
                                  false,
-                                 "black-white-bitmap9918");
+                                 "black-white-bitmap9918",
+                                 progress);
 }
 
 ConversionResult convertBitmapColorOnly9918(const RgbImage& source,
                                             const Palette& workingPalette,
-                                            const ConversionSettings& settings)
+                                            const ConversionSettings& settings,
+                                            CancellationToken cancellation,
+                                            ConversionProgressCallback progress)
 {
     return convertBitmap9918Impl(source,
                                  workingPalette,
                                  settings,
+                                 std::move(cancellation),
                                  ConversionMode::BitmapColorOnly9918,
                                  false,
                                  false,
                                  true,
-                                 "bitmap-color-only9918");
+                                 "bitmap-color-only9918",
+                                 progress);
 }
 
 } // namespace newconvert9918::core

@@ -16,7 +16,7 @@ ConversionMemoryEstimate estimateConversionMemory(const ConversionSettings& sett
         .previewImageBytes = rgbImageBytes,
         .indexedImageBytes = pixelCount,
     };
-    const auto dithering = ditherConfiguration(settings.dither);
+    const auto dithering = ditherConfiguration(settings.dither, settings.errorDistribution);
     const bool modeUsesErrorDiffusion = settings.mode != ConversionMode::Multicolor9918
         && settings.mode != ConversionMode::DualMulticolor9918;
     if (modeUsesErrorDiffusion && dithering && dithering->distributeError) {

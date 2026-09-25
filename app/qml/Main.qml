@@ -11,14 +11,14 @@ ApplicationWindow {
     minimumWidth: 720
     minimumHeight: 560
     visible: true
-    title: imageInput.sourceName.length > 0
-           ? qsTr("%1 — New Convert 9918").arg(imageInput.sourceName)
-           : qsTr("New Convert 9918")
+    title: qsTr("New Convert 9918")
     // Normally tracks the window; kept as a separate property so embedded
     // hosts and automated layout checks can supply their available width.
     property real layoutWidth: width
     readonly property bool compactLayout: layoutWidth < 1100
     property int previewLayout: 1
+    // 0 = Screen Image, 1 = Character Editor, 2 = Sprite Editor.
+    property int workspaceMode: 0
     property bool conversionPanelVisible: true
     property int conversionPanelMode: 0
 
@@ -31,7 +31,19 @@ ApplicationWindow {
 
     onConversionPanelVisibleChanged: Qt.callLater(synchronizeConversionPanel)
     onConversionPanelModeChanged: Qt.callLater(synchronizeConversionPanel)
+    onWorkspaceModeChanged: {
+        if (editorProject.workspaceMode !== workspaceMode)
+            editorProject.workspaceMode = workspaceMode
+    }
     Component.onCompleted: synchronizeConversionPanel()
+
+    Connections {
+        target: editorProject
+        function onProjectChanged() {
+            if (window.workspaceMode !== editorProject.workspaceMode)
+                window.workspaceMode = editorProject.workspaceMode
+        }
+    }
 
     FileDialog {
         id: openDialog
@@ -128,11 +140,39 @@ ApplicationWindow {
         shortcut: "Ctrl+V"
         onTriggered: imageInput.pasteClipboard()
     }
+
+    FileDialog {
+        id: loadRecipeDialog
+        title: qsTr("Load conversion recipe")
+        fileMode: FileDialog.OpenFile
+        nameFilters: [qsTr("New Convert 9918 recipes (*.nc9918.json *.json)"),
+                      qsTr("All files (*)")]
+        onAccepted: editorProject.loadRecipe(selectedFile)
+    }
+
+    FileDialog {
+        id: saveRecipeDialog
+        title: qsTr("Save conversion recipe")
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "nc9918.json"
+        nameFilters: [qsTr("New Convert 9918 recipes (*.nc9918.json)"),
+                      qsTr("JSON files (*.json)")]
+        onAccepted: editorProject.saveRecipe(selectedFile)
+    }
+    Action {
+        id: reloadAction
+        objectName: "reloadAction"
+        text: qsTr("&Reload")
+        shortcut: "Ctrl+R"
+        enabled: imageInput.canReload
+        onTriggered: imageInput.reloadSource()
+    }
     Action {
         id: exportAction
+        objectName: "exportAction"
         text: qsTr("&Export…")
         shortcut: "Ctrl+E"
-        enabled: imageInput.hasConversion
+        enabled: window.workspaceMode === 0 && imageInput.hasConversion
         onTriggered: exportDialog.open()
     }
     Action {
@@ -149,7 +189,35 @@ ApplicationWindow {
         onTriggered: aboutDialog.open()
     }
 
-    Shortcut { sequence: "Ctrl+Z"; enabled: imageInput.canUndo; onActivated: imageInput.undoSettings() }
+    Shortcut {
+        sequence: "Ctrl+Z"
+        enabled: imageInput.canUndoDrawing || imageInput.canUndo
+        onActivated: {
+            if (imageInput.canUndoDrawing)
+                imageInput.undoDrawing()
+            else
+                imageInput.undoSettings()
+        }
+    }
+    Action {
+        id: loadRecipeAction
+        objectName: "loadRecipeAction"
+        text: qsTr("&Load Recipe…")
+        shortcut: "Ctrl+Shift+O"
+        onTriggered: loadRecipeDialog.open()
+    }
+    Action {
+        id: saveRecipeAction
+        objectName: "saveRecipeAction"
+        text: qsTr("&Save Recipe…")
+        shortcut: "Ctrl+Shift+S"
+        onTriggered: saveRecipeDialog.open()
+    }
+    Shortcut {
+        sequence: "Ctrl+Y"
+        enabled: imageInput.canRedoDrawing
+        onActivated: imageInput.redoDrawing()
+    }
     Shortcut { sequence: "Ctrl+0"; onActivated: imageInput.resetSettings() }
 
     menuBar: MenuBar {
@@ -158,13 +226,47 @@ ApplicationWindow {
         Menu {
             title: qsTr("&File")
             MenuItem { action: openAction }
+            MenuItem {
+                objectName: "reloadMenuItem"
+                action: reloadAction
+            }
             MenuItem { action: pasteAction }
+            MenuSeparator {}
+            MenuItem { action: loadRecipeAction }
+            MenuItem { action: saveRecipeAction }
             MenuSeparator {}
             MenuItem { action: exportAction }
             MenuSeparator { objectName: "exitMenuSeparator" }
             MenuItem {
                 objectName: "exitMenuItem"
                 action: exitAction
+            }
+        }
+
+        Menu {
+            objectName: "modeMenu"
+            title: qsTr("&Mode")
+
+            MenuItem {
+                objectName: "screenImageModeMenuItem"
+                text: qsTr("&Screen Image")
+                checkable: true
+                checked: window.workspaceMode === 0
+                onTriggered: window.workspaceMode = 0
+            }
+            MenuItem {
+                objectName: "characterEditorModeMenuItem"
+                text: qsTr("&Character Editor")
+                checkable: true
+                checked: window.workspaceMode === 1
+                onTriggered: window.workspaceMode = 1
+            }
+            MenuItem {
+                objectName: "spriteEditorModeMenuItem"
+                text: qsTr("S&prite Editor")
+                checkable: true
+                checked: window.workspaceMode === 2
+                onTriggered: window.workspaceMode = 2
             }
         }
 
@@ -193,14 +295,16 @@ ApplicationWindow {
             MenuSeparator {}
 
             MenuItem {
-                text: qsTr("Show &Conversion Panel")
+                objectName: "showSidePanelMenuItem"
+                text: qsTr("Show &Side Panel")
                 checkable: true
                 checked: window.conversionPanelVisible
                 onTriggered: window.conversionPanelVisible = !window.conversionPanelVisible
             }
 
             Menu {
-                title: qsTr("Conversion Panel &Placement")
+                objectName: "sidePanelPlacementMenu"
+                title: qsTr("Side Panel &Placement")
                 MenuItem {
                     text: qsTr("&Adjacent")
                     checkable: true
@@ -237,43 +341,56 @@ ApplicationWindow {
             id: previews
             objectName: "previewWorkspace"
             layoutMode: window.previewLayout
+            workspaceMode: window.workspaceMode
             Layout.fillWidth: true
             Layout.fillHeight: true
         }
 
-        Frame {
+        ThemedFrame {
             objectName: "adjacentConversionPanel"
             visible: window.conversionPanelVisible && window.conversionPanelMode === 0
             Layout.preferredWidth: 350
             Layout.maximumWidth: 420
             Layout.fillHeight: true
 
-            SettingsPanel {
+            SidePanelHost {
                 anchors.fill: parent
+                workspaceMode: window.workspaceMode
                 onExportRequested: exportDialog.open()
             }
         }
     }
 
-    Frame {
+    Item {
         id: overlayExpandRail
         objectName: "overlayExpandRail"
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         width: 38
-        padding: 0
         z: 20
         visible: window.conversionPanelMode === 1 && !window.conversionPanelVisible
 
         ToolButton {
+            id: overlayExpandButton
             objectName: "overlayExpandButton"
             anchors.centerIn: parent
             anchors.horizontalCenterOffset: 6
             text: qsTr("‹")
             font.pixelSize: 24
+            background: Rectangle {
+                objectName: "overlayExpandButtonBackground"
+                radius: 3
+                color: overlayExpandButton.down
+                       ? overlayExpandButton.palette.mid
+                       : overlayExpandButton.hovered
+                         ? overlayExpandButton.palette.light
+                         : overlayExpandButton.palette.button
+                border.width: 1
+                border.color: overlayExpandButton.palette.mid
+            }
             activeFocusOnTab: true
-            Accessible.name: qsTr("Show Conversion panel")
+            Accessible.name: qsTr("Show Side Panel")
             ToolTip.visible: hovered
             ToolTip.text: Accessible.name
             onClicked: window.conversionPanelVisible = true
@@ -289,6 +406,11 @@ ApplicationWindow {
         modal: false
         dim: false
         closePolicy: Popup.CloseOnEscape
+        background: Rectangle {
+            color: overlayConversionPanel.palette.window
+            border.width: 1
+            border.color: overlayConversionPanel.palette.windowText
+        }
         property bool pointerWasInside: false
         function handlePointerPresence(inside) {
             if (inside) {
@@ -309,9 +431,10 @@ ApplicationWindow {
             onHoveredChanged: overlayConversionPanel.handlePointerPresence(hovered)
         }
 
-        SettingsPanel {
+        SidePanelHost {
             anchors.fill: parent
             anchors.margins: 12
+            workspaceMode: window.workspaceMode
             closable: true
             onExportRequested: exportDialog.open()
             onCloseRequested: window.conversionPanelVisible = false
@@ -325,11 +448,35 @@ ApplicationWindow {
             anchors.leftMargin: 12
             anchors.rightMargin: 12
             Label {
+                id: sourceNameLabel
+                objectName: "statusSourceName"
+                visible: text.length > 0
+                Layout.maximumWidth: Math.max(120, window.width * 0.4)
+                text: imageInput.sourceName
+                elide: Text.ElideMiddle
+                Accessible.name: qsTr("Source file: %1").arg(text)
+                ToolTip.visible: sourceNameHover.hovered && truncated
+                ToolTip.text: text
+
+                HoverHandler {
+                    id: sourceNameHover
+                }
+            }
+            ToolSeparator {
+                visible: sourceNameLabel.visible
+            }
+            Label {
                 id: statusLabel
                 Layout.fillWidth: true
-                text: imageInput.errorMessage.length > 0
-                      ? imageInput.errorMessage : imageInput.statusMessage
-                color: imageInput.errorMessage.length > 0 ? "#ff8f8f" : palette.text
+                text: editorProject.errorMessage.length > 0
+                      ? editorProject.errorMessage
+                      : editorProject.statusMessage.length > 0
+                        ? editorProject.statusMessage
+                        : imageInput.errorMessage.length > 0
+                          ? imageInput.errorMessage : imageInput.statusMessage
+                color: editorProject.errorMessage.length > 0
+                       || imageInput.errorMessage.length > 0
+                       ? "#ff8f8f" : palette.text
                 wrapMode: Text.WordWrap
                 Accessible.name: text
             }
