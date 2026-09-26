@@ -211,7 +211,7 @@ jobs:
           rm -f DebRoot/AppRun DebRoot/.DirIcon DebRoot/*.desktop DebRoot/*.png
           mkdir -p DebRoot/DEBIAN
           deb_version="${RELEASE_VERSION/-/~}"
-          sed -e "s/@VERSION@/${deb_version}/g" \
+          sed -e "s|@VERSION@|${deb_version}|g" \
             packaging/linux/control.in > DebRoot/DEBIAN/control
           dpkg-deb --root-owner-group --build DebRoot \
             "dist/newconvert9918_${RELEASE_VERSION}_amd64.deb"

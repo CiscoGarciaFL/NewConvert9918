@@ -41,7 +41,6 @@ set_property(TARGET NewConvert9918 PROPERTY AUTOGEN_PARALLEL 1)
 
 set_target_properties(NewConvert9918 PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-    VERSION "${PROJECT_VERSION}"
 )
 
 target_compile_definitions(NewConvert9918
