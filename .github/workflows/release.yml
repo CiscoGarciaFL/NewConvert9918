@@ -119,6 +119,7 @@ jobs:
         with:
           name: release-windows-x64
           path: dist/*
+          compression-level: 0
           if-no-files-found: error
 
   linux:
@@ -209,6 +210,10 @@ jobs:
         run: |
           cp -a AppDir DebRoot
           rm -f DebRoot/AppRun DebRoot/.DirIcon DebRoot/*.desktop DebRoot/*.png
+          # linuxdeploy preserves distribution copyright files for bundled
+          # libraries. They are useful in the AppImage, but a .deb must not
+          # claim paths owned by the host distribution's dependency packages.
+          rm -rf -- DebRoot/usr/share/doc
           mkdir -p DebRoot/DEBIAN
           if [[ "${RELEASE_VERSION}" == *-* ]]; then
             version_core="${RELEASE_VERSION%%-*}"
@@ -231,6 +236,7 @@ jobs:
         with:
           name: release-linux-x64
           path: dist/*
+          compression-level: 0
           if-no-files-found: error
 
   macos:
@@ -305,6 +311,7 @@ jobs:
         with:
           name: release-macos-${{ matrix.arch }}
           path: dist/*
+          compression-level: 0
           if-no-files-found: error
 
   publish:
@@ -367,4 +374,5 @@ jobs:
         with:
           name: published-${{ needs.validate.outputs.tag }}
           path: release-assets/*
+          compression-level: 0
           if-no-files-found: error
