@@ -210,7 +210,13 @@ jobs:
           cp -a AppDir DebRoot
           rm -f DebRoot/AppRun DebRoot/.DirIcon DebRoot/*.desktop DebRoot/*.png
           mkdir -p DebRoot/DEBIAN
-          deb_version="${RELEASE_VERSION/-/~}"
+          if [[ "${RELEASE_VERSION}" == *-* ]]; then
+            version_core="${RELEASE_VERSION%%-*}"
+            version_suffix="${RELEASE_VERSION#*-}"
+            deb_version="${version_core}~${version_suffix}"
+          else
+            deb_version="${RELEASE_VERSION}"
+          fi
           sed -e "s|@VERSION@|${deb_version}|g" \
             packaging/linux/control.in > DebRoot/DEBIAN/control
           dpkg-deb --root-owner-group --build DebRoot \
