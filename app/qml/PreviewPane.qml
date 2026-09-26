@@ -9,6 +9,7 @@ ThemedFrame {
     property url imageSource
     property string emptyText: qsTr("No image")
     property string details
+    property string detailsTrailingText
     property bool busy: false
     property bool cropOverlay: false
     property bool acceptDrops: false
@@ -24,6 +25,8 @@ ThemedFrame {
     property Component upperToolbarContent
     property Component workspaceContent
     property Component lowerToolbarContent
+    property bool zoomInteractive: true
+    property bool zoomContentAvailable: imageSource.toString().length > 0
     signal fileDropped(url fileUrl)
     signal colorPointPicked(real normalizedX, real normalizedY, bool foreground)
 
@@ -35,9 +38,13 @@ ThemedFrame {
         return Math.min(viewport.width / preview.sourceSize.width,
                         viewport.height / preview.sourceSize.height)
     }
-    readonly property real effectiveZoom: fitToView ? fitZoom : manualZoom
+    readonly property real effectiveZoom: zoomInteractive && zoomContentAvailable
+                                          ? (fitToView ? fitZoom : manualZoom)
+                                          : 1.0
 
     function zoomBy(factor) {
+        if (!zoomInteractive || !zoomContentAvailable)
+            return
         const startingZoom = effectiveZoom
         manualZoom = Math.max(0.125, Math.min(16, startingZoom * factor))
         fitToView = false
@@ -135,15 +142,15 @@ ThemedFrame {
                             height: 32
                             radius: 3
                             color: swatchColor
-                            border.width: colorHover.hovered ? 2 : 1
-                            border.color: colorHover.hovered ? palette.highlight : "#707780"
+                            border.width: spectrumColorHover.hovered ? 2 : 1
+                            border.color: spectrumColorHover.hovered ? palette.highlight : "#707780"
                             Accessible.name: qsTr("Select %1").arg(String(swatchColor))
-                            HoverHandler { id: colorHover }
+                            HoverHandler { id: spectrumColorHover }
                             TapHandler {
                                 acceptedButtons: Qt.LeftButton
                                 onTapped: root.chooseActiveColor(swatchColor)
                             }
-                            ToolTip.visible: colorHover.hovered
+                            ToolTip.visible: spectrumColorHover.hovered
                             ToolTip.text: String(swatchColor)
                         }
                     }
@@ -165,15 +172,15 @@ ThemedFrame {
                         height: 32
                         radius: 3
                         color: swatchColor
-                        border.width: colorHover.hovered ? 2 : 1
-                        border.color: colorHover.hovered ? palette.highlight : "#707780"
+                        border.width: standardColorHover.hovered ? 2 : 1
+                        border.color: standardColorHover.hovered ? palette.highlight : "#707780"
                         Accessible.name: qsTr("Select %1").arg(String(swatchColor))
-                        HoverHandler { id: colorHover }
+                        HoverHandler { id: standardColorHover }
                         TapHandler {
                             acceptedButtons: Qt.LeftButton
                             onTapped: root.chooseActiveColor(swatchColor)
                         }
-                        ToolTip.visible: colorHover.hovered
+                        ToolTip.visible: standardColorHover.hovered
                         ToolTip.text: String(swatchColor)
                     }
                 }
@@ -202,15 +209,15 @@ ThemedFrame {
                             height: 32
                             radius: 3
                             color: swatchColor
-                            border.width: colorHover.hovered ? 2 : 1
-                            border.color: colorHover.hovered ? palette.highlight : "#707780"
+                            border.width: usedColorHover.hovered ? 2 : 1
+                            border.color: usedColorHover.hovered ? palette.highlight : "#707780"
                             Accessible.name: qsTr("Select %1").arg(String(swatchColor))
-                            HoverHandler { id: colorHover }
+                            HoverHandler { id: usedColorHover }
                             TapHandler {
                                 acceptedButtons: Qt.LeftButton
                                 onTapped: root.chooseActiveColor(swatchColor)
                             }
-                            ToolTip.visible: colorHover.hovered
+                            ToolTip.visible: usedColorHover.hovered
                             ToolTip.text: String(swatchColor)
                         }
                     }
@@ -1098,6 +1105,8 @@ ThemedFrame {
             }
 
             WheelHandler {
+                objectName: root.objectName + "WheelZoomHandler"
+                enabled: root.zoomInteractive && root.zoomContentAvailable
                 acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                 onWheel: event => root.zoomBy(event.angleDelta.y > 0 ? 1.15 : 0.87)
             }
@@ -1114,12 +1123,24 @@ ThemedFrame {
             }
         }
 
-        Label {
-            objectName: root.objectName + "Details"
+        RowLayout {
             Layout.fillWidth: true
-            text: root.details
-            wrapMode: Text.WordWrap
-            color: palette.placeholderText
+            spacing: 8
+
+            Label {
+                objectName: root.objectName + "Details"
+                Layout.fillWidth: true
+                text: root.details
+                wrapMode: Text.WordWrap
+                color: palette.placeholderText
+            }
+            Label {
+                objectName: root.objectName + "DetailsTrailing"
+                visible: text.length > 0
+                text: root.detailsTrailingText
+                color: palette.placeholderText
+                horizontalAlignment: Text.AlignRight
+            }
         }
 
         RowLayout {
@@ -1327,7 +1348,7 @@ ThemedFrame {
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
-                    enabled: root.imageSource.toString().length > 0
+                    enabled: root.zoomInteractive && root.zoomContentAvailable
                     Accessible.name: qsTr("Zoom options for %1; current zoom %2 percent")
                                      .arg(root.title)
                                      .arg(Math.round(root.effectiveZoom * 100))
@@ -1392,7 +1413,7 @@ ThemedFrame {
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
-                        enabled: root.imageSource.toString().length > 0
+                        enabled: root.zoomInteractive && root.zoomContentAvailable
                         Accessible.name: qsTr("Zoom in %1").arg(root.title)
                         activeFocusOnTab: true
                         onClicked: root.zoomBy(1.25)
@@ -1422,7 +1443,7 @@ ThemedFrame {
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
-                        enabled: root.imageSource.toString().length > 0
+                        enabled: root.zoomInteractive && root.zoomContentAvailable
                         Accessible.name: qsTr("Zoom out %1").arg(root.title)
                         activeFocusOnTab: true
                         onClicked: root.zoomBy(0.8)

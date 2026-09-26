@@ -1,125 +1,201 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
 Item {
     id: root
+    required property int drawingTool
+    required property real placementScale
 
-    Item {
-        anchors.fill: parent
+    function paletteColor(index) {
+        const colors = editorProject.characterPaletteColors
+        if (index < 0 || index >= colors.length)
+            return "#000000"
+        return index === 0 ? "#20272e" : colors[index]
+    }
 
-        GridView {
-            id: spriteGrid
-            objectName: "spritePatternGrid"
+    component SpriteBank: Item {
+        id: bank
+        required property int spriteSize
+        required property string title
+
+        ColumnLayout {
             anchors.fill: parent
-            visible: !editorProject.spritePlacementMode
-            model: 32
-            clip: true
-            cellWidth: Math.max(56, Math.floor(width / 8))
-            cellHeight: cellWidth
-            ScrollBar.vertical: ScrollBar {}
+            spacing: 3
 
-            delegate: Rectangle {
-                required property int index
-                width: spriteGrid.cellWidth - 4
-                height: spriteGrid.cellHeight - 4
-                color: index === editorProject.activeSprite ? "#315f82" : "#1b2229"
-                border.width: index === editorProject.activeSprite ? 2 : 1
-                border.color: index === editorProject.activeSprite
-                              ? "#8fd0ff" : "#53606d"
-                radius: 3
-
-                Text {
-                    anchors.centerIn: parent
-                    text: parent.index
-                    color: "#d8dde3"
-                    font.pixelSize: 17
-                }
-                TapHandler {
-                    onTapped: editorProject.activeSprite = parent.index
-                }
+            Label {
+                Layout.fillWidth: true
+                text: bank.title
+                font.weight: Font.DemiBold
+                color: palette.placeholderText
             }
-        }
 
-        Item {
-            objectName: "spritePlacementWorkspace"
-            anchors.fill: parent
-            visible: editorProject.spritePlacementMode
-
-            Rectangle {
-                id: placementBox
-                objectName: "spritePlacementBox"
-                anchors.centerIn: parent
-                width: Math.min(parent.width - 28,
-                                (parent.height - 28) * editorProject.placementWidth
-                                / editorProject.placementHeight)
-                height: width * editorProject.placementHeight
-                        / editorProject.placementWidth
-                color: "#090b0e"
-                border.width: 2
-                border.color: "#71808f"
+            GridView {
+                id: spriteGrid
+                objectName: bank.spriteSize === 8
+                            ? "sprite8PatternGrid" : "sprite16PatternGrid"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                model: 32
                 clip: true
+                cellWidth: Math.max(48, Math.floor(width / 8))
+                cellHeight: Math.max(48, cellWidth)
+                ScrollBar.vertical: ScrollBar {}
 
-                Image {
-                    anchors.fill: parent
-                    source: imageInput.convertedPreview
-                    fillMode: Image.Stretch
-                    opacity: 0.38
-                    visible: imageInput.hasConversion
-                }
+                delegate: Rectangle {
+                    id: spriteCell
+                    required property int index
+                    readonly property bool active:
+                        index === editorProject.activeSprite
+                        && bank.spriteSize === editorProject.activeSpriteSize
+                    readonly property var pixels: {
+                        const revision = editorProject.spriteRevision
+                        return editorProject.spritePatternPixels(
+                            editorProject.activeSpriteSet, index, bank.spriteSize)
+                    }
+                    width: spriteGrid.cellWidth - 3
+                    height: spriteGrid.cellHeight - 3
+                    color: active ? "#315f82" : "#1b2229"
+                    border.width: active ? 2 : 1
+                    border.color: active ? "#8fd0ff" : "#53606d"
+                    radius: 2
 
-                Repeater {
-                    model: editorProject.activeSpritePlacements
+                    Item {
+                        id: thumbnail
+                        anchors.centerIn: parent
+                        width: Math.min(parent.width - 8, parent.height - 8)
+                        height: width
 
-                    Rectangle {
-                        id: spriteMarker
-                        required property var modelData
-                        readonly property real scaleX: placementBox.width
-                                                       / editorProject.placementWidth
-                        readonly property real scaleY: placementBox.height
-                                                       / editorProject.placementHeight
-                        x: modelData.x * scaleX
-                        y: modelData.y * scaleY
-                        width: Math.max(8, 16 * scaleX)
-                        height: Math.max(8, 16 * scaleY)
-                        color: modelData.index === editorProject.activeSprite
-                               ? "#5578b8ff" : "#302bd2a4"
-                        border.width: modelData.index === editorProject.activeSprite ? 2 : 1
-                        border.color: modelData.index === editorProject.activeSprite
-                                      ? "white" : "#a7ddff"
-                        visible: modelData.visible
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: spriteMarker.modelData.index
-                            color: "white"
-                            font.pixelSize: 13
-                        }
-                        TapHandler {
-                            onTapped: editorProject.activeSprite = spriteMarker.modelData.index
-                        }
-                        DragHandler {
-                            id: spriteDrag
-                            onActiveChanged: {
-                                if (!active) {
-                                    editorProject.moveSprite(
-                                        spriteMarker.modelData.index,
-                                        Math.round(spriteMarker.x / spriteMarker.scaleX),
-                                        Math.round(spriteMarker.y / spriteMarker.scaleY))
-                                }
+                        Repeater {
+                            model: bank.spriteSize * bank.spriteSize
+                            Rectangle {
+                                required property int index
+                                readonly property int value:
+                                    spriteCell.pixels.length > index
+                                    ? spriteCell.pixels[index] : 0
+                                x: (index % bank.spriteSize)
+                                   * thumbnail.width / bank.spriteSize
+                                y: Math.floor(index / bank.spriteSize)
+                                   * thumbnail.height / bank.spriteSize
+                                width: Math.ceil(thumbnail.width / bank.spriteSize)
+                                height: Math.ceil(thumbnail.height / bank.spriteSize)
+                                color: root.paletteColor(value)
                             }
+                        }
+                    }
+
+                    Label {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.margins: 2
+                        padding: 1
+                        text: spriteCell.index.toString(16).toUpperCase()
+                                         .padStart(2, "0")
+                        color: "white"
+                        font.pixelSize: 10
+                        background: Rectangle { color: "#99000000"; radius: 1 }
+                    }
+
+                    TapHandler {
+                        onTapped: {
+                            editorProject.activeSprite = spriteCell.index
+                            editorProject.activeSpriteSize = bank.spriteSize
                         }
                     }
                 }
             }
+        }
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 6
+
+        Rectangle {
+            id: editorTray
+            objectName: "spritePatternEditorTray"
+            Layout.fillWidth: true
+            Layout.preferredHeight: editorProject.spritePlacementMode
+                                    ? 192 * root.placementScale + 18 : 204
+            Layout.minimumHeight: editorProject.spritePlacementMode ? 210 : 204
+            color: "#0f151a"
+            border.width: 1
+            border.color: "#46515d"
+            radius: 4
+
+            SpritePatternEditor {
+                objectName: "spritePatternEditor"
+                anchors.centerIn: parent
+                visible: !editorProject.spritePlacementMode
+                setIndex: editorProject.activeSpriteSet
+                spriteIndex: editorProject.activeSprite
+                spriteSize: editorProject.activeSpriteSize
+                drawingTool: root.drawingTool
+                active: true
+                onSelected: {}
+            }
+
+            SpritePlacementView {
+                objectName: "spritePlacementWorkspace"
+                anchors.fill: parent
+                anchors.margins: 4
+                visible: editorProject.spritePlacementMode
+                enabled: visible
+                zoomScale: root.placementScale
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 4
 
             Label {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-                text: imageInput.hasConversion
-                      ? qsTr("Screen Image reference · drag sprite boxes to place them")
-                      : qsTr("Create a Screen Image to use it as the placement reference")
-                color: "#c2c8cf"
+                Layout.fillWidth: true
+                text: editorProject.editScope === 1
+                      ? qsTr("F18A: each sprite may select its own bank")
+                      : qsTr("TMS9918A: the global size selects one bank")
+                color: palette.placeholderText
+                font.pixelSize: 11
+            }
+            Label { text: qsTr("Set") }
+            ComboBox {
+                objectName: "spriteSetComboBox"
+                Layout.preferredWidth: 76
+                model: editorProject.spriteSetNames
+                currentIndex: editorProject.activeSpriteSet
+                onActivated: index => editorProject.activeSpriteSet = index
+            }
+            Label { text: qsTr("Sprite") }
+            SpinBox {
+                objectName: "spriteItemSpinBox"
+                implicitWidth: 60
+                from: 0
+                to: 31
+                value: editorProject.activeSprite
+                editable: true
+                onValueModified: editorProject.activeSprite = value
+            }
+        }
+
+        SplitView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            orientation: Qt.Vertical
+
+            SpriteBank {
+                objectName: "spritePatternGrid"
+                SplitView.preferredHeight: parent.height / 2
+                SplitView.minimumHeight: 80
+                spriteSize: 8
+                title: qsTr("8×8 sprite patterns · 32")
+            }
+            SpriteBank {
+                SplitView.preferredHeight: parent.height / 2
+                SplitView.minimumHeight: 80
+                spriteSize: 16
+                title: qsTr("16×16 sprite patterns · 32")
             }
         }
     }

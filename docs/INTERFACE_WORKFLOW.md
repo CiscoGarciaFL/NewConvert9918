@@ -45,8 +45,9 @@ an adjustable separator.
 
 Mode selects one of three mutually exclusive destination workspaces: Screen
 Image, Character Editor, or Sprite Editor. Screen Image contains the existing
-full-image conversion preview. The initial Character and Sprite modes provide
-intentional editor/import placeholders while their hardware editors are built.
+full-image conversion preview. Character and Sprite provide hardware-aware
+pixel editors and placement presentations; Source import remains intentionally
+disabled until its mapping preview is implemented.
 Source remains visible and unchanged in every mode. The contextual Side Panel
 switches with the destination, using the headers **Image Settings**,
 **Character Options**, and **Sprite Options**. File → Export is disabled while
@@ -55,16 +56,80 @@ accidentally.
 
 Character Editor and Sprite Editor use the same destination-pane shell as
 Screen Image: matching title styling, reserved upper toolbar space, a bordered
-viewport, and the same lower toolbar layout with zoom controls. Their zoom
-controls remain disabled while the placeholder has no editor content.
+viewport, and the same lower toolbar layout with zoom controls. Character mode
+keeps the pane zoom fixed and non-interactive at 100%; each pattern editor owns
+its separate 1x/2x/3x/4x character preview. The Character tray otherwise uses
+a fixed hardware-pixel grid. Sprite pixel-edit mode likewise remains at 100%; its
+zoom control becomes active only for the full placement screen and scales that
+screen and the containing tray together.
 
 Every Side Panel exposes a required TMS9918A baseline, an optional F18A output
 that inherits from it, and a non-mutating 9918A/F18A/Compare preview selector.
-Character Editor starts with three selectable 256-pattern sets. Sprite Editor
-uses repeatable 32-sprite sets and can switch between its slot grid and a
-placement box over the current Screen Image reference. File → Load Recipe and
-Save Recipe persist this foundation and all current conversion settings in a
-versioned `*.nc9918.json` file shared with the CLI.
+Character Editor starts with three selectable 256-pattern sets. Above the slot
+grid, its adaptive Graphics II editor tray hosts one or more 8x8 editors, shows
+row pattern/color bytes, and uses the pane's upper toolbar for pencil, eraser,
+and indexed TMS9918A or F18A foreground/background colors. One editor is always
+present. Its inverted pattern label marks the active destination, new editors
+start empty, and selecting a pattern slot loads it into that active editor.
+Bottom-right plus/minus controls add and remove editors; each label also opens
+a local menu for reordering or removal. The editors wrap as the pane width
+changes and the tray grows or scrolls as needed. Pattern data and tray layout
+are retained in recipes. Each editor includes a bottom-right-anchored preview
+under its color-byte column; stacked plus/minus controls cycle its exact 1x
+through 4x pixel sizes. Vertical byte-column captions allow the grid to move to
+the top margin while the pattern label remains bottom-aligned. A compact
+right-aligned Set/Pattern row immediately
+above the slot grid replaces the earlier set tabs and duplicate selection text;
+Character mode therefore leaves the lower toolbar available for future
+editor-wide commands. A single upper-toolbar mode button replaces the separate
+Pattern Editor and Tiling tools. It uses overlapping Pattern Editor and Tiling
+Screen icons, brings the current mode to the front, and names the destination
+mode in its tooltip. Tiling replaces the editor tray with a 1:1, 256x192 screen
+grid while retaining the same slots, active pattern, and plus/minus controls.
+Tiles drag and snap in 8x8 character cells from the
+upper-left Home origin. Duplicate instances of one pattern highlight together
+but keep independent coordinates: press `+` for an empty tile, then select the
+same pattern again to assign it. Pattern Editor mode collapses those loaded
+duplicates into one editor per `(set, pattern)` while Tiling retains every
+positioned instance; empty unassigned slots remain available for assignment.
+Tile labels appear only on hover. Recipe
+files retain the Tiling presentation and every tile position. In this
+presentation only, the destination zoom family scales the complete screen grid;
+the tray requests the corresponding scaled screen height, remains responsive to
+the current window width, and falls back to scrolling when space is exhausted.
+Clicking the combined mode button returns to Pattern Edit mode and fixes the
+pane zoom at 100% again.
+The Character upper toolbar adds clockwise Rotate, horizontal Mirror, vertical
+Flip, and starburst Blank tools. The lower toolbar adds Character undo/redo and
+a Pan toggle with left, up, center, down, and right controls. Pan uses a
+temporary 24x24 virtual grid around the visible center 8x8, preserving clipped
+pixels until Pan is turned off. Finishing Pan commits the final viewport,
+returns the virtual origin to center, and contributes one history entry for the
+entire positioning session. Drawing strokes are likewise grouped into single
+undo entries.
+Character Copy and Paste also live in the upper toolbar and exchange an
+indented, versioned `newconvert9918.character-pattern` JSON object through the
+system clipboard. The JSON exposes eight hexadecimal bitmap bytes and eight
+hexadecimal row-color bytes for inspection or scripting. Paste validates the
+payload and replaces the active pattern as one undoable edit.
+Sprite Editor uses repeatable sets containing two simultaneous definition banks:
+32 8x8 patterns and 32 16x16 patterns. One active pixel editor sits above the
+stacked thumbnail banks and uses the same pencil, eraser, color, rotate, mirror,
+flip, Blank, JSON Copy/Paste, grouped undo/redo, and virtual-grid Pan workflow as
+Character Editor. In shared-baseline scope, selecting a bank also selects the
+single global TMS9918A sprite size and pixels are transparent/opaque with one
+instance color. F18A scope retains the baseline until a sprite is changed, then
+stores a non-destructive override with independent 8x8/16x16 size and 1-, 2-, or
+3-bpp indexed pixels for that sprite.
+
+The combined upper-toolbar mode control switches between pixel editing and a
+placement screen over the current Screen Image reference. All 32 instances may
+overlap and drag at one-hardware-pixel resolution; their displayed size follows
+the TMS9918A global setting or the F18A per-sprite setting. Placement mode enables
+destination zoom and grows its tray with the scaled screen. File → Load Recipe
+and Save Recipe persist both banks, baseline and F18A pixel data, override state,
+size/color-depth attributes, coordinates, tool selections, and current
+conversion settings in the versioned `*.nc9918.json` format shared with the CLI.
 
 Pane and settings-group outlines follow the active Qt palette: dark outlines
 in light mode and light outlines in dark mode. This keeps the section framing

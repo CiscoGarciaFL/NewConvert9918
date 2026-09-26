@@ -1,12 +1,12 @@
 #pragma once
 
 #include <QObject>
-#include <QPoint>
-#include <QStringList>
 #include <QUrl>
 #include <QVariantList>
 
 #include <array>
+#include <cstdint>
+#include <optional>
 #include <vector>
 
 class ImageInputController;
@@ -21,11 +21,35 @@ class EditorProjectController final : public QObject {
     Q_PROPERTY(int activeCharacterSet READ activeCharacterSet WRITE setActiveCharacterSet NOTIFY projectChanged)
     Q_PROPERTY(int activeCharacterPattern READ activeCharacterPattern WRITE setActiveCharacterPattern NOTIFY projectChanged)
     Q_PROPERTY(QVariantList characterSetNames READ characterSetNames NOTIFY projectChanged)
+    Q_PROPERTY(QVariantList characterPaletteColors READ characterPaletteColors NOTIFY projectChanged)
+    Q_PROPERTY(int characterForegroundColorIndex READ characterForegroundColorIndex WRITE setCharacterForegroundColorIndex NOTIFY projectChanged)
+    Q_PROPERTY(int characterBackgroundColorIndex READ characterBackgroundColorIndex WRITE setCharacterBackgroundColorIndex NOTIFY projectChanged)
+    Q_PROPERTY(int characterRevision READ characterRevision NOTIFY projectChanged)
+    Q_PROPERTY(QVariantList characterEditorSlots READ characterEditorSlots NOTIFY projectChanged)
+    Q_PROPERTY(int activeCharacterEditor READ activeCharacterEditor WRITE setActiveCharacterEditor NOTIFY projectChanged)
+    Q_PROPERTY(bool characterTilingMode READ characterTilingMode WRITE setCharacterTilingMode NOTIFY projectChanged)
+    Q_PROPERTY(bool characterPanActive READ characterPanActive WRITE setCharacterPanActive NOTIFY projectChanged)
+    Q_PROPERTY(int characterPanX READ characterPanX NOTIFY projectChanged)
+    Q_PROPERTY(int characterPanY READ characterPanY NOTIFY projectChanged)
+    Q_PROPERTY(bool canUndoCharacter READ canUndoCharacter NOTIFY projectChanged)
+    Q_PROPERTY(bool canRedoCharacter READ canRedoCharacter NOTIFY projectChanged)
+    Q_PROPERTY(bool canPasteCharacterPattern READ canPasteCharacterPattern NOTIFY projectChanged)
     Q_PROPERTY(int activeSpriteSet READ activeSpriteSet WRITE setActiveSpriteSet NOTIFY projectChanged)
     Q_PROPERTY(int activeSprite READ activeSprite WRITE setActiveSprite NOTIFY projectChanged)
+    Q_PROPERTY(int activeSpriteSize READ activeSpriteSize WRITE setActiveSpriteSize NOTIFY projectChanged)
+    Q_PROPERTY(int spriteGlobalSize READ spriteGlobalSize WRITE setSpriteGlobalSize NOTIFY projectChanged)
+    Q_PROPERTY(int spriteDrawingColorIndex READ spriteDrawingColorIndex WRITE setSpriteDrawingColorIndex NOTIFY projectChanged)
+    Q_PROPERTY(int activeSpriteColorDepth READ activeSpriteColorDepth WRITE setActiveSpriteColorDepth NOTIFY projectChanged)
+    Q_PROPERTY(int spriteRevision READ spriteRevision NOTIFY projectChanged)
     Q_PROPERTY(QVariantList spriteSetNames READ spriteSetNames NOTIFY projectChanged)
     Q_PROPERTY(QVariantList activeSpritePlacements READ activeSpritePlacements NOTIFY projectChanged)
     Q_PROPERTY(bool spritePlacementMode READ spritePlacementMode WRITE setSpritePlacementMode NOTIFY projectChanged)
+    Q_PROPERTY(bool spritePanActive READ spritePanActive WRITE setSpritePanActive NOTIFY projectChanged)
+    Q_PROPERTY(int spritePanX READ spritePanX NOTIFY projectChanged)
+    Q_PROPERTY(int spritePanY READ spritePanY NOTIFY projectChanged)
+    Q_PROPERTY(bool canUndoSprite READ canUndoSprite NOTIFY projectChanged)
+    Q_PROPERTY(bool canRedoSprite READ canRedoSprite NOTIFY projectChanged)
+    Q_PROPERTY(bool canPasteSpritePattern READ canPasteSpritePattern NOTIFY projectChanged)
     Q_PROPERTY(int placementWidth READ placementWidth WRITE setPlacementWidth NOTIFY projectChanged)
     Q_PROPERTY(int placementHeight READ placementHeight WRITE setPlacementHeight NOTIFY projectChanged)
     Q_PROPERTY(QString recipePath READ recipePath NOTIFY projectChanged)
@@ -43,11 +67,47 @@ public:
     [[nodiscard]] int activeCharacterSet() const { return activeCharacterSet_; }
     [[nodiscard]] int activeCharacterPattern() const { return activeCharacterPattern_; }
     [[nodiscard]] QVariantList characterSetNames() const;
+    [[nodiscard]] QVariantList characterPaletteColors() const;
+    [[nodiscard]] int characterForegroundColorIndex() const {
+        return characterForegroundColorIndex_;
+    }
+    [[nodiscard]] int characterBackgroundColorIndex() const {
+        return characterBackgroundColorIndex_;
+    }
+    [[nodiscard]] int characterRevision() const { return characterRevision_; }
+    [[nodiscard]] QVariantList characterEditorSlots() const;
+    [[nodiscard]] int activeCharacterEditor() const { return activeCharacterEditor_; }
+    [[nodiscard]] bool characterTilingMode() const { return characterTilingMode_; }
+    [[nodiscard]] bool characterPanActive() const { return characterPanActive_; }
+    [[nodiscard]] int characterPanX() const { return characterPanX_; }
+    [[nodiscard]] int characterPanY() const { return characterPanY_; }
+    [[nodiscard]] bool canUndoCharacter() const {
+        return !characterPanActive_ && !characterUndoHistory_.empty();
+    }
+    [[nodiscard]] bool canRedoCharacter() const {
+        return !characterPanActive_ && !characterRedoHistory_.empty();
+    }
+    [[nodiscard]] bool canPasteCharacterPattern() const;
     [[nodiscard]] int activeSpriteSet() const { return activeSpriteSet_; }
     [[nodiscard]] int activeSprite() const { return activeSprite_; }
+    [[nodiscard]] int activeSpriteSize() const { return activeSpriteSize_; }
+    [[nodiscard]] int spriteGlobalSize() const { return spriteGlobalSize_; }
+    [[nodiscard]] int spriteDrawingColorIndex() const { return spriteDrawingColorIndex_; }
+    [[nodiscard]] int activeSpriteColorDepth() const;
+    [[nodiscard]] int spriteRevision() const { return spriteRevision_; }
     [[nodiscard]] QVariantList spriteSetNames() const;
     [[nodiscard]] QVariantList activeSpritePlacements() const;
     [[nodiscard]] bool spritePlacementMode() const { return spritePlacementMode_; }
+    [[nodiscard]] bool spritePanActive() const { return spritePanActive_; }
+    [[nodiscard]] int spritePanX() const { return spritePanX_; }
+    [[nodiscard]] int spritePanY() const { return spritePanY_; }
+    [[nodiscard]] bool canUndoSprite() const {
+        return !spritePanActive_ && !spriteUndoHistory_.empty();
+    }
+    [[nodiscard]] bool canRedoSprite() const {
+        return !spritePanActive_ && !spriteRedoHistory_.empty();
+    }
+    [[nodiscard]] bool canPasteSpritePattern() const;
     [[nodiscard]] int placementWidth() const { return placementWidth_; }
     [[nodiscard]] int placementHeight() const { return placementHeight_; }
     [[nodiscard]] QString recipePath() const { return recipePath_; }
@@ -60,15 +120,69 @@ public:
     void setEditScope(int value);
     void setActiveCharacterSet(int value);
     void setActiveCharacterPattern(int value);
+    void setCharacterForegroundColorIndex(int value);
+    void setCharacterBackgroundColorIndex(int value);
+    void setActiveCharacterEditor(int value);
+    void setCharacterTilingMode(bool value);
+    void setCharacterPanActive(bool value);
     void setActiveSpriteSet(int value);
     void setActiveSprite(int value);
+    void setActiveSpriteSize(int value);
+    void setSpriteGlobalSize(int value);
+    void setSpriteDrawingColorIndex(int value);
+    void setActiveSpriteColorDepth(int value);
     void setSpritePlacementMode(bool value);
+    void setSpritePanActive(bool value);
     void setPlacementWidth(int value);
     void setPlacementHeight(int value);
 
     Q_INVOKABLE void addSpriteSet();
     Q_INVOKABLE void removeActiveSpriteSet();
     Q_INVOKABLE void moveSprite(int spriteIndex, int x, int y);
+    Q_INVOKABLE QVariantList spritePatternPixels(int setIndex,
+                                                int spriteIndex,
+                                                int size) const;
+    Q_INVOKABLE void paintSpritePixel(int setIndex,
+                                      int spriteIndex,
+                                      int size,
+                                      int row,
+                                      int column,
+                                      bool foreground);
+    Q_INVOKABLE void beginSpriteEdit(int setIndex, int spriteIndex, int size);
+    Q_INVOKABLE void endSpriteEdit();
+    Q_INVOKABLE void rotateActiveSpritePattern();
+    Q_INVOKABLE void mirrorActiveSpritePattern();
+    Q_INVOKABLE void flipActiveSpritePattern();
+    Q_INVOKABLE void blankActiveSpritePattern();
+    Q_INVOKABLE void nudgeSpritePan(int horizontal, int vertical);
+    Q_INVOKABLE void centerSpritePan();
+    Q_INVOKABLE void undoSpriteEdit();
+    Q_INVOKABLE void redoSpriteEdit();
+    Q_INVOKABLE bool copyActiveSpritePattern();
+    Q_INVOKABLE bool pasteActiveSpritePattern();
+    Q_INVOKABLE QVariantList characterPatternRows(int setIndex,
+                                                  int patternIndex) const;
+    Q_INVOKABLE void paintCharacterPixel(int setIndex,
+                                         int patternIndex,
+                                         int row,
+                                         int column,
+                                         bool foreground);
+    Q_INVOKABLE void beginCharacterEdit(int setIndex, int patternIndex);
+    Q_INVOKABLE void endCharacterEdit();
+    Q_INVOKABLE void rotateActiveCharacterPattern();
+    Q_INVOKABLE void mirrorActiveCharacterPattern();
+    Q_INVOKABLE void flipActiveCharacterPattern();
+    Q_INVOKABLE void blankActiveCharacterPattern();
+    Q_INVOKABLE void nudgeCharacterPan(int horizontal, int vertical);
+    Q_INVOKABLE void centerCharacterPan();
+    Q_INVOKABLE void undoCharacterEdit();
+    Q_INVOKABLE void redoCharacterEdit();
+    Q_INVOKABLE bool copyActiveCharacterPattern();
+    Q_INVOKABLE bool pasteActiveCharacterPattern();
+    Q_INVOKABLE void addCharacterEditor();
+    Q_INVOKABLE void removeActiveCharacterEditor();
+    Q_INVOKABLE void moveCharacterEditor(int fromIndex, int toIndex);
+    Q_INVOKABLE void moveCharacterTile(int editorIndex, int x, int y);
     Q_INVOKABLE bool saveRecipe(const QUrl& fileUrl);
     Q_INVOKABLE bool loadRecipe(const QUrl& fileUrl);
     Q_INVOKABLE void clearStatus();
@@ -78,17 +192,88 @@ signals:
     void statusChanged();
 
 private:
+    struct CharacterPattern {
+        std::array<std::uint8_t, 8> bitmap{};
+        std::array<std::uint8_t, 8> colors{};
+    };
+    struct CharacterSet {
+        QString name;
+        std::array<CharacterPattern, 256> patterns;
+    };
+    struct CharacterEditorSlot {
+        bool loaded{};
+        int setIndex{};
+        int patternIndex{};
+        int tileX{};
+        int tileY{};
+    };
+    struct CharacterHistoryEntry {
+        int setIndex{};
+        int patternIndex{};
+        CharacterPattern before;
+        CharacterPattern after;
+    };
     struct SpritePlacement {
         int x{};
         int y{};
         bool visible{true};
+        int size{8};
+        int color{15};
+        int colorDepth{1};
+        int palette{};
+        bool flipX{};
+        bool flipY{};
+    };
+    struct SpritePattern {
+        std::array<std::uint8_t, 256> baselinePixels{};
+        std::array<std::uint8_t, 256> f18aPixels{};
+        bool f18aOverride{};
     };
     struct SpriteSet {
         QString name;
+        std::array<SpritePattern, 32> patterns8;
+        std::array<SpritePattern, 32> patterns16;
         std::array<SpritePlacement, 32> placements;
     };
+    struct SpriteHistoryEntry {
+        int setIndex{};
+        int spriteIndex{};
+        int size{8};
+        SpritePattern before;
+        SpritePattern after;
+    };
+    struct SpriteClipboardData {
+        int size{8};
+        int colorDepth{1};
+        bool enhanced{};
+        std::array<std::uint8_t, 256> pixels{};
+    };
 
+    [[nodiscard]] CharacterSet makeCharacterSet(int ordinal) const;
     [[nodiscard]] SpriteSet makeSpriteSet(int ordinal) const;
+    [[nodiscard]] CharacterPattern pannedCharacterPattern() const;
+    [[nodiscard]] std::optional<CharacterPattern>
+        characterPatternFromClipboard() const;
+    void recordCharacterEdit(int setIndex, int patternIndex,
+                             const CharacterPattern& before,
+                             const CharacterPattern& after);
+    void finishCharacterPan();
+    [[nodiscard]] SpritePattern& spritePattern(int setIndex,
+                                               int spriteIndex,
+                                               int size);
+    [[nodiscard]] const SpritePattern& spritePattern(int setIndex,
+                                                     int spriteIndex,
+                                                     int size) const;
+    [[nodiscard]] const std::array<std::uint8_t, 256>&
+        visibleSpritePixels(const SpritePattern& pattern) const;
+    [[nodiscard]] std::array<std::uint8_t, 256> pannedSpritePixels() const;
+    [[nodiscard]] std::optional<SpriteClipboardData>
+        spritePatternFromClipboard() const;
+    void ensureF18aSpriteOverride(SpritePattern& pattern);
+    void recordSpriteEdit(int setIndex, int spriteIndex, int size,
+                          const SpritePattern& before,
+                          const SpritePattern& after);
+    void finishSpritePan();
     void setStatus(QString message, QString error = {});
 
     ImageInputController* imageInput_{};
@@ -98,13 +283,48 @@ private:
     int editScope_{};
     int activeCharacterSet_{};
     int activeCharacterPattern_{};
-    QStringList characterSetNames_{QStringLiteral("Set 1"),
-                                   QStringLiteral("Set 2"),
-                                   QStringLiteral("Set 3")};
+    std::array<CharacterSet, 3> characterSets_;
+    int characterForegroundColorIndex_{15};
+    int characterBackgroundColorIndex_{1};
+    int characterRevision_{};
+    std::vector<CharacterEditorSlot> characterEditorSlots_;
+    int activeCharacterEditor_{};
+    bool characterTilingMode_{};
+    bool characterPanActive_{};
+    int characterPanX_{};
+    int characterPanY_{};
+    int characterPanSetIndex_{};
+    int characterPanPatternIndex_{};
+    CharacterPattern characterPanOriginal_;
+    bool characterEditActive_{};
+    int characterEditSetIndex_{};
+    int characterEditPatternIndex_{};
+    CharacterPattern characterEditBefore_;
+    std::vector<CharacterHistoryEntry> characterUndoHistory_;
+    std::vector<CharacterHistoryEntry> characterRedoHistory_;
     int activeSpriteSet_{};
     int activeSprite_{};
+    int activeSpriteSize_{8};
+    int spriteGlobalSize_{8};
+    int spriteDrawingColorIndex_{1};
+    int spriteRevision_{};
     std::vector<SpriteSet> spriteSets_;
     bool spritePlacementMode_{};
+    bool spritePanActive_{};
+    int spritePanX_{};
+    int spritePanY_{};
+    int spritePanSetIndex_{};
+    int spritePanSpriteIndex_{};
+    int spritePanSize_{8};
+    bool spritePanEnhanced_{};
+    SpritePattern spritePanOriginal_;
+    bool spriteEditActive_{};
+    int spriteEditSetIndex_{};
+    int spriteEditSpriteIndex_{};
+    int spriteEditSize_{8};
+    SpritePattern spriteEditBefore_;
+    std::vector<SpriteHistoryEntry> spriteUndoHistory_;
+    std::vector<SpriteHistoryEntry> spriteRedoHistory_;
     int placementWidth_{256};
     int placementHeight_{192};
     QString recipePath_;

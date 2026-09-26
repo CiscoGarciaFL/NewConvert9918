@@ -272,14 +272,18 @@ an edited character immediately updates every name-table position that uses it.
 
 ### Sprite sets and placement workspace
 
-A sprite set contains exactly 32 indexed sprite slots, matching one complete
-hardware attribute list. A project may contain multiple sets for animation
-frames or alternate images. Each set retains its own placements, while shared
-import and target-profile recipes remain reusable across sets.
+A sprite set contains 32 indexed 8x8 definitions, 32 indexed 16x16 definitions,
+and exactly 32 positioned sprite instances matching one complete hardware
+attribute list. Both definition banks remain visible and editable. A project may
+contain multiple sets for animation frames or alternate images. Each set retains
+its own patterns and placements, while shared import and target-profile recipes
+remain reusable across sets.
 
 The placement workspace is a bounded, configurable box with the current Screen
-Image as an optional reference underlay. All 32 sprite instances may be dragged
-independently, including partially offscreen positions. A future **Populate
+Image as an optional reference underlay. All 32 sprite instances may overlap and
+be dragged independently at one-pixel resolution, including partially offscreen
+positions. TMS9918A placement uses the globally selected 8x8 or 16x16 bank;
+F18A placement uses each sprite instance's selected size. A future **Populate
 from Screen Image** operation will sample the artwork covered by each placed
 sprite and generate the corresponding patterns under the active TMS9918A and
 F18A rules. It must preserve slot order, report scanline overflow and color
@@ -287,19 +291,23 @@ conflicts, and preview changes before replacing existing sprite data.
 
 ### Sprite-pattern editor
 
-The sprite editor provides:
+The first implemented sprite editor provides:
 
-- 8x8 and 16x16 editing canvases appropriate to the selected profile;
-- pencil, eraser, line, rectangle, filled rectangle, flood fill, selection,
-  copy/paste, translate, flip, rotate where representable, and clear;
+- one active 8x8 or 16x16 editing canvas above stacked 32-entry banks;
+- pencil, eraser, translate/Pan, horizontal mirror, vertical flip, clockwise
+  rotate, clear, grouped undo/redo, and validated JSON copy/paste;
 - transparent and active-color selection;
-- F18A ECM pixel values and palette selection when enabled;
-- 1x and magnified hardware previews;
-- a thumbnail library with pattern number, name, usage count, and target
-  compatibility badges;
+- a shared one-bit TMS9918A baseline with one visible instance color;
+- non-destructive F18A overrides with independently selected size and 1-, 2-,
+  or 3-bpp indexed pixel values;
+- a compact hardware preview and thumbnail library with hexadecimal indexes;
 - import from a monochrome or indexed image with an explicit threshold/palette
-  mapping preview; and
-- raw-byte and row-value inspection for users who work directly with VDP data.
+  mapping preview (planned); and
+- row-mask inspection for users who work directly with VDP data.
+
+Line, shape, flood-fill, selection, names, usage counts, and compatibility badges
+remain later extensions; their data model must build on the same two banks and
+baseline/override contract rather than creating a second sprite representation.
 
 For original 16x16 sprites, the UI can present one continuous 16x16 canvas, but
 the memory inspector must show the four underlying 8x8 pattern definitions and
@@ -426,6 +434,77 @@ controls adapt to the mode:
 - Graphics II row foreground/background editing;
 - Multicolor nibble/cell editing; and
 - F18A ECM pixel-index and palette editing.
+
+The implemented tray hosts one or more reusable 8x8 Graphics II pattern
+editors, each bound to an explicit `(set, index)`. Editors wrap into columns as
+the pane width changes and the tray grows until it needs its own scrolling.
+The inverted label identifies the active editor: selecting a pattern slot loads
+that pattern into the active editor. The bottom-right plus/minus controls add an
+active empty editor or remove the active editor while always preserving at
+least one. An editor label's local menu can move it left, right, first, or last,
+or remove it. Its pane-level upper toolbar provides pencil and eraser tools plus
+overlapping foreground/background selectors, using the fixed TMS9918A hardware
+palette for baseline editing and the current programmable 16-color palette for
+F18A editing. Each row shows its
+exact pattern byte on the left and foreground/background color byte on the
+right. The vertical four-pixel boundary is emphasized, and the selected
+pattern number is shown in hexadecimal below the grid. Edits update the
+project’s real eight pattern bytes and eight row-color bytes and are persisted
+in versioned recipes. Each editor also renders a compact character preview
+under its color-byte column. Stacked plus/minus controls cycle exact 1x through
+4x hardware-pixel sizes; the preview frame expands up and left from a fixed
+bottom-right corner. Vertical Bits and Color captions flank the byte columns so
+the grid can sit at the editor's top margin without moving the pattern label.
+
+One Character toolbar button switches the shared tray between **Pattern Editor**
+and **Tiling Screen** views. Its overlapping icon follows the foreground/background
+color control convention: the current presentation's icon is brought to the
+front, and its tooltip names the presentation that clicking will open. This is a
+second presentation of the same editor slots rather than a separate list:
+the active editor and active tile are the same selection, and the existing
+plus/minus controls add or remove the same slot in either presentation. Tiling
+uses a 256x192 screen canvas with Home at coordinate `(0,0)` in its upper-left
+corner. Every tile has its true 8x8 boundary and drags in 8-pixel hardware-cell
+steps through the 32x24 grid. A pattern label appears only while its tile is
+hovered. Multiple slots may reference the same `(set, pattern)`; those tiles
+highlight together when selected while retaining independent screen
+coordinates. To place another instance, use `+` to create an empty tile and then
+choose the same pattern from the pattern grid; the new tile shares the pattern
+data but has its own screen position. Tiling retains every instance, while the
+Pattern Editor presentation filters loaded duplicates by `(set, pattern)` so
+each unique pattern has only one editor. Unassigned empty slots remain visible
+until a pattern is chosen. Tile positions and the active presentation are saved
+in recipes.
+While Tiling is active, the destination zoom control scales the complete screen
+grid and its tiles. The tray grows with the scaled 192-pixel screen height when
+workspace space is available, retains the live window width, and scrolls when
+the scaled canvas exceeds the available viewport. Clicking the combined mode
+button returns directly to the Pattern Editor presentation.
+
+The Character upper toolbar also provides clockwise Rotate, horizontal Mirror,
+vertical Flip, and Blank operations for the active pattern. Blank clears the
+bitmap while preserving its row-color bytes. Drawing strokes and these pattern
+operations participate in Character undo/redo history.
+
+Copy and Paste use the operating-system clipboard rather than an internal-only
+slot. Copy publishes indented, versioned JSON with the format identifier
+`newconvert9918.character-pattern`, an 8x8 size declaration, source set/pattern
+metadata, eight hexadecimal bitmap-byte strings, and eight hexadecimal
+row-color-byte strings. The text is intentionally readable in an ordinary text
+editor and usable by scripts. Paste accepts this format (including numeric byte
+values for script convenience), validates every byte and dimension, replaces
+the active pattern, and records the replacement as one undoable edit.
+
+The Character lower toolbar provides undo/redo and a toggleable Pan workspace.
+Pan places the active 8x8 pattern at the center of a temporary 24x24 virtual
+grid. Direction and center controls match the Source positioning controls, with
+movement limited to eight pixels in each direction. Pixels clipped from the
+visible center 8x8 remain available while Pan is active, so moving back is
+non-destructive. Turning Pan off commits the final center viewport, resets the
+virtual position to `(0,0)`, and records the complete pan session as one undo
+step rather than one step per nudge.
+The planned Sprite placement workflow should follow the same hardware-grid
+interaction model with sprite-specific dimensions and chipset limits.
 
 The editor also provides:
 
@@ -577,18 +656,20 @@ Qt/QML presentation. A design project needs, conceptually:
 - export presets; and
 - diagnostic suppressions with an explanation.
 
-The first persisted contract is a versioned, human-readable
+The persisted contract is a versioned, human-readable
 `*.nc9918.json` recipe. It stores the complete Screen Image conversion settings,
 source linkage, mandatory TMS9918A and optional inherited F18A profiles, preview
 and edit scope, active Character and Sprite selections, three Character-set
 descriptors, repeatable Sprite-set descriptors, placement-box dimensions, and
-all Sprite coordinates. GUI saves are atomic. The CLI consumes the same recipe
+all Sprite coordinates. Sprite-set data now includes sparse 8x8 and 16x16
+baseline pixels, sparse F18A override pixels, per-instance size/color/depth and
+future-facing palette/flip attributes. GUI saves are atomic. The CLI consumes the same recipe
 for Screen Image jobs; Character and Sprite recipes are rejected clearly until
 their converters can emit hardware data.
 
-Later project files will add actual pattern pixels, F18A overrides, allocation
-metadata, and edit history to this contract. Unknown future fields must not
-cause silent data loss during an older-version save.
+Later project files will add allocation metadata and optional edit-history
+recovery to this contract. Unknown future fields must not cause silent data loss
+during an older-version save.
 
 Autosave and recovery use a separate temporary/recovery artifact. Saving must
 be atomic and must not overwrite imported source tables unless the user chooses

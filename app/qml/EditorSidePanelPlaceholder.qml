@@ -115,7 +115,7 @@ ScrollView {
                           ? qsTr("Three simultaneously available sets, each containing 256 pattern slots. Active: Set %1, pattern %2.")
                                 .arg(editorProject.activeCharacterSet + 1)
                                 .arg(editorProject.activeCharacterPattern)
-                          : qsTr("Each set contains 32 sprite slots. Add sets for animation frames or alternate images. Active: Set %1, sprite %2.")
+                          : qsTr("Each set contains 32 8×8 patterns, 32 16×16 patterns, and 32 independently placed sprites. Active: Set %1, sprite %2.")
                                 .arg(editorProject.activeSpriteSet + 1)
                                 .arg(editorProject.activeSprite)
                     wrapMode: Text.WordWrap
@@ -124,6 +124,34 @@ ScrollView {
                     visible: root.editorKind === 1
                     columns: 2
                     Layout.fillWidth: true
+                    Label { text: qsTr("9918A global size") }
+                    ComboBox {
+                        objectName: root.objectName + "GlobalSpriteSizeComboBox"
+                        model: [qsTr("8×8"), qsTr("16×16")]
+                        currentIndex: editorProject.spriteGlobalSize === 16 ? 1 : 0
+                        onActivated: index =>
+                            editorProject.spriteGlobalSize = index === 1 ? 16 : 8
+                    }
+                    Label { text: qsTr("Active F18A size") }
+                    ComboBox {
+                        objectName: root.objectName + "ActiveSpriteSizeComboBox"
+                        model: [qsTr("8×8"), qsTr("16×16")]
+                        enabled: editorProject.editScope === 1
+                        currentIndex: editorProject.activeSpriteSize === 16 ? 1 : 0
+                        onActivated: index =>
+                            editorProject.activeSpriteSize = index === 1 ? 16 : 8
+                    }
+                    Label { text: qsTr("F18A color depth") }
+                    ComboBox {
+                        objectName: root.objectName + "SpriteColorDepthComboBox"
+                        model: [qsTr("1 bpp · 2 indexes"),
+                                qsTr("2 bpp · 4 indexes"),
+                                qsTr("3 bpp · 8 indexes")]
+                        enabled: editorProject.editScope === 1
+                        currentIndex: editorProject.activeSpriteColorDepth - 1
+                        onActivated: index =>
+                            editorProject.activeSpriteColorDepth = index + 1
+                    }
                     Label { text: qsTr("Placement width") }
                     SpinBox {
                         objectName: root.objectName + "PlacementWidthSpinBox"
@@ -142,6 +170,15 @@ ScrollView {
                         editable: true
                         onValueModified: editorProject.placementHeight = value
                     }
+                }
+                Label {
+                    visible: root.editorKind === 1
+                    Layout.fillWidth: true
+                    text: editorProject.editScope === 0
+                          ? qsTr("The TMS9918A uses one global sprite size and one visible color per sprite. Both pattern banks remain editable, but the selected global bank is used for placement and export.")
+                          : qsTr("F18A enhancements may choose 8×8 or 16×16 and 1/2/3-bpp color independently for each sprite. Unchanged pixels continue to inherit the shared baseline.")
+                    wrapMode: Text.WordWrap
+                    color: palette.placeholderText
                 }
             }
         }

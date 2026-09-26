@@ -2,6 +2,7 @@ add_library(newconvert9918_app_support STATIC
     ConversionPipeline.cpp
     ConversionPipeline.hpp
     EditorProjectController.cpp
+    EditorProjectControllerSprite.cpp
     EditorProjectController.hpp
     ImageInputController.cpp
     ImageInputController.hpp
@@ -52,6 +53,10 @@ qt_add_qml_module(NewConvert9918
         qml/SidePanelHost.qml
         qml/OutputProfileControls.qml
         qml/CharacterSetView.qml
+        qml/CharacterTilingView.qml
+        qml/PatternEditor.qml
+        qml/SpritePatternEditor.qml
+        qml/SpritePlacementView.qml
         qml/SpriteSetView.qml
         qml/ThemedFrame.qml
         qml/ThemedGroupBox.qml
