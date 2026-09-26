@@ -387,8 +387,13 @@ Palette greyscaleBitmap9918Palette(const Palette& colorPalette)
     std::vector<RgbColor> colors;
     colors.reserve(colorPalette.size());
     for (const RgbColor color : colorPalette.colors()) {
-        const int luminanceValue = static_cast<int>(
-            color.blue * 0.0722 + color.green * 0.7152 + color.red * 0.2126);
+        // Express the Rec. 709 coefficients as exact fixed-point weights.  The
+        // previous floating-point expression could land just below an integer
+        // boundary on ARM64 and truncate to a different palette value.
+        const int luminanceValue = (static_cast<int>(color.red) * 2126
+                                    + static_cast<int>(color.green) * 7152
+                                    + static_cast<int>(color.blue) * 722)
+            / 10000;
         const auto grey = static_cast<std::uint8_t>(luminanceValue);
         colors.push_back({grey, grey, grey});
     }
