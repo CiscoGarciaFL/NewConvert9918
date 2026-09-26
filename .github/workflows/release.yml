@@ -301,10 +301,43 @@ jobs:
       - name: Create DMG
         run: |
           mkdir -p dist
-          cpack --config build/release/CPackConfig.cmake -G DragNDrop \
-            -D "CPACK_PACKAGE_FILE_NAME=NewConvert9918-${RELEASE_VERSION}-macOS-${{ matrix.arch }}" \
-            -B dist
-          test -f "dist/NewConvert9918-${RELEASE_VERSION}-macOS-${{ matrix.arch }}.dmg"
+          dmg="dist/NewConvert9918-${RELEASE_VERSION}-macOS-${{ matrix.arch }}.dmg"
+          dmg_root="${RUNNER_TEMP}/newconvert9918-dmg-${{ matrix.arch }}"
+          rm -rf -- "${dmg_root}"
+          mkdir -p "${dmg_root}"
+          cp -a stage/. "${dmg_root}/"
+          ln -s /Applications "${dmg_root}/Applications"
+          for attempt in 1 2 3; do
+            rm -f -- "${dmg}"
+            hdiutil create -ov -srcfolder "${dmg_root}" \
+              -volname "New Convert 9918" -format UDZO "${dmg}" &
+            dmg_pid=$!
+            (
+              sleep 600
+              if kill -0 "${dmg_pid}" 2>/dev/null; then
+                echo "DMG creation timed out; stopping hdiutil."
+                kill -TERM "${dmg_pid}" 2>/dev/null || true
+              fi
+            ) &
+            watchdog_pid=$!
+            if wait "${dmg_pid}"; then
+              dmg_status=0
+            else
+              dmg_status=$?
+            fi
+            kill "${watchdog_pid}" 2>/dev/null || true
+            wait "${watchdog_pid}" 2>/dev/null || true
+            if [[ "${dmg_status}" -eq 0 ]]; then
+              break
+            fi
+            if [[ "${attempt}" -eq 3 ]]; then
+              exit 1
+            fi
+            echo "hdiutil failed or was temporarily busy; retrying DMG creation (${attempt}/3)."
+            sleep $((attempt * 15))
+          done
+          test -f "${dmg}"
+          hdiutil verify "${dmg}"
 
       - name: Upload macOS release asset
         uses: actions/upload-artifact@v4
