@@ -47,6 +47,10 @@ and interface verification are documented in
 [`docs/INTERFACE_WORKFLOW.md`](docs/INTERFACE_WORKFLOW.md).
 The headless syntax, supported names, JSON contract, and exit codes are in
 [`docs/COMMAND_LINE.md`](docs/COMMAND_LINE.md).
+The cross-platform artifact matrix, standalone-runtime promise, preview and
+update policy, signing policy, GitHub Release automation, and clean-system
+release checklist are defined in
+[`docs/RELEASE_PROCESS.md`](docs/RELEASE_PROCESS.md).
 The post-v1 design for enumerating video, animated-image, slideshow, and still
 sequence sources into deterministic conversion jobs is in
 [`docs/BATCH_MODE.md`](docs/BATCH_MODE.md).

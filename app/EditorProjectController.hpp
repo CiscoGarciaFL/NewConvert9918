@@ -43,6 +43,8 @@ class EditorProjectController final : public QObject {
     Q_PROPERTY(int spriteRevision READ spriteRevision NOTIFY projectChanged)
     Q_PROPERTY(QVariantList spriteSetNames READ spriteSetNames NOTIFY projectChanged)
     Q_PROPERTY(QVariantList activeSpritePlacements READ activeSpritePlacements NOTIFY projectChanged)
+    Q_PROPERTY(QVariantList spriteEditorSlots READ spriteEditorSlots NOTIFY projectChanged)
+    Q_PROPERTY(int activeSpriteEditor READ activeSpriteEditor WRITE setActiveSpriteEditor NOTIFY projectChanged)
     Q_PROPERTY(bool spritePlacementMode READ spritePlacementMode WRITE setSpritePlacementMode NOTIFY projectChanged)
     Q_PROPERTY(bool spritePanActive READ spritePanActive WRITE setSpritePanActive NOTIFY projectChanged)
     Q_PROPERTY(int spritePanX READ spritePanX NOTIFY projectChanged)
@@ -97,6 +99,8 @@ public:
     [[nodiscard]] int spriteRevision() const { return spriteRevision_; }
     [[nodiscard]] QVariantList spriteSetNames() const;
     [[nodiscard]] QVariantList activeSpritePlacements() const;
+    [[nodiscard]] QVariantList spriteEditorSlots() const;
+    [[nodiscard]] int activeSpriteEditor() const { return activeSpriteEditor_; }
     [[nodiscard]] bool spritePlacementMode() const { return spritePlacementMode_; }
     [[nodiscard]] bool spritePanActive() const { return spritePanActive_; }
     [[nodiscard]] int spritePanX() const { return spritePanX_; }
@@ -131,6 +135,7 @@ public:
     void setSpriteGlobalSize(int value);
     void setSpriteDrawingColorIndex(int value);
     void setActiveSpriteColorDepth(int value);
+    void setActiveSpriteEditor(int value);
     void setSpritePlacementMode(bool value);
     void setSpritePanActive(bool value);
     void setPlacementWidth(int value);
@@ -138,7 +143,12 @@ public:
 
     Q_INVOKABLE void addSpriteSet();
     Q_INVOKABLE void removeActiveSpriteSet();
+    Q_INVOKABLE void selectSpritePattern(int spriteIndex, int size);
     Q_INVOKABLE void moveSprite(int spriteIndex, int x, int y);
+    Q_INVOKABLE void addSpriteEditor();
+    Q_INVOKABLE void removeActiveSpriteEditor();
+    Q_INVOKABLE void moveSpriteEditor(int fromIndex, int toIndex);
+    Q_INVOKABLE void moveSpriteEditorTile(int editorIndex, int x, int y);
     Q_INVOKABLE QVariantList spritePatternPixels(int setIndex,
                                                 int spriteIndex,
                                                 int size) const;
@@ -216,6 +226,8 @@ private:
     struct SpritePlacement {
         int x{};
         int y{};
+        int x16{};
+        int y16{};
         bool visible{true};
         int size{8};
         int color{15};
@@ -241,6 +253,12 @@ private:
         int size{8};
         SpritePattern before;
         SpritePattern after;
+    };
+    struct SpriteEditorSlot {
+        bool loaded{};
+        int setIndex{};
+        int spriteIndex{};
+        int size{8};
     };
     struct SpriteClipboardData {
         int size{8};
@@ -274,6 +292,9 @@ private:
                           const SpritePattern& before,
                           const SpritePattern& after);
     void finishSpritePan();
+    bool activateSpriteEditorBank(int size);
+    bool assignActiveSpriteToEditor();
+    void syncSpriteDrawingColor();
     void setStatus(QString message, QString error = {});
 
     ImageInputController* imageInput_{};
@@ -306,9 +327,11 @@ private:
     int activeSprite_{};
     int activeSpriteSize_{8};
     int spriteGlobalSize_{8};
-    int spriteDrawingColorIndex_{1};
+    int spriteDrawingColorIndex_{15};
     int spriteRevision_{};
     std::vector<SpriteSet> spriteSets_;
+    std::vector<SpriteEditorSlot> spriteEditorSlots_;
+    int activeSpriteEditor_{};
     bool spritePlacementMode_{};
     bool spritePanActive_{};
     int spritePanX_{};

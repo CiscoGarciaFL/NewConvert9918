@@ -5,25 +5,35 @@ import QtQuick.Controls
 
 Rectangle {
     id: root
+    objectName: "spritePatternEditor"
 
+    required property int editorIndex
+    required property int editorCount
+    required property bool loaded
     required property int setIndex
     required property int spriteIndex
     required property int spriteSize
+    required property int spriteColorIndex
     required property int drawingTool
     required property bool active
-    readonly property real gridSize: 128
-    readonly property real cellSize: gridSize / spriteSize
+    readonly property real cellSize: 16
+    readonly property real gridSize: cellSize * spriteSize
     readonly property var pixels: {
         const revision = editorProject.spriteRevision
+        if (!loaded)
+            return []
         return editorProject.spritePatternPixels(setIndex, spriteIndex, spriteSize)
     }
     readonly property var paletteColors: editorProject.characterPaletteColors
-    readonly property bool pixelEditingEnabled: !editorProject.spritePanActive
+    readonly property bool pixelEditingEnabled:
+        loaded && !editorProject.spritePanActive
 
     signal selected()
+    signal moveRequested(int targetIndex)
+    signal removeRequested()
 
-    implicitWidth: 224
-    implicitHeight: 188
+    implicitWidth: gridSize + 96
+    implicitHeight: gridSize + 60
     color: "#13191f"
     border.width: active ? 2 : 1
     border.color: active ? palette.highlight : "#46515d"
@@ -32,7 +42,8 @@ Rectangle {
     function hexRow(row) {
         let value = 0
         for (let column = 0; column < spriteSize; ++column) {
-            if (pixels[row * spriteSize + column] !== 0)
+            if (loaded && pixels.length > row * spriteSize + column
+                    && pixels[row * spriteSize + column] !== 0)
                 value += Math.pow(2, spriteSize - 1 - column)
         }
         return value.toString(16).toUpperCase().padStart(spriteSize / 4, "0")
@@ -41,10 +52,8 @@ Rectangle {
     function pixelColor(value) {
         if (value === 0)
             return "#20272e"
-        if (editorProject.editScope === 0) {
-            const placement = editorProject.activeSpritePlacements[spriteIndex]
-            return paletteColors[placement ? placement.color : 15]
-        }
+        if (editorProject.editScope === 0)
+            return paletteColors[spriteColorIndex]
         return paletteColors[Math.min(paletteColors.length - 1, value)]
     }
 
@@ -58,6 +67,39 @@ Rectangle {
                                          Math.floor(localY / cellSize)))
         editorProject.paintSpritePixel(setIndex, spriteIndex, spriteSize,
                                        row, column, drawingTool === 1)
+    }
+
+    Menu {
+        id: orderMenu
+        parent: patternLabel
+
+        MenuItem {
+            text: qsTr("Move left")
+            enabled: root.editorIndex > 0
+            onTriggered: root.moveRequested(root.editorIndex - 1)
+        }
+        MenuItem {
+            text: qsTr("Move right")
+            enabled: root.editorIndex + 1 < root.editorCount
+            onTriggered: root.moveRequested(root.editorIndex + 1)
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: qsTr("Move to first")
+            enabled: root.editorIndex > 0
+            onTriggered: root.moveRequested(0)
+        }
+        MenuItem {
+            text: qsTr("Move to last")
+            enabled: root.editorIndex + 1 < root.editorCount
+            onTriggered: root.moveRequested(root.editorCount - 1)
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: qsTr("Remove editor")
+            enabled: root.editorCount > 1
+            onTriggered: root.removeRequested()
+        }
     }
 
     Row {
@@ -115,7 +157,8 @@ Rectangle {
                     y: pixelRow * root.cellSize
                     width: root.cellSize
                     height: root.cellSize
-                    color: root.pixelColor(root.pixels[index])
+                    color: !root.loaded || root.pixels.length <= index
+                           ? "#20272e" : root.pixelColor(root.pixels[index])
                 }
             }
 
@@ -179,16 +222,22 @@ Rectangle {
         implicitHeight: 24
         checkable: true
         checked: root.active
-        text: qsTr("%1x%1 Sprite %2")
-              .arg(root.spriteSize)
-              .arg(root.spriteIndex.toString().padStart(2, "0"))
-        Accessible.name: qsTr("Select %1 by %1 sprite %2")
-                         .arg(root.spriteSize).arg(root.spriteIndex)
+        text: root.loaded
+              ? qsTr("%1x%1 Sprite %2")
+                    .arg(root.spriteSize)
+                    .arg(root.spriteIndex.toString().padStart(2, "0"))
+              : qsTr("Empty")
+        Accessible.name: root.loaded
+                         ? qsTr("Select %1 by %1 sprite %2")
+                               .arg(root.spriteSize).arg(root.spriteIndex)
+                         : qsTr("Select empty sprite editor")
         ToolTip.visible: hovered
-        ToolTip.text: editorProject.editScope === 1
-                      ? qsTr("F18A override editor; inherited baseline is used until changed")
-                      : qsTr("Shared TMS9918A baseline editor")
+        ToolTip.text: qsTr("Select this editor; right-click or hold for ordering options")
         onClicked: root.selected()
+        onPressAndHold: {
+            root.selected()
+            orderMenu.open()
+        }
 
         background: Rectangle {
             radius: 2
@@ -205,6 +254,13 @@ Rectangle {
                                : patternLabel.palette.buttonText
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
+        }
+        TapHandler {
+            acceptedButtons: Qt.RightButton
+            onTapped: {
+                root.selected()
+                orderMenu.open()
+            }
         }
     }
 
@@ -233,7 +289,8 @@ Rectangle {
                     y: Math.floor(index / root.spriteSize)
                     width: 1
                     height: 1
-                    color: root.pixelColor(root.pixels[index])
+                    color: !root.loaded || root.pixels.length <= index
+                           ? "#20272e" : root.pixelColor(root.pixels[index])
                 }
             }
         }

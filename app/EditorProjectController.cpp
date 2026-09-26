@@ -82,6 +82,7 @@ EditorProjectController::EditorProjectController(ImageInputController* imageInpu
     }
     characterEditorSlots_.push_back({true, 0, 0, 0, 0});
     spriteSets_.push_back(makeSpriteSet(1));
+    spriteEditorSlots_.push_back({false, 0, 0, 8});
     connect(imageInput_, &ImageInputController::settingsChanged,
             this, &EditorProjectController::projectChanged);
     if (QClipboard* clipboard = QGuiApplication::clipboard()) {
@@ -164,9 +165,11 @@ QVariantList EditorProjectController::activeSpritePlacements() const
     for (int index = 0; index < static_cast<int>(placements.size()); ++index) {
         const auto& placement = placements[static_cast<std::size_t>(index)];
         const int effectiveSize = editScope_ == 1 ? placement.size : spriteGlobalSize_;
+        const int placementX = effectiveSize == 16 ? placement.x16 : placement.x;
+        const int placementY = effectiveSize == 16 ? placement.y16 : placement.y;
         result.push_back(QVariantMap{{QStringLiteral("index"), index},
-                                     {QStringLiteral("x"), placement.x},
-                                     {QStringLiteral("y"), placement.y},
+                                     {QStringLiteral("x"), placementX},
+                                     {QStringLiteral("y"), placementY},
                                      {QStringLiteral("visible"), placement.visible},
                                      {QStringLiteral("size"), effectiveSize},
                                      {QStringLiteral("storedSize"), placement.size},
@@ -181,6 +184,47 @@ QVariantList EditorProjectController::activeSpritePlacements() const
                                      {QStringLiteral("profile"),
                                       editScope_ == 1 ? QStringLiteral("f18a")
                                                       : QStringLiteral("tms9918a")}});
+    }
+    return result;
+}
+
+QVariantList EditorProjectController::spriteEditorSlots() const
+{
+    QVariantList result;
+    result.reserve(static_cast<qsizetype>(spriteEditorSlots_.size()));
+    for (int index = 0; index < static_cast<int>(spriteEditorSlots_.size()); ++index) {
+        const auto& slot = spriteEditorSlots_[static_cast<std::size_t>(index)];
+        QVariantMap values{{QStringLiteral("index"), index},
+                           {QStringLiteral("loaded"), slot.loaded},
+                           {QStringLiteral("setIndex"), slot.setIndex},
+                           {QStringLiteral("spriteIndex"), slot.spriteIndex}};
+        if (slot.loaded && slot.setIndex >= 0
+            && slot.setIndex < static_cast<int>(spriteSets_.size())
+            && slot.spriteIndex >= 0 && slot.spriteIndex < 32) {
+            const auto& placement = spriteSets_[static_cast<std::size_t>(slot.setIndex)]
+                                        .placements[static_cast<std::size_t>(slot.spriteIndex)];
+            values.insert(QStringLiteral("size"), slot.size);
+            values.insert(QStringLiteral("x"),
+                          slot.size == 16 ? placement.x16 : placement.x);
+            values.insert(QStringLiteral("y"),
+                          slot.size == 16 ? placement.y16 : placement.y);
+            values.insert(QStringLiteral("visible"), placement.visible);
+            values.insert(QStringLiteral("activeForPlacement"),
+                          slot.size == (editScope_ == 1
+                                            ? placement.size : spriteGlobalSize_));
+            values.insert(QStringLiteral("color"), placement.color);
+            values.insert(QStringLiteral("colorDepth"),
+                          editScope_ == 1 ? placement.colorDepth : 1);
+        } else {
+            values.insert(QStringLiteral("size"), slot.size);
+            values.insert(QStringLiteral("x"), 0);
+            values.insert(QStringLiteral("y"), 0);
+            values.insert(QStringLiteral("visible"), false);
+            values.insert(QStringLiteral("activeForPlacement"), false);
+            values.insert(QStringLiteral("color"), 15);
+            values.insert(QStringLiteral("colorDepth"), 1);
+        }
+        result.push_back(values);
     }
     return result;
 }
@@ -203,6 +247,8 @@ void EditorProjectController::setF18aEnabled(bool value)
         previewTarget_ = 0;
         editScope_ = 0;
         activeSpriteSize_ = spriteGlobalSize_;
+        activateSpriteEditorBank(spriteGlobalSize_);
+        syncSpriteDrawingColor();
     }
     emit projectChanged();
 }
@@ -221,14 +267,16 @@ void EditorProjectController::setEditScope(int value)
     if (editScope_ == value) return;
     if (spritePanActive_) finishSpritePan();
     editScope_ = value;
-    if (workspaceMode_ == 2 && !spriteSets_.empty()) {
+    if (!spriteSets_.empty()) {
+        const auto& activeEditor = spriteEditorSlots_[
+            static_cast<std::size_t>(activeSpriteEditor_)];
         const auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
                                     .placements[static_cast<std::size_t>(activeSprite_)];
-        activeSpriteSize_ = value == 1 ? placement.size : spriteGlobalSize_;
-        spriteDrawingColorIndex_ = value == 1
-            ? std::clamp(spriteDrawingColorIndex_, 1,
-                         (1 << placement.colorDepth) - 1)
-            : placement.color;
+        activeSpriteSize_ = value == 1
+            ? (activeEditor.loaded ? placement.size : activeEditor.size)
+            : spriteGlobalSize_;
+        if (value == 0) activateSpriteEditorBank(spriteGlobalSize_);
+        syncSpriteDrawingColor();
     }
     emit projectChanged();
 }
@@ -336,11 +384,14 @@ void EditorProjectController::setActiveSpriteSet(int value)
     const int maximum = std::max(0, static_cast<int>(spriteSets_.size()) - 1);
     value = std::clamp(value, 0, maximum);
     if (spritePanActive_ && value != activeSpriteSet_) finishSpritePan();
-    if (activeSpriteSet_ == value) return;
+    bool changed = activeSpriteSet_ != value;
     activeSpriteSet_ = value;
     const auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
                                 .placements[static_cast<std::size_t>(activeSprite_)];
     activeSpriteSize_ = editScope_ == 1 ? placement.size : spriteGlobalSize_;
+    changed = assignActiveSpriteToEditor() || changed;
+    syncSpriteDrawingColor();
+    if (!changed) return;
     emit projectChanged();
 }
 
@@ -348,13 +399,33 @@ void EditorProjectController::setActiveSprite(int value)
 {
     value = std::clamp(value, 0, 31);
     if (spritePanActive_ && value != activeSprite_) finishSpritePan();
-    if (activeSprite_ == value) return;
+    bool changed = activeSprite_ != value;
     activeSprite_ = value;
     if (!spriteSets_.empty()) {
         const auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
                                     .placements[static_cast<std::size_t>(activeSprite_)];
         activeSpriteSize_ = editScope_ == 1 ? placement.size : spriteGlobalSize_;
-        if (editScope_ == 0) spriteDrawingColorIndex_ = placement.color;
+        changed = assignActiveSpriteToEditor() || changed;
+        syncSpriteDrawingColor();
+    }
+    if (!changed) return;
+    emit projectChanged();
+}
+
+void EditorProjectController::setActiveSpriteEditor(int value)
+{
+    if (spriteEditorSlots_.empty()) return;
+    value = std::clamp(value, 0, static_cast<int>(spriteEditorSlots_.size()) - 1);
+    if (spritePanActive_ && value != activeSpriteEditor_) finishSpritePan();
+    if (activeSpriteEditor_ == value) return;
+    activeSpriteEditor_ = value;
+    const auto& slot = spriteEditorSlots_[static_cast<std::size_t>(value)];
+    activeSpriteSize_ = slot.size;
+    if (editScope_ == 0) spriteGlobalSize_ = slot.size;
+    if (slot.loaded) {
+        activeSpriteSet_ = slot.setIndex;
+        activeSprite_ = slot.spriteIndex;
+        syncSpriteDrawingColor();
     }
     emit projectChanged();
 }
@@ -393,6 +464,8 @@ void EditorProjectController::addSpriteSet()
     activeSpriteSet_ = static_cast<int>(spriteSets_.size()) - 1;
     activeSprite_ = 0;
     activeSpriteSize_ = editScope_ == 1 ? 8 : spriteGlobalSize_;
+    assignActiveSpriteToEditor();
+    syncSpriteDrawingColor();
     emit projectChanged();
 }
 
@@ -400,8 +473,21 @@ void EditorProjectController::removeActiveSpriteSet()
 {
     if (spritePanActive_) finishSpritePan();
     if (spriteSets_.size() <= 1U) return;
-    spriteSets_.erase(spriteSets_.begin() + activeSpriteSet_);
+    const int removedSet = activeSpriteSet_;
+    spriteSets_.erase(spriteSets_.begin() + removedSet);
     activeSpriteSet_ = std::min(activeSpriteSet_, static_cast<int>(spriteSets_.size()) - 1);
+    for (auto& editor : spriteEditorSlots_) {
+        if (editor.setIndex == removedSet) {
+            editor.loaded = false;
+            editor.setIndex = activeSpriteSet_;
+        } else if (editor.setIndex > removedSet) {
+            --editor.setIndex;
+        }
+    }
+    const auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
+                                .placements[static_cast<std::size_t>(activeSprite_)];
+    activeSpriteSize_ = editScope_ == 1 ? placement.size : spriteGlobalSize_;
+    syncSpriteDrawingColor();
     emit projectChanged();
 }
 
@@ -413,9 +499,103 @@ void EditorProjectController::moveSprite(int spriteIndex, int x, int y)
     const int effectiveSize = editScope_ == 1 ? placement.size : spriteGlobalSize_;
     x = std::clamp(x, -effectiveSize, placementWidth_ - 1);
     y = std::clamp(y, -effectiveSize, placementHeight_ - 1);
-    if (placement.x == x && placement.y == y) return;
-    placement.x = x;
-    placement.y = y;
+    int& placementX = effectiveSize == 16 ? placement.x16 : placement.x;
+    int& placementY = effectiveSize == 16 ? placement.y16 : placement.y;
+    if (placementX == x && placementY == y) return;
+    placementX = x;
+    placementY = y;
+    emit projectChanged();
+}
+
+void EditorProjectController::addSpriteEditor()
+{
+    constexpr std::size_t maximumEditors = 32;
+    if (spriteEditorSlots_.size() >= maximumEditors) {
+        setStatus({}, QStringLiteral("A sprite tray can contain up to 32 unique sprite editors."));
+        return;
+    }
+    const int editorSize = editScope_ == 0 ? spriteGlobalSize_ : activeSpriteSize_;
+    spriteEditorSlots_.push_back(
+        {false, activeSpriteSet_, activeSprite_, editorSize});
+    activeSpriteEditor_ = static_cast<int>(spriteEditorSlots_.size()) - 1;
+    emit projectChanged();
+}
+
+void EditorProjectController::removeActiveSpriteEditor()
+{
+    if (spriteEditorSlots_.size() <= 1U) return;
+    const int activeBankSize = editScope_ == 0
+        ? spriteGlobalSize_ : activeSpriteSize_;
+    if (editScope_ == 0) {
+        const int bankEditorCount = static_cast<int>(std::count_if(
+            spriteEditorSlots_.cbegin(), spriteEditorSlots_.cend(),
+            [activeBankSize](const SpriteEditorSlot& editor) {
+                return editor.size == activeBankSize;
+            }));
+        if (bankEditorCount <= 1) return;
+    }
+    if (spritePanActive_) finishSpritePan();
+    endSpriteEdit();
+    spriteEditorSlots_.erase(spriteEditorSlots_.begin() + activeSpriteEditor_);
+    activeSpriteEditor_ = std::min(
+        activeSpriteEditor_, static_cast<int>(spriteEditorSlots_.size()) - 1);
+    if (editScope_ == 0) {
+        activateSpriteEditorBank(activeBankSize);
+        emit projectChanged();
+        return;
+    }
+    const auto& slot = spriteEditorSlots_[static_cast<std::size_t>(activeSpriteEditor_)];
+    if (slot.loaded) {
+        activeSpriteSet_ = slot.setIndex;
+        activeSprite_ = slot.spriteIndex;
+        activeSpriteSize_ = slot.size;
+        if (editScope_ == 0) spriteGlobalSize_ = slot.size;
+        syncSpriteDrawingColor();
+    }
+    emit projectChanged();
+}
+
+void EditorProjectController::moveSpriteEditor(int fromIndex, int toIndex)
+{
+    const int count = static_cast<int>(spriteEditorSlots_.size());
+    if (fromIndex < 0 || fromIndex >= count || toIndex < 0 || toIndex >= count
+        || fromIndex == toIndex) {
+        return;
+    }
+    SpriteEditorSlot slot = spriteEditorSlots_[static_cast<std::size_t>(fromIndex)];
+    spriteEditorSlots_.erase(spriteEditorSlots_.begin() + fromIndex);
+    spriteEditorSlots_.insert(spriteEditorSlots_.begin() + toIndex, slot);
+    if (activeSpriteEditor_ == fromIndex) {
+        activeSpriteEditor_ = toIndex;
+    } else if (fromIndex < activeSpriteEditor_ && activeSpriteEditor_ <= toIndex) {
+        --activeSpriteEditor_;
+    } else if (toIndex <= activeSpriteEditor_ && activeSpriteEditor_ < fromIndex) {
+        ++activeSpriteEditor_;
+    }
+    emit projectChanged();
+}
+
+void EditorProjectController::moveSpriteEditorTile(int editorIndex, int x, int y)
+{
+    if (editorIndex < 0 || editorIndex >= static_cast<int>(spriteEditorSlots_.size())) {
+        return;
+    }
+    const auto& slot = spriteEditorSlots_[static_cast<std::size_t>(editorIndex)];
+    if (!slot.loaded || slot.setIndex < 0
+        || slot.setIndex >= static_cast<int>(spriteSets_.size())
+        || slot.spriteIndex < 0 || slot.spriteIndex >= 32) {
+        return;
+    }
+    auto& placement = spriteSets_[static_cast<std::size_t>(slot.setIndex)]
+                          .placements[static_cast<std::size_t>(slot.spriteIndex)];
+    const int effectiveSize = slot.size;
+    x = std::clamp(x, -effectiveSize, 255);
+    y = std::clamp(y, -effectiveSize, 191);
+    int& placementX = effectiveSize == 16 ? placement.x16 : placement.x;
+    int& placementY = effectiveSize == 16 ? placement.y16 : placement.y;
+    if (placementX == x && placementY == y) return;
+    placementX = x;
+    placementY = y;
     emit projectChanged();
 }
 
@@ -878,6 +1058,8 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
         for (const auto& placement : set.placements) {
             placements.push_back(QJsonObject{{QStringLiteral("x"), placement.x},
                                               {QStringLiteral("y"), placement.y},
+                                              {QStringLiteral("x16"), placement.x16},
+                                              {QStringLiteral("y16"), placement.y16},
                                               {QStringLiteral("visible"), placement.visible},
                                               {QStringLiteral("size"), placement.size},
                                               {QStringLiteral("color"), placement.color},
@@ -895,6 +1077,14 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
                                           {QStringLiteral("patterns16"),
                                            saveSpriteBank(set.patterns16, 16)},
                                           {QStringLiteral("placements"), placements}});
+    }
+    QJsonArray spriteEditors;
+    for (const auto& editor : spriteEditorSlots_) {
+        spriteEditors.push_back(
+            QJsonObject{{QStringLiteral("loaded"), editor.loaded},
+                        {QStringLiteral("set"), editor.setIndex},
+                        {QStringLiteral("sprite"), editor.spriteIndex},
+                        {QStringLiteral("size"), editor.size}});
     }
 
     const QJsonObject root{
@@ -930,8 +1120,10 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
                      {QStringLiteral("activeSprite"), activeSprite_},
                      {QStringLiteral("activeSize"), activeSpriteSize_},
                      {QStringLiteral("globalSize"), spriteGlobalSize_},
-                     {QStringLiteral("drawingColor"), spriteDrawingColorIndex_},
-                     {QStringLiteral("placementMode"), spritePlacementMode_},
+                      {QStringLiteral("drawingColor"), spriteDrawingColorIndex_},
+                      {QStringLiteral("activeEditor"), activeSpriteEditor_},
+                      {QStringLiteral("editors"), spriteEditors},
+                      {QStringLiteral("placementMode"), spritePlacementMode_},
                      {QStringLiteral("placementWidth"), placementWidth_},
                      {QStringLiteral("placementHeight"), placementHeight_},
                      {QStringLiteral("sets"), spriteSets}}},
@@ -1138,6 +1330,12 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
                                      -32, placementWidth_ - 1);
             placement.y = std::clamp(savedPlacement.value(QStringLiteral("y")).toInt(),
                                      -32, placementHeight_ - 1);
+            placement.x16 = std::clamp(
+                savedPlacement.value(QStringLiteral("x16")).toInt(placement.x),
+                -32, placementWidth_ - 1);
+            placement.y16 = std::clamp(
+                savedPlacement.value(QStringLiteral("y16")).toInt(placement.y),
+                -32, placementHeight_ - 1);
             placement.visible = savedPlacement.value(QStringLiteral("visible")).toBool(true);
             placement.size = savedPlacement.value(QStringLiteral("size")).toInt(8) >= 16
                 ? 16 : 8;
@@ -1156,7 +1354,51 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
     activeSpriteSet_ = std::clamp(sprite.value(QStringLiteral("activeSet")).toInt(), 0,
                                   static_cast<int>(spriteSets_.size()) - 1);
     activeSprite_ = std::clamp(sprite.value(QStringLiteral("activeSprite")).toInt(), 0, 31);
-    if (editScope_ == 0) activeSpriteSize_ = spriteGlobalSize_;
+    spriteEditorSlots_.clear();
+    const QJsonArray savedSpriteEditors = sprite.value(QStringLiteral("editors")).toArray();
+    for (int index = 0;
+         index < std::min(32, static_cast<int>(savedSpriteEditors.size())); ++index) {
+        const QJsonObject savedEditor = savedSpriteEditors[index].toObject();
+        const bool loaded = savedEditor.value(QStringLiteral("loaded")).toBool();
+        const int setIndex = std::clamp(
+            savedEditor.value(QStringLiteral("set")).toInt(), 0,
+            static_cast<int>(spriteSets_.size()) - 1);
+        const int spriteIndex = std::clamp(
+            savedEditor.value(QStringLiteral("sprite")).toInt(), 0, 31);
+        const auto& savedPlacement = spriteSets_[static_cast<std::size_t>(setIndex)]
+                                         .placements[static_cast<std::size_t>(spriteIndex)];
+        const int fallbackSize = editScope_ == 1
+            ? savedPlacement.size : spriteGlobalSize_;
+        const int editorSize = savedEditor.value(QStringLiteral("size"))
+                                       .toInt(fallbackSize) >= 16 ? 16 : 8;
+        const bool duplicate = loaded && std::any_of(
+            spriteEditorSlots_.begin(), spriteEditorSlots_.end(),
+            [setIndex, spriteIndex, editorSize](const SpriteEditorSlot& editor) {
+                return editor.loaded && editor.setIndex == setIndex
+                    && editor.spriteIndex == spriteIndex
+                    && editor.size == editorSize;
+            });
+        if (!duplicate) {
+            spriteEditorSlots_.push_back(
+                {loaded, setIndex, spriteIndex, editorSize});
+        }
+    }
+    if (spriteEditorSlots_.empty()) {
+        spriteEditorSlots_.push_back(
+            {true, activeSpriteSet_, activeSprite_, activeSpriteSize_});
+    }
+    activeSpriteEditor_ = std::clamp(
+        sprite.value(QStringLiteral("activeEditor")).toInt(), 0,
+        static_cast<int>(spriteEditorSlots_.size()) - 1);
+    const auto& activeSpriteEditor = spriteEditorSlots_[
+        static_cast<std::size_t>(activeSpriteEditor_)];
+    if (activeSpriteEditor.loaded) {
+        activeSpriteSet_ = activeSpriteEditor.setIndex;
+        activeSprite_ = activeSpriteEditor.spriteIndex;
+        activeSpriteSize_ = activeSpriteEditor.size;
+        if (editScope_ == 0) spriteGlobalSize_ = activeSpriteEditor.size;
+    }
+    syncSpriteDrawingColor();
     ++spriteRevision_;
 
     const QString sourcePath = root.value(QStringLiteral("source")).toObject()
@@ -1296,6 +1538,8 @@ EditorProjectController::SpriteSet EditorProjectController::makeSpriteSet(int or
         auto& placement = set.placements[static_cast<std::size_t>(index)];
         placement.x = 8 + (index % 8) * 30;
         placement.y = 8 + (index / 8) * 42;
+        placement.x16 = placement.x;
+        placement.y16 = placement.y;
     }
     return set;
 }

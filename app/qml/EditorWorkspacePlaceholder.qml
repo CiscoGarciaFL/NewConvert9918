@@ -23,8 +23,14 @@ PreviewPane {
         : null
     readonly property bool activeCharacterPatternLoaded:
         activeCharacterSlot !== null && activeCharacterSlot.loaded
+    readonly property var activeSpriteSlot:
+        editorProject.spriteEditorSlots.length > 0
+        ? editorProject.spriteEditorSlots[editorProject.activeSpriteEditor]
+        : null
+    readonly property bool activeSpriteLoaded:
+        activeSpriteSlot !== null && activeSpriteSlot.loaded
     readonly property bool activeEditorItemLoaded:
-        editorKind === 0 ? activeCharacterPatternLoaded : true
+        editorKind === 0 ? activeCharacterPatternLoaded : activeSpriteLoaded
     readonly property bool activeEditorPan:
         editorKind === 0 ? editorProject.characterPanActive
                          : editorProject.spritePanActive
@@ -99,13 +105,31 @@ PreviewPane {
 
             Popup {
                 id: characterPalettePopup
-                objectName: "characterPatternPalettePopup"
+                objectName: root.editorKind === 0
+                            ? "characterPatternPalettePopup"
+                            : "spritePatternPalettePopup"
+                property string pickerTitle:
+                    root.editorKind === 0
+                    ? (editorProject.editScope === 1
+                       ? qsTr("F18A palette · choose %1")
+                             .arg(root.activeColorSide === 0
+                                  ? qsTr("foreground") : qsTr("background"))
+                       : qsTr("TMS9918A palette · choose %1")
+                             .arg(root.activeColorSide === 0
+                                  ? qsTr("foreground") : qsTr("background")))
+                    : (editorProject.editScope === 1
+                       ? qsTr("F18A Sprite Pixel Index · %1 bpp")
+                             .arg(editorProject.activeSpriteColorDepth)
+                       : qsTr("TMS9918A Sprite Color"))
+                readonly property int maximumSelectableColorIndex:
+                    root.editorKind === 1 && editorProject.editScope === 1
+                    ? (1 << editorProject.activeSpriteColorDepth) - 1 : 15
                 parent: root
                 x: Math.max(0, Math.min(root.width - width,
                                        colorControl.mapToItem(root, 0, 0).x))
                 y: colorControl.mapToItem(root, 0, 0).y + colorControl.height + 4
                 width: 184
-                height: 184
+                height: root.editorKind === 1 ? 210 : 184
                 padding: 8
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
@@ -121,14 +145,21 @@ PreviewPane {
 
                     Label {
                         Layout.fillWidth: true
-                        text: editorProject.editScope === 1
-                              ? qsTr("F18A palette · choose %1")
-                                    .arg(root.activeColorSide === 0
-                                         ? qsTr("foreground") : qsTr("background"))
-                              : qsTr("TMS9918A palette · choose %1")
-                                    .arg(root.activeColorSide === 0
-                                         ? qsTr("foreground") : qsTr("background"))
+                        text: characterPalettePopup.pickerTitle
                         font.pixelSize: 11
+                        font.weight: Font.DemiBold
+                    }
+
+                    Label {
+                        visible: root.editorKind === 1
+                        Layout.fillWidth: true
+                        text: editorProject.editScope === 1
+                              ? qsTr("Choose index 1–%1. Increase color depth in Sprite Options for more indexes.")
+                                    .arg((1 << editorProject.activeSpriteColorDepth) - 1)
+                              : qsTr("Choose one opaque color for the active sprite. Index 0 is transparent.")
+                        wrapMode: Text.WordWrap
+                        color: palette.placeholderText
+                        font.pixelSize: 10
                     }
 
                     GridLayout {
@@ -146,7 +177,7 @@ PreviewPane {
                                 readonly property bool selectable:
                                     root.editorKind === 0
                                     || (index > 0
-                                        && index <= (1 << editorProject.activeSpriteColorDepth) - 1)
+                                        && index <= characterPalettePopup.maximumSelectableColorIndex)
                                 width: 34
                                 height: 30
                                 opacity: selectable ? 1.0 : 0.3
@@ -180,8 +211,18 @@ PreviewPane {
                                     }
                                 }
                                 ToolTip.visible: patternPaletteHover.hovered
-                                ToolTip.text: qsTr("Color %1")
-                                              .arg(root.hexNibble(index))
+                                ToolTip.text: selectable
+                                              ? (root.editorKind === 0
+                                                 ? qsTr("Color %1")
+                                                       .arg(root.hexNibble(index))
+                                                 : editorProject.editScope === 1
+                                                   ? qsTr("Pixel index %1")
+                                                         .arg(root.hexNibble(index))
+                                                   : qsTr("Sprite color %1")
+                                                         .arg(root.hexNibble(index)))
+                                               : (index === 0
+                                                  ? qsTr("Transparent pixels are drawn with Eraser")
+                                                  : qsTr("Increase F18A color depth in Sprite Options to enable this pixel index"))
                             }
                         }
                     }
@@ -293,8 +334,33 @@ PreviewPane {
                             : "spritePatternColorControl"
                 implicitWidth: 26
                 implicitHeight: 26
+                property string colorHint: root.editorKind === 0
+                    ? qsTr("Pattern foreground and background colors")
+                    : qsTr("Choose Sprite Color — click the upper-left color swatch; lower-right transparency selects Eraser")
+                Accessible.role: Accessible.Button
+                Accessible.name: colorHint
+                Accessible.onPressAction: openColorPicker()
+
+                function openColorPicker() {
+                    root.setActiveColorSide(0)
+                    if (root.editorKind === 1)
+                        root.setActiveDrawingTool(1)
+                    characterPalettePopup.open()
+                }
 
                 Rectangle {
+                    anchors.fill: parent
+                    radius: 3
+                    color: characterColorHover.hovered
+                           ? palette.midlight : "transparent"
+                    border.width: root.editorKind === 1 ? 1 : 0
+                    border.color: palette.mid
+                }
+
+                Rectangle {
+                    objectName: root.editorKind === 0
+                                ? "characterBackgroundColorSwatch"
+                                : "spriteTransparencySwatch"
                     x: 8
                     y: 8
                     width: 16
@@ -308,6 +374,28 @@ PreviewPane {
                     border.width: root.activeColorSide === 1 ? 2 : 1
                     border.color: root.activeColorSide === 1
                                   ? palette.highlight : "#707780"
+                    Canvas {
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        visible: root.editorKind === 1
+                        onPaint: {
+                            const context = getContext("2d")
+                            context.clearRect(0, 0, width, height)
+                            const cell = width / 2
+                            context.fillStyle = "#d8dde3"
+                            context.fillRect(0, 0, cell, cell)
+                            context.fillRect(cell, cell, cell, cell)
+                            context.fillStyle = "#68737f"
+                            context.fillRect(cell, 0, cell, cell)
+                            context.fillRect(0, cell, cell, cell)
+                            context.strokeStyle = "#ef6565"
+                            context.lineWidth = 1.5
+                            context.beginPath()
+                            context.moveTo(1, height - 1)
+                            context.lineTo(width - 1, 1)
+                            context.stroke()
+                        }
+                    }
                     TapHandler {
                         onTapped: {
                             root.setActiveColorSide(1)
@@ -319,6 +407,9 @@ PreviewPane {
                     }
                 }
                 Rectangle {
+                    objectName: root.editorKind === 0
+                                ? "characterForegroundColorSwatch"
+                                : "spriteColorSwatch"
                     x: 0
                     y: 0
                     width: 16
@@ -332,20 +423,25 @@ PreviewPane {
                     border.width: root.activeColorSide === 0 ? 2 : 1
                     border.color: root.activeColorSide === 0
                                   ? palette.highlight : "#707780"
+                    Text {
+                        visible: root.editorKind === 1
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.rightMargin: 1
+                        anchors.bottomMargin: -1
+                        text: "▾"
+                        color: root.contrastColor(parent.color)
+                        font.bold: true
+                        font.pixelSize: 8
+                    }
                     TapHandler {
-                        onTapped: {
-                            root.setActiveColorSide(0)
-                            if (root.editorKind === 1)
-                                root.setActiveDrawingTool(1)
-                            characterPalettePopup.open()
-                        }
+                        onTapped: colorControl.openColorPicker()
                     }
                 }
                 HoverHandler { id: characterColorHover }
+                ToolTip.delay: 250
                 ToolTip.visible: characterColorHover.hovered
-                ToolTip.text: root.editorKind === 0
-                              ? qsTr("Pattern foreground and background colors")
-                              : qsTr("Sprite drawing color and transparency")
+                ToolTip.text: colorControl.colorHint
             }
             ToolButton {
                 id: rotatePatternButton
@@ -972,7 +1068,8 @@ PreviewPane {
                 text: qsTr("✥")
                 checkable: true
                 checked: editorProject.spritePanActive
-                enabled: !editorProject.spritePlacementMode
+                enabled: root.activeSpriteLoaded
+                         && !editorProject.spritePlacementMode
                 Accessible.name: checked
                                  ? qsTr("Finish sprite panning")
                                  : qsTr("Pan sprite on its virtual grid")

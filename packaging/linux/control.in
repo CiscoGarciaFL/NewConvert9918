@@ -1,0 +1,11 @@
+Package: newconvert9918
+Version: @VERSION@
+Section: graphics
+Priority: optional
+Architecture: amd64
+Maintainer: Cisco Garcia
+Depends: libc6 (>= 2.34), libgcc-s1, libstdc++6, libgl1, libx11-6, libxcb1, libxkbcommon0, libxkbcommon-x11-0
+Description: Cross-platform image converter for TMS9918A and F18A graphics
+ New Convert 9918 converts common and retro image formats into deterministic
+ TMS9918A and F18A graphics data and includes a graphical editor and CLI.
+Homepage: https://github.com/CiscoGarciaFL/NewConvert9918

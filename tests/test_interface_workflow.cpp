@@ -1,3 +1,4 @@
+#include "AppPreferencesController.hpp"
 #include "EditorProjectController.hpp"
 #include "ImageInputController.hpp"
 
@@ -476,6 +477,82 @@ void testExportWorkflow(TestContext& test, ImageInputController& controller)
                 "cancelled overwrite should clear the prompt without changing files");
 }
 
+void testApplicationPreferences(TestContext& test, ImageInputController& controller)
+{
+    AppPreferencesController preferences(&controller);
+    test.expect(preferences.previewLayout() == 1
+                    && preferences.sidePanelVisible()
+                    && preferences.sidePanelMode() == 0
+                    && preferences.restoreWindowGeometry()
+                    && !preferences.rememberWorkspaceMode()
+                    && preferences.rememberConversionSettings()
+                    && preferences.defaultPreset() == 0
+                    && preferences.defaultExportFormat() == 0,
+                "application preferences should begin with documented interface, behavior, and default values");
+
+    preferences.setPreviewLayout(2);
+    preferences.setSidePanelVisible(false);
+    preferences.setSidePanelMode(1);
+    preferences.setRestoreWindowGeometry(false);
+    preferences.setRememberWorkspaceMode(true);
+    preferences.setLastWorkspaceMode(2);
+    preferences.setRememberConversionSettings(false);
+    preferences.setDefaultPreset(3);
+    preferences.setDefaultExportFormat(8);
+    preferences.saveWindowGeometry(80, 60, 1180, 740);
+
+    AppPreferencesController restored(&controller);
+    test.expect(restored.previewLayout() == 2
+                    && !restored.sidePanelVisible()
+                    && restored.sidePanelMode() == 1
+                    && !restored.restoreWindowGeometry()
+                    && restored.rememberWorkspaceMode()
+                    && restored.lastWorkspaceMode() == 2
+                    && !restored.rememberConversionSettings()
+                    && restored.defaultPreset() == 3
+                    && restored.defaultExportFormat() == 8
+                    && restored.hasWindowGeometry()
+                    && restored.windowX() == 80 && restored.windowY() == 60
+                    && restored.windowWidth() == 1180
+                    && restored.windowHeight() == 740,
+                "application preferences should round-trip view, workspace, geometry, behavior, and default choices through QSettings");
+
+    restored.resetInterfaceSettings();
+    test.expect(restored.previewLayout() == 1
+                    && restored.sidePanelVisible()
+                    && restored.sidePanelMode() == 0
+                    && restored.restoreWindowGeometry()
+                    && !restored.rememberWorkspaceMode()
+                    && !restored.hasWindowGeometry()
+                    && !restored.rememberConversionSettings()
+                    && restored.defaultPreset() == 3,
+                "Reset Interface should reset only the interface preference section");
+
+    controller.setAutoUpdate(false);
+    controller.setLivePreview(true);
+    restored.resetBehaviorSettings();
+    test.expect(controller.autoUpdate() && !controller.livePreview()
+                    && restored.rememberConversionSettings()
+                    && restored.defaultPreset() == 3,
+                "Reset Behavior should restore update, preview, and conversion-memory behavior without changing defaults");
+
+    restored.resetDefaultSettings();
+    test.expect(restored.defaultPreset() == 0
+                    && restored.defaultExportFormat() == 0,
+                "Reset Defaults should restore only startup conversion and export defaults");
+
+    restored.setRememberConversionSettings(false);
+    restored.setDefaultPreset(1);
+    restored.setDefaultExportFormat(8);
+    controller.setGamma(2.2);
+    restored.applyStartupPreferences();
+    test.expect(controller.ditherMode() == 0
+                    && qFuzzyCompare(controller.gamma(), 1.0)
+                    && controller.exportFormat() == 8,
+                "disabling remembered conversion settings should apply the selected startup preset and export format");
+    restored.restoreAllDefaults();
+}
+
 void testEditorProjectRecipe(TestContext& test)
 {
     ImageInputController recipeImage;
@@ -501,6 +578,7 @@ void testEditorProjectRecipe(TestContext& test)
     project.paintSpritePixel(1, 3, 16, 0, 0, true);
     project.setEditScope(1);
     project.setActiveSpriteSize(16);
+    project.moveSprite(3, 91, 47);
     project.setActiveSpriteColorDepth(3);
     project.setSpriteDrawingColorIndex(5);
     project.paintSpritePixel(1, 3, 16, 0, 1, true);
@@ -663,6 +741,24 @@ void testEditorProjectRecipe(TestContext& test)
     EditorProjectController spriteProject(&recipeImage);
     spriteProject.setWorkspaceMode(2);
     spriteProject.setActiveSpriteSize(8);
+    QVariantList spritePlacements = spriteProject.activeSpritePlacements();
+    test.expect(spriteProject.spriteDrawingColorIndex() == 15
+                    && spritePlacements.at(0).toMap()
+                           .value(QStringLiteral("color")).toInt() == 15,
+                "a new 9918A sprite should show the same default opaque color that its pixels render");
+    spriteProject.setSpriteDrawingColorIndex(12);
+    spritePlacements = spriteProject.activeSpritePlacements();
+    test.expect(spriteProject.spriteDrawingColorIndex() == 12
+                    && spritePlacements.at(0).toMap()
+                           .value(QStringLiteral("color")).toInt() == 12,
+                "the 9918A sprite color selector should accept every opaque hardware palette index and update the sprite attribute");
+    spriteProject.setActiveSprite(1);
+    const bool selectedSpriteColorSynchronized =
+        spriteProject.spriteDrawingColorIndex() == 15;
+    spriteProject.setActiveSprite(0);
+    test.expect(selectedSpriteColorSynchronized
+                    && spriteProject.spriteDrawingColorIndex() == 12,
+                "changing the active sprite should synchronize the toolbar swatch with that sprite's hardware color");
     spriteProject.beginSpriteEdit(0, 0, 8);
     spriteProject.paintSpritePixel(0, 0, 8, 0, 0, true);
     spriteProject.paintSpritePixel(0, 0, 8, 1, 2, true);
@@ -688,7 +784,8 @@ void testEditorProjectRecipe(TestContext& test)
     const QVariantList baseline16 = spriteProject.spritePatternPixels(0, 0, 16);
     test.expect(enhanced16.size() == 256 && enhanced16.at(0).toInt() == 6
                     && baseline16.at(0).toInt() == 0
-                    && spriteProject.spriteGlobalSize() == 8,
+                    && spriteProject.spriteGlobalSize() == 8
+                    && spriteProject.spriteDrawingColorIndex() == 12,
                 "F18A sprite pixels, per-sprite size, and color depth should remain non-destructive overrides of the 9918A baseline");
     spriteProject.setEditScope(1);
     const bool copiedSprite = clipboard != nullptr
@@ -719,6 +816,67 @@ void testEditorProjectRecipe(TestContext& test)
                     && overlapping.at(0).toMap().value(QStringLiteral("y")).toInt() == 21
                     && overlapping.at(1).toMap().value(QStringLiteral("y")).toInt() == 21,
                 "sprite placement should retain one-pixel coordinates and permit overlap");
+
+    EditorProjectController spriteBankProject(&recipeImage);
+    QVariantList spriteEditors = spriteBankProject.spriteEditorSlots();
+    test.expect(spriteEditors.size() == 1
+                    && !spriteEditors.at(0).toMap()
+                            .value(QStringLiteral("loaded")).toBool()
+                    && spriteEditors.at(0).toMap()
+                           .value(QStringLiteral("size")).toInt() == 8,
+                "a new sprite tray should begin with one empty 8 by 8 editor");
+    spriteBankProject.setSpriteGlobalSize(16);
+    spriteEditors = spriteBankProject.spriteEditorSlots();
+    test.expect(spriteEditors.size() == 2
+                    && spriteBankProject.activeSpriteEditor() == 1
+                    && !spriteEditors.at(1).toMap()
+                            .value(QStringLiteral("loaded")).toBool()
+                    && spriteEditors.at(1).toMap()
+                           .value(QStringLiteral("size")).toInt() == 16,
+                "visiting an unused sprite bank should create and select one empty editor for that bank");
+    spriteBankProject.selectSpritePattern(0, 16);
+    spriteBankProject.setSpriteGlobalSize(8);
+    spriteBankProject.selectSpritePattern(0, 8);
+    spriteBankProject.setSpriteGlobalSize(16);
+    spriteEditors = spriteBankProject.spriteEditorSlots();
+    test.expect(spriteEditors.size() == 2
+                    && spriteEditors.at(0).toMap()
+                           .value(QStringLiteral("loaded")).toBool()
+                    && spriteEditors.at(1).toMap()
+                           .value(QStringLiteral("loaded")).toBool()
+                    && spriteEditors.at(0).toMap()
+                           .value(QStringLiteral("size")).toInt() == 8
+                    && spriteEditors.at(1).toMap()
+                           .value(QStringLiteral("size")).toInt() == 16
+                    && !spriteEditors.at(0).toMap()
+                            .value(QStringLiteral("activeForPlacement")).toBool()
+                    && spriteEditors.at(1).toMap()
+                           .value(QStringLiteral("activeForPlacement")).toBool(),
+                "8 by 8 and 16 by 16 editor slots should retain independent pattern-bank identity while 9918A placement activates one global size");
+    spriteBankProject.moveSpriteEditorTile(1, 80, 40);
+    spriteBankProject.setActiveSpriteEditor(0);
+    spriteBankProject.moveSpriteEditorTile(0, 20, 10);
+    spriteEditors = spriteBankProject.spriteEditorSlots();
+    test.expect(spriteEditors.at(0).toMap().value(QStringLiteral("x")).toInt() == 20
+                    && spriteEditors.at(0).toMap()
+                           .value(QStringLiteral("y")).toInt() == 10
+                    && spriteEditors.at(1).toMap()
+                           .value(QStringLiteral("x")).toInt() == 80
+                    && spriteEditors.at(1).toMap()
+                           .value(QStringLiteral("y")).toInt() == 40,
+                "8 by 8 and 16 by 16 sprite banks should retain independent screen positions");
+    spriteBankProject.setEditScope(1);
+    spriteBankProject.addSpriteEditor();
+    spriteBankProject.selectSpritePattern(1, 16);
+    spriteEditors = spriteBankProject.spriteEditorSlots();
+    int activePlacementBanks = 0;
+    for (const QVariant& editor : spriteEditors) {
+        if (editor.toMap().value(QStringLiteral("activeForPlacement")).toBool()) {
+            ++activePlacementBanks;
+        }
+    }
+    test.expect(spriteEditors.size() == 3 && activePlacementBanks == 2,
+                "F18A placement should allow 8 by 8 and 16 by 16 editor banks to contribute at the same time");
 
     QVariantList editorSlots = project.characterEditorSlots();
     test.expect(editorSlots.size() == 1 && project.activeCharacterEditor() == 0
@@ -879,9 +1037,11 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                 "preview watermark should have a transparent background");
     QGuiApplication::setWindowIcon(applicationIcon);
 
+    AppPreferencesController appPreferences(&controller);
     EditorProjectController editorProject(&controller);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("imageInput"), &controller);
+    engine.rootContext()->setContextProperty(QStringLiteral("appPreferences"), &appPreferences);
     engine.rootContext()->setContextProperty(QStringLiteral("editorProject"), &editorProject);
     const QString mainQml = QDir(QStringLiteral(NEWCONVERT9918_QML_DIR))
                                 .filePath(QStringLiteral("Main.qml"));
@@ -893,6 +1053,65 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().front());
     test.expect(window != nullptr, "Phase 6 root should be a QQuickWindow");
     if (window == nullptr) return;
+
+    QObject* preferencesAction = window->findChild<QObject*>(
+        QStringLiteral("preferencesAction"));
+    const bool preferencesOpened = preferencesAction != nullptr
+        && QMetaObject::invokeMethod(preferencesAction, "trigger");
+    QObject* preferencesDialog = window->findChild<QObject*>(
+        QStringLiteral("preferencesDialog"));
+    test.expect(preferencesOpened && preferencesDialog != nullptr
+                    && waitFor([&] {
+                        return preferencesDialog->property("visible").toBool();
+                    })
+                    && window->findChild<QObject*>(
+                           QStringLiteral("interfacePreferencesGroup")) != nullptr
+                    && window->findChild<QObject*>(
+                           QStringLiteral("behaviorPreferencesGroup")) != nullptr
+                    && window->findChild<QObject*>(
+                           QStringLiteral("defaultPreferencesGroup")) != nullptr,
+                "Settings should open as a formal screen with Interface, Behavior, and Defaults sections");
+
+    appPreferences.setPreviewLayout(2);
+    appPreferences.setSidePanelMode(1);
+    appPreferences.setSidePanelVisible(false);
+    test.expect(waitFor([&] {
+                    return window->property("previewLayout").toInt() == 2
+                        && window->property("conversionPanelMode").toInt() == 1
+                        && !window->property("conversionPanelVisible").toBool();
+                }),
+                "interface preferences should update the active view and Side Panel immediately");
+
+    QObject* resetInterfaceButton = window->findChild<QObject*>(
+        QStringLiteral("resetInterfacePreferencesButton"));
+    QObject* resetBehaviorButton = window->findChild<QObject*>(
+        QStringLiteral("resetBehaviorPreferencesButton"));
+    QObject* resetDefaultsButton = window->findChild<QObject*>(
+        QStringLiteral("resetDefaultPreferencesButton"));
+    controller.setAutoUpdate(false);
+    controller.setLivePreview(true);
+    appPreferences.setRememberConversionSettings(false);
+    appPreferences.setDefaultPreset(3);
+    appPreferences.setDefaultExportFormat(8);
+    const bool interfaceReset = resetInterfaceButton != nullptr
+        && QMetaObject::invokeMethod(resetInterfaceButton, "click");
+    const bool behaviorReset = resetBehaviorButton != nullptr
+        && QMetaObject::invokeMethod(resetBehaviorButton, "click");
+    const bool defaultsReset = resetDefaultsButton != nullptr
+        && QMetaObject::invokeMethod(resetDefaultsButton, "click");
+    test.expect(interfaceReset && behaviorReset && defaultsReset
+                    && waitFor([&] {
+                        return window->property("previewLayout").toInt() == 1
+                            && window->property("conversionPanelMode").toInt() == 0
+                            && window->property("conversionPanelVisible").toBool()
+                            && controller.autoUpdate() && !controller.livePreview()
+                            && appPreferences.rememberConversionSettings()
+                            && appPreferences.defaultPreset() == 0
+                            && appPreferences.defaultExportFormat() == 0;
+                    }),
+                "each Settings section should expose a working reset button");
+    if (preferencesDialog != nullptr)
+        QMetaObject::invokeMethod(preferencesDialog, "close");
 
     const auto visiblePane = [window](const QString& objectName) -> QObject* {
         for (QObject* pane : window->findChildren<QObject*>(objectName)) {
@@ -1423,20 +1642,150 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                 }),
                 "Sprite Editor mode should replace the destination and Side Panel safely");
     QObject* spritePane = visiblePane(QStringLiteral("spriteEditorWorkspace"));
-    QObject* spritePatternEditor = visiblePane(QStringLiteral("spritePatternEditor"));
-    QObject* sprite8Grid = visiblePane(QStringLiteral("sprite8PatternGrid"));
-    QObject* sprite16Grid = visiblePane(QStringLiteral("sprite16PatternGrid"));
+    QObject* spriteSetView = visiblePane(QStringLiteral("spriteSetView"));
+    QObject* spriteEditorTray = visiblePane(
+        QStringLiteral("spritePatternEditorTray"));
     QObject* spritePencil = visiblePane(QStringLiteral("spritePatternPencilButton"));
     QObject* spriteModeButton = visiblePane(QStringLiteral("spritePlacementModeButton"));
+    QObject* spriteColorControl = visiblePane(
+        QStringLiteral("spritePatternColorControl"));
+    QObject* spriteColorSwatch = visiblePane(QStringLiteral("spriteColorSwatch"));
+    QObject* spriteTransparencySwatch = visiblePane(
+        QStringLiteral("spriteTransparencySwatch"));
+    QObject* spritePalettePopup = window->findChild<QObject*>(
+        QStringLiteral("spritePatternPalettePopup"));
     QObject* spriteSizeControl = visiblePane(
         QStringLiteral("spriteEditorSidePanelActiveSpriteSizeComboBox"));
     QObject* spriteDepthControl = visiblePane(
         QStringLiteral("spriteEditorSidePanelSpriteColorDepthComboBox"));
-    test.expect(spritePane != nullptr && spritePatternEditor != nullptr
-                    && sprite8Grid != nullptr && sprite16Grid != nullptr
+    test.expect(spritePane != nullptr && spriteSetView != nullptr
+                    && spriteEditorTray != nullptr
+                    && spriteEditorTray->property("renderedEditorCount").toInt() == 1
+                    && spriteSetView->property("visibleEditorSlots").toList().size() == 1
+                    && !spriteSetView->property("visibleEditorSlots").toList()
+                            .at(0).toMap().value(QStringLiteral("loaded")).toBool()
+                    && spriteSetView->property("sprite8Expanded").toBool()
+                    && !spriteSetView->property("sprite16Expanded").toBool()
                     && spritePencil != nullptr && spriteModeButton != nullptr
+                    && spriteColorControl != nullptr
+                    && spriteColorSwatch != nullptr
+                    && spriteTransparencySwatch != nullptr
+                    && spritePalettePopup != nullptr
                     && spriteSizeControl != nullptr && spriteDepthControl != nullptr,
                 "Sprite Editor should mirror the pattern workflow with an editor, tools, both 32-pattern banks, and chipset controls");
+    const bool sprite16BankActivated = spriteSetView != nullptr
+        && QMetaObject::invokeMethod(spriteSetView, "activateSpriteBank",
+                                     Q_ARG(QVariant, QVariant(16)));
+    test.expect(sprite16BankActivated && waitFor([&] {
+                    const QVariantList visibleEditors =
+                        spriteSetView->property("visibleEditorSlots").toList();
+                    return editorProject.spriteGlobalSize() == 16
+                        && visibleEditors.size() == 1
+                        && !visibleEditors.at(0).toMap()
+                                .value(QStringLiteral("loaded")).toBool()
+                        && spriteSetView->property("sprite16Expanded").toBool()
+                        && !spriteSetView->property("sprite8Expanded").toBool();
+                }),
+                "a new 9918A sprite bank should activate with one empty editor waiting for a pattern");
+    editorProject.selectSpritePattern(0, 16);
+    test.expect(waitFor([&] {
+                    const QVariantList visibleEditors =
+                        spriteSetView->property("visibleEditorSlots").toList();
+                    return visibleEditors.size() == 1
+                        && visibleEditors.at(0).toMap()
+                               .value(QStringLiteral("loaded")).toBool()
+                        && visibleEditors.at(0).toMap()
+                               .value(QStringLiteral("spriteIndex")).toInt() == 0;
+                }),
+                "selecting a 16 by 16 pattern should fill the bank's existing empty editor");
+    if (spriteSetView != nullptr) {
+        QMetaObject::invokeMethod(spriteSetView, "activateSpriteBank",
+                                  Q_ARG(QVariant, QVariant(8)));
+    }
+    test.expect(waitFor([&] {
+                    const QVariantList visibleEditors =
+                        spriteSetView->property("visibleEditorSlots").toList();
+                    return editorProject.spriteGlobalSize() == 8
+                        && visibleEditors.size() == 1
+                        && !visibleEditors.at(0).toMap()
+                                .value(QStringLiteral("loaded")).toBool()
+                        && spriteEditorTray
+                               ->property("renderedEditorCount").toInt() == 1;
+                }),
+                "returning to an unused 8 by 8 bank should restore its empty editor");
+    editorProject.selectSpritePattern(0, 8);
+    if (spriteSetView != nullptr) {
+        QMetaObject::invokeMethod(spriteSetView, "activateSpriteBank",
+                                  Q_ARG(QVariant, QVariant(16)));
+    }
+    test.expect(waitFor([&] {
+                    const QVariantList visibleEditors =
+                        spriteSetView->property("visibleEditorSlots").toList();
+                    return editorProject.spriteGlobalSize() == 16
+                        && visibleEditors.size() == 1
+                        && visibleEditors.at(0).toMap()
+                               .value(QStringLiteral("loaded")).toBool()
+                        && visibleEditors.at(0).toMap()
+                               .value(QStringLiteral("size")).toInt() == 16
+                        && spriteEditorTray
+                               ->property("renderedEditorCount").toInt() == 1;
+                }),
+                "switching to 16 by 16 should restore its previously loaded editor");
+    if (spriteSetView != nullptr) {
+        QMetaObject::invokeMethod(spriteSetView, "activateSpriteBank",
+                                  Q_ARG(QVariant, QVariant(8)));
+    }
+    test.expect(waitFor([&] {
+                    const QVariantList visibleEditors =
+                        spriteSetView->property("visibleEditorSlots").toList();
+                    return editorProject.spriteGlobalSize() == 8
+                        && editorProject.activeSpriteEditor() == 0
+                        && visibleEditors.size() == 1
+                        && visibleEditors.at(0).toMap()
+                               .value(QStringLiteral("loaded")).toBool()
+                        && visibleEditors.at(0).toMap()
+                               .value(QStringLiteral("size")).toInt() == 8
+                        && spriteEditorTray
+                               ->property("renderedEditorCount").toInt() == 1;
+                }),
+                "switching back to 8 by 8 should restore its loaded editor without a second pattern click");
+    const bool spriteColorPickerInvoked = spriteColorControl != nullptr
+        && QMetaObject::invokeMethod(spriteColorControl, "openColorPicker");
+    test.expect(spriteColorPickerInvoked && waitFor([&] {
+                    return spritePalettePopup->property("visible").toBool()
+                        && spritePalettePopup->property("pickerTitle").toString()
+                            == QStringLiteral("TMS9918A Sprite Color")
+                        && spriteColorControl->property("colorHint").toString()
+                            .contains(QStringLiteral("Choose Sprite Color"))
+                        && spritePalettePopup
+                               ->property("maximumSelectableColorIndex").toInt() == 15;
+                }),
+                "the 9918A Sprite Color picker should expose all fifteen opaque hardware colors and explain the transparency shortcut");
+    const bool spriteColorChosen = spritePane != nullptr
+        && QMetaObject::invokeMethod(spritePane, "chooseActivePaletteColor",
+                                     Q_ARG(QVariant, QVariant(2)));
+    const QColor expectedSpriteColor =
+        editorProject.characterPaletteColors().at(2).value<QColor>();
+    test.expect(spriteColorChosen && waitFor([&] {
+                    const QVariantList placements =
+                        editorProject.activeSpritePlacements();
+                    return editorProject.spriteDrawingColorIndex() == 2
+                        && placements.at(editorProject.activeSprite()).toMap()
+                               .value(QStringLiteral("color")).toInt() == 2
+                        && spriteColorSwatch->property("color").value<QColor>()
+                            == expectedSpriteColor;
+                }),
+                "choosing a 9918A sprite color should keep the toolbar swatch and sprite attribute synchronized");
+    editorProject.setEditScope(1);
+    test.expect(waitFor([&] {
+                    return spriteSetView != nullptr && spritePalettePopup
+                               ->property("maximumSelectableColorIndex").toInt() == 1
+                        && spriteSetView->property("sprite8Expanded").toBool()
+                        && spriteSetView->property("sprite16Expanded").toBool();
+                }),
+                "F18A should expose both independent size banks while limiting pixel indexes by the active sprite color depth");
+    editorProject.setEditScope(0);
+    QMetaObject::invokeMethod(spritePalettePopup, "close");
     const bool spritePlacementToggled = spriteModeButton != nullptr
         && QMetaObject::invokeMethod(spriteModeButton, "click");
     const bool placementVisible = waitFor([&] {
@@ -1468,7 +1817,9 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
         spriteModeButton, "click");
     test.expect(spriteEditorToggled && waitFor([&] {
                     return !editorProject.spritePlacementMode()
-                        && visiblePane(QStringLiteral("spritePatternEditor")) != nullptr
+                        && spriteEditorTray != nullptr
+                        && spriteEditorTray
+                               ->property("renderedEditorCount").toInt() == 1
                         && !spritePane->property("zoomInteractive").toBool()
                         && qAbs(spritePane->property("effectiveZoom").toReal() - 1.0)
                             < 0.001;
@@ -2199,6 +2550,7 @@ int main(int argc, char** argv)
     TestContext test;
     previousMessageHandler = qInstallMessageHandler(captureQmlMessages);
     ImageInputController controller;
+    testApplicationPreferences(test, controller);
     testLiveWorkflow(test, controller);
     testExportWorkflow(test, controller);
     testEditorProjectRecipe(test);

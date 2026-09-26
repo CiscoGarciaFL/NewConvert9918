@@ -6,7 +6,10 @@ import QtQuick.Controls
 Item {
     id: root
     required property real zoomScale
-    readonly property var placements: editorProject.activeSpritePlacements
+    readonly property var slots: editorProject.spriteEditorSlots
+    readonly property int slotCount: slots.length
+    readonly property int renderedSpriteCount: spriteRepeater.count
+    readonly property bool pixelGridVisible: zoomScale >= 5.0
 
     function paletteColor(index) {
         const colors = editorProject.characterPaletteColors
@@ -30,11 +33,11 @@ Item {
             objectName: "spritePlacementBox"
             x: 4
             y: 4
-            width: editorProject.placementWidth * root.zoomScale
-            height: editorProject.placementHeight * root.zoomScale
-            color: "#090b0e"
+            width: 256 * root.zoomScale
+            height: 192 * root.zoomScale
+            color: "#111820"
             border.width: 1
-            border.color: "#71808f"
+            border.color: "#73808c"
             clip: true
 
             Image {
@@ -46,48 +49,96 @@ Item {
             }
 
             Repeater {
-                model: Math.floor(editorProject.placementWidth / 8) + 1
+                model: 33
                 Rectangle {
                     required property int index
                     x: Math.min(placementBox.width - 1,
                                 index * 8 * root.zoomScale)
                     width: 1
                     height: placementBox.height
-                    color: index % 4 === 0 ? "#394854" : "#26313a"
+                    color: index % 4 === 0 ? "#394854" : "#28343e"
                 }
             }
             Repeater {
-                model: Math.floor(editorProject.placementHeight / 8) + 1
+                model: 25
                 Rectangle {
                     required property int index
                     y: Math.min(placementBox.height - 1,
                                 index * 8 * root.zoomScale)
                     width: placementBox.width
                     height: 1
-                    color: index % 4 === 0 ? "#394854" : "#26313a"
+                    color: index % 4 === 0 ? "#394854" : "#28343e"
                 }
             }
 
             Repeater {
-                model: root.placements
+                objectName: "spritePixelGridVerticalLines"
+                model: 257
+                Rectangle {
+                    required property int index
+                    visible: root.pixelGridVisible && index > 0 && index < 256
+                             && index % 8 !== 0
+                    x: index * root.zoomScale
+                    width: 1
+                    height: placementBox.height
+                    color: "#26333d"
+                }
+            }
+            Repeater {
+                objectName: "spritePixelGridHorizontalLines"
+                model: 193
+                Rectangle {
+                    required property int index
+                    visible: root.pixelGridVisible && index > 0 && index < 192
+                             && index % 8 !== 0
+                    y: index * root.zoomScale
+                    width: placementBox.width
+                    height: 1
+                    color: "#26333d"
+                }
+            }
+
+            Rectangle {
+                width: 12
+                height: 2
+                color: palette.highlight
+                z: 2000
+            }
+            Rectangle {
+                width: 2
+                height: 12
+                color: palette.highlight
+                z: 2000
+            }
+
+            Repeater {
+                id: spriteRepeater
+                objectName: "selectedSpritePlacementRepeater"
+                model: root.slotCount
 
                 delegate: Item {
                     id: spriteMarker
                     required property int index
-                    required property var modelData
-                    readonly property int spriteSize: modelData.size
+                    readonly property var slotData: root.slots[index]
+                    readonly property int spriteSize: slotData.size
                     readonly property var pixels: {
                         const revision = editorProject.spriteRevision
+                        if (!spriteMarker.slotData.loaded)
+                            return []
                         return editorProject.spritePatternPixels(
-                            editorProject.activeSpriteSet, index, spriteSize)
+                            spriteMarker.slotData.setIndex,
+                            spriteMarker.slotData.spriteIndex, spriteSize)
                     }
-                    readonly property bool active: index === editorProject.activeSprite
-                    x: modelData.x * root.zoomScale
-                    y: modelData.y * root.zoomScale
+                    readonly property bool active:
+                        spriteMarker.slotData.index
+                        === editorProject.activeSpriteEditor
+                    x: slotData.x * root.zoomScale
+                    y: slotData.y * root.zoomScale
                     width: spriteSize * root.zoomScale
                     height: spriteSize * root.zoomScale
-                    z: active ? 1000 : index + 10
-                    visible: modelData.visible
+                    z: active ? 1000 : slotData.index + 10
+                    visible: slotData.loaded && slotData.visible
+                             && slotData.activeForPlacement
 
                     Repeater {
                         model: spriteMarker.spriteSize * spriteMarker.spriteSize
@@ -103,7 +154,8 @@ Item {
                             height: root.zoomScale
                             color: value === 0 ? "transparent"
                                   : editorProject.editScope === 0
-                                    ? root.paletteColor(spriteMarker.modelData.color)
+                                    ? root.paletteColor(
+                                          spriteMarker.slotData.color)
                                     : root.paletteColor(value)
                         }
                     }
@@ -129,10 +181,10 @@ Item {
                             id: spriteLabel
                             anchors.centerIn: parent
                             text: qsTr("Sprite %1 · %2×%2 · %3,%4")
-                                  .arg(spriteMarker.index)
+                                  .arg(spriteMarker.slotData.spriteIndex)
                                   .arg(spriteMarker.spriteSize)
-                                  .arg(spriteMarker.modelData.x)
-                                  .arg(spriteMarker.modelData.y)
+                                  .arg(spriteMarker.slotData.x)
+                                  .arg(spriteMarker.slotData.y)
                             font.pixelSize: 10
                         }
                     }
@@ -144,10 +196,9 @@ Item {
                     }
                     TapHandler {
                         acceptedButtons: Qt.LeftButton
-                        onTapped: {
-                            editorProject.activeSprite = spriteMarker.index
-                            editorProject.activeSpriteSize = spriteMarker.spriteSize
-                        }
+                        onTapped:
+                            editorProject.activeSpriteEditor =
+                                spriteMarker.slotData.index
                     }
                     DragHandler {
                         id: spriteDrag
@@ -158,17 +209,17 @@ Item {
 
                         onActiveChanged: {
                             if (active) {
-                                startingX = spriteMarker.modelData.x
-                                startingY = spriteMarker.modelData.y
-                                editorProject.activeSprite = spriteMarker.index
-                                editorProject.activeSpriteSize = spriteMarker.spriteSize
+                                startingX = spriteMarker.slotData.x
+                                startingY = spriteMarker.slotData.y
+                                editorProject.activeSpriteEditor =
+                                    spriteMarker.slotData.index
                             }
                         }
                         onTranslationChanged: {
                             if (!active)
                                 return
-                            editorProject.moveSprite(
-                                spriteMarker.index,
+                            editorProject.moveSpriteEditorTile(
+                                spriteMarker.slotData.index,
                                 Math.round(startingX + translation.x / root.zoomScale),
                                 Math.round(startingY + translation.y / root.zoomScale))
                         }

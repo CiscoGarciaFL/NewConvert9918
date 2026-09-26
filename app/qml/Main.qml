@@ -16,11 +16,11 @@ ApplicationWindow {
     // hosts and automated layout checks can supply their available width.
     property real layoutWidth: width
     readonly property bool compactLayout: layoutWidth < 1100
-    property int previewLayout: 1
+    property int previewLayout: appPreferences.previewLayout
     // 0 = Screen Image, 1 = Character Editor, 2 = Sprite Editor.
     property int workspaceMode: 0
-    property bool conversionPanelVisible: true
-    property int conversionPanelMode: 0
+    property bool conversionPanelVisible: appPreferences.sidePanelVisible
+    property int conversionPanelMode: appPreferences.sidePanelMode
 
     function synchronizeConversionPanel() {
         if (conversionPanelMode === 1 && conversionPanelVisible)
@@ -29,19 +29,58 @@ ApplicationWindow {
             overlayConversionPanel.close()
     }
 
-    onConversionPanelVisibleChanged: Qt.callLater(synchronizeConversionPanel)
-    onConversionPanelModeChanged: Qt.callLater(synchronizeConversionPanel)
+    onPreviewLayoutChanged: {
+        if (appPreferences.previewLayout !== previewLayout)
+            appPreferences.previewLayout = previewLayout
+    }
+    onConversionPanelVisibleChanged: {
+        if (appPreferences.sidePanelVisible !== conversionPanelVisible)
+            appPreferences.sidePanelVisible = conversionPanelVisible
+        Qt.callLater(synchronizeConversionPanel)
+    }
+    onConversionPanelModeChanged: {
+        if (appPreferences.sidePanelMode !== conversionPanelMode)
+            appPreferences.sidePanelMode = conversionPanelMode
+        Qt.callLater(synchronizeConversionPanel)
+    }
     onWorkspaceModeChanged: {
         if (editorProject.workspaceMode !== workspaceMode)
             editorProject.workspaceMode = workspaceMode
+        if (appPreferences.rememberWorkspaceMode
+                && appPreferences.lastWorkspaceMode !== workspaceMode)
+            appPreferences.lastWorkspaceMode = workspaceMode
     }
-    Component.onCompleted: synchronizeConversionPanel()
+    onClosing: close => appPreferences.saveWindowGeometry(x, y, width, height)
+    Component.onCompleted: {
+        if (appPreferences.restoreWindowGeometry
+                && appPreferences.hasWindowGeometry) {
+            window.x = appPreferences.windowX
+            window.y = appPreferences.windowY
+            window.width = appPreferences.windowWidth
+            window.height = appPreferences.windowHeight
+        }
+        if (appPreferences.rememberWorkspaceMode)
+            window.workspaceMode = appPreferences.lastWorkspaceMode
+        synchronizeConversionPanel()
+    }
 
     Connections {
         target: editorProject
         function onProjectChanged() {
             if (window.workspaceMode !== editorProject.workspaceMode)
                 window.workspaceMode = editorProject.workspaceMode
+        }
+    }
+
+    Connections {
+        target: appPreferences
+        function onPreferencesChanged() {
+            if (window.previewLayout !== appPreferences.previewLayout)
+                window.previewLayout = appPreferences.previewLayout
+            if (window.conversionPanelVisible !== appPreferences.sidePanelVisible)
+                window.conversionPanelVisible = appPreferences.sidePanelVisible
+            if (window.conversionPanelMode !== appPreferences.sidePanelMode)
+                window.conversionPanelMode = appPreferences.sidePanelMode
         }
     }
 
@@ -141,6 +180,11 @@ ApplicationWindow {
         onTriggered: imageInput.pasteClipboard()
     }
 
+    PreferencesDialog {
+        id: preferencesDialog
+        applicationWindow: window
+    }
+
     FileDialog {
         id: loadRecipeDialog
         title: qsTr("Load conversion recipe")
@@ -198,6 +242,13 @@ ApplicationWindow {
             else
                 imageInput.undoSettings()
         }
+    }
+    Action {
+        id: preferencesAction
+        objectName: "preferencesAction"
+        text: qsTr("&Preferences…")
+        shortcut: "Ctrl+,"
+        onTriggered: preferencesDialog.open()
     }
     Action {
         id: loadRecipeAction
@@ -324,6 +375,11 @@ ApplicationWindow {
                     }
                 }
             }
+        }
+
+        Menu {
+            title: qsTr("&Settings")
+            MenuItem { action: preferencesAction }
         }
 
         Menu {

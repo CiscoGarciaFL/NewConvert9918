@@ -513,18 +513,73 @@ prompts, and reports stable JSON or human-readable output. See
 
 ### Phase 8 — Packaging and releases
 
-- [ ] Windows: package the application and shared Qt runtime.
-- [ ] Linux: choose AppImage, Flatpak, or both after compatibility testing.
-- [ ] macOS: create an application bundle and test Intel/Apple Silicon policy.
-- [ ] Bundle only the required Qt and image-format plugins.
-- [ ] Include `LICENSE`, `NOTICE.md`, and third-party notices in every package.
-- [ ] Generate checksums for release artifacts.
-- [ ] Decide whether code signing/notarization is required for each platform.
-- [ ] Test installation, first launch, conversion, and export on clean systems.
-- [ ] Publish release notes including compatibility differences and known issues.
+The detailed artifact matrix, self-contained runtime contract, preview/update
+policy, signing policy, GitHub workflow, clean-system tests, and operator
+checklist are defined in `docs/RELEASE_PROCESS.md`. The shared-library Qt model
+is the release standard; users must not need Qt, CMake, a compiler, or another
+development environment.
+
+The near-term packaging milestone, after the current code-fix pass, is an
+unsigned `v0.1.0-beta.1` GitHub prerelease for Windows, Linux, Intel macOS, and
+Apple Silicon macOS testing. Testers may authorize the clearly labeled preview
+packages. Signing and notarization remain required for the later official
+stable release.
+
+#### Preview prerelease milestone
+
+- [x] Make CMake the single version source for GUI, CLI, package metadata,
+  tags, asset names, and release titles.
+- [x] Freeze the Windows installer ID, macOS bundle ID, Linux application ID,
+  package/executable names, install paths, and Qt settings identity before the
+  first beta.
+- [ ] Build unsigned Windows setup/portable, Linux AppImage/DEB, and Intel and
+  Apple Silicon macOS DMG preview assets from clean CI checkouts.
+- [ ] Include licenses, notices, and verified SHA-256 checksums, and audit the
+  staged runtime content for every preview package.
+- [ ] Smoke-test launch, representative conversion/export, settings and recipe
+  persistence, and beta replacement/upgrade on clean target systems.
+- [ ] Publish `v0.1.0-beta.1` as a GitHub prerelease with platform guidance,
+  unsigned-package authorization instructions, known issues, and manual update
+  instructions.
+- [ ] Add a notification-only `Help -> Check for Updates` flow before a later
+  prerelease or stable release, with stable/preview/off channels; do not block
+  the first beta on this feature.
+- [ ] Defer automatic executable download and installation until signed update
+  verification, recovery, rollback, and migration behavior are designed and
+  tested.
+
+#### Stable release completion
+
+- [ ] Add Qt's QML deployment install script and stage GUI/CLI runtime
+  dependencies from CMake install rules.
+- [ ] Windows x64: produce a signed NSIS installer and a portable ZIP from one
+  audited staged tree.
+- [ ] Linux x64: produce an AppImage and a Debian package after pinning and
+  testing the oldest supported Linux/glibc baseline.
+- [ ] macOS: produce separately tested, Developer ID-signed and notarized Intel
+  and Apple Silicon DMGs; reconsider a universal bundle only after both native
+  packages are established.
+- [ ] Bundle only required Qt/QML, platform, image-format, accessibility,
+  style, and compiler runtime files; reject debug or unresolved dependencies.
+- [ ] Include `LICENSE`, `NOTICE.md`, Qt license text, third-party notices, and
+  available SBOM material in every applicable package.
+- [ ] Confirm original-author redistribution permission covers public binary
+  releases and these package formats.
+- [ ] Define and enforce minimum Windows, macOS, and Linux versions and CPU
+  architectures in CMake, CI, package metadata, and release notes.
+- [ ] Add a protected, tag-driven GitHub Actions workflow that builds, tests,
+  deploys, packages, signs, smoke-tests, generates SHA-256 checksums, and creates
+  a draft GitHub Release.
+- [ ] Test installation/portable launch, first launch, representative input,
+  conversion, export, recipe round-trip, CLI operation, upgrade, and removal on
+  clean supported systems.
+- [ ] Publish prerelease/stable notes with asset guidance, compatibility
+  differences, known issues, signing state, checksums, and support boundaries.
 
 **Exit criterion:** users on each target OS can download, launch, convert, and
-export without installing a development environment.
+export without installing a development environment, and a maintainer can
+reproduce and publish the complete release from a clean tag by following
+`docs/RELEASE_PROCESS.md` without undocumented workstation state.
 
 ### Phase 9 — GitHub governance
 
@@ -695,7 +750,7 @@ When opening this project again:
 36. [x] Complete Phase 6 live conversion and export workflow integration.
 37. [x] Complete Phase 7 command-line syntax, one-shot conversion/export,
     JSON diagnostics, stable exit codes, and executable-level tests.
-38. [ ] Begin Phase 8 cross-platform packaging and clean-system release tests.
+38. [x] Begin Phase 8 cross-platform packaging and clean-system release tests.
 
 Suggested opening prompt:
 

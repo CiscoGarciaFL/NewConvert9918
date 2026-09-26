@@ -46,6 +46,37 @@ bool EditorProjectController::canPasteSpritePattern() const
     return true;
 }
 
+void EditorProjectController::selectSpritePattern(int spriteIndex, int size)
+{
+    if (spriteSets_.empty()) return;
+    spriteIndex = std::clamp(spriteIndex, 0, 31);
+    size = normalizedSpriteSize(size);
+    if (spritePanActive_
+        && (spriteIndex != activeSprite_ || size != activeSpriteSize_)) {
+        finishSpritePan();
+    }
+
+    bool changed = activeSprite_ != spriteIndex || activeSpriteSize_ != size;
+    activeSprite_ = spriteIndex;
+    activeSpriteSize_ = size;
+    if (editScope_ == 0) {
+        if (spriteGlobalSize_ != size) {
+            spriteGlobalSize_ = size;
+            changed = true;
+        }
+    } else {
+        auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
+                              .placements[static_cast<std::size_t>(activeSprite_)];
+        if (placement.size != size) {
+            placement.size = size;
+            changed = true;
+        }
+    }
+    changed = assignActiveSpriteToEditor() || changed;
+    syncSpriteDrawingColor();
+    if (changed) emit projectChanged();
+}
+
 void EditorProjectController::setActiveSpriteSize(int value)
 {
     value = normalizedSpriteSize(value);
@@ -65,6 +96,7 @@ void EditorProjectController::setActiveSpriteSize(int value)
             changed = true;
         }
     }
+    changed = assignActiveSpriteToEditor() || changed;
     if (changed) emit projectChanged();
 }
 
@@ -74,7 +106,11 @@ void EditorProjectController::setSpriteGlobalSize(int value)
     if (spriteGlobalSize_ == value) return;
     if (spritePanActive_) finishSpritePan();
     spriteGlobalSize_ = value;
-    if (editScope_ == 0) activeSpriteSize_ = value;
+    if (editScope_ == 0) {
+        activeSpriteSize_ = value;
+        activateSpriteEditorBank(value);
+        syncSpriteDrawingColor();
+    }
     emit projectChanged();
 }
 
@@ -102,9 +138,112 @@ void EditorProjectController::setActiveSpriteColorDepth(int value)
                           .placements[static_cast<std::size_t>(activeSprite_)];
     if (placement.colorDepth == value) return;
     placement.colorDepth = value;
-    spriteDrawingColorIndex_ = std::clamp(spriteDrawingColorIndex_, 1,
-                                          (1 << value) - 1);
+    syncSpriteDrawingColor();
     emit projectChanged();
+}
+
+void EditorProjectController::syncSpriteDrawingColor()
+{
+    if (spriteSets_.empty()) {
+        spriteDrawingColorIndex_ = 15;
+        return;
+    }
+    const auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
+                                .placements[static_cast<std::size_t>(activeSprite_)];
+    if (editScope_ == 0) {
+        spriteDrawingColorIndex_ = placement.color;
+        return;
+    }
+    spriteDrawingColorIndex_ = std::clamp(
+        spriteDrawingColorIndex_, 1, (1 << placement.colorDepth) - 1);
+}
+
+bool EditorProjectController::activateSpriteEditorBank(int size)
+{
+    size = normalizedSpriteSize(size);
+    if (activeSpriteEditor_ >= 0
+        && activeSpriteEditor_ < static_cast<int>(spriteEditorSlots_.size())
+        && spriteEditorSlots_[static_cast<std::size_t>(activeSpriteEditor_)].size
+            == size) {
+        return false;
+    }
+
+    int matchingIndex = -1;
+    for (int index = 0; index < static_cast<int>(spriteEditorSlots_.size()); ++index) {
+        const auto& slot = spriteEditorSlots_[static_cast<std::size_t>(index)];
+        if (slot.size != size) continue;
+        matchingIndex = index;
+        if (slot.loaded) break;
+    }
+    if (matchingIndex < 0) {
+        constexpr std::size_t maximumEditors = 32;
+        if (spriteEditorSlots_.size() >= maximumEditors) {
+            setStatus({}, QStringLiteral("A sprite tray can contain up to 32 unique sprite editors."));
+            return false;
+        }
+        spriteEditorSlots_.push_back(
+            {false, activeSpriteSet_, activeSprite_, size});
+        matchingIndex = static_cast<int>(spriteEditorSlots_.size()) - 1;
+    }
+
+    activeSpriteEditor_ = matchingIndex;
+    activeSpriteSize_ = size;
+    const auto& slot = spriteEditorSlots_[static_cast<std::size_t>(matchingIndex)];
+    if (slot.loaded) {
+        activeSpriteSet_ = slot.setIndex;
+        activeSprite_ = slot.spriteIndex;
+    }
+    return true;
+}
+
+bool EditorProjectController::assignActiveSpriteToEditor()
+{
+    if (spriteEditorSlots_.empty()) {
+        spriteEditorSlots_.push_back(
+            {false, activeSpriteSet_, activeSprite_, activeSpriteSize_});
+        activeSpriteEditor_ = 0;
+    }
+    for (int index = 0; index < static_cast<int>(spriteEditorSlots_.size()); ++index) {
+        const auto& slot = spriteEditorSlots_[static_cast<std::size_t>(index)];
+        if (slot.loaded && slot.setIndex == activeSpriteSet_
+            && slot.spriteIndex == activeSprite_
+            && slot.size == activeSpriteSize_) {
+            activeSpriteEditor_ = index;
+            return true;
+        }
+    }
+
+    int targetIndex = -1;
+    if (activeSpriteEditor_ >= 0
+        && activeSpriteEditor_ < static_cast<int>(spriteEditorSlots_.size())) {
+        const auto& activeEditor = spriteEditorSlots_[
+            static_cast<std::size_t>(activeSpriteEditor_)];
+        if (!activeEditor.loaded || activeEditor.size == activeSpriteSize_) {
+            targetIndex = activeSpriteEditor_;
+        }
+    } else {
+        for (int index = 0; index < static_cast<int>(spriteEditorSlots_.size()); ++index) {
+            const auto& candidate = spriteEditorSlots_[static_cast<std::size_t>(index)];
+            if (!candidate.loaded && candidate.size == activeSpriteSize_) {
+                targetIndex = index;
+                break;
+            }
+        }
+    }
+    if (targetIndex < 0) {
+        constexpr std::size_t maximumEditors = 32;
+        if (spriteEditorSlots_.size() >= maximumEditors) return false;
+        spriteEditorSlots_.push_back(
+            {false, activeSpriteSet_, activeSprite_, activeSpriteSize_});
+        targetIndex = static_cast<int>(spriteEditorSlots_.size()) - 1;
+    }
+    activeSpriteEditor_ = targetIndex;
+    auto& slot = spriteEditorSlots_[static_cast<std::size_t>(targetIndex)];
+    slot.loaded = true;
+    slot.setIndex = activeSpriteSet_;
+    slot.spriteIndex = activeSprite_;
+    slot.size = activeSpriteSize_;
+    return true;
 }
 
 void EditorProjectController::setSpritePanActive(bool value)
