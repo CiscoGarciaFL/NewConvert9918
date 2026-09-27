@@ -1,0 +1,437 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+Item {
+    id: root
+    objectName: "spriteSetView"
+    required property int drawingTool
+    required property real placementScale
+    readonly property var placements: editorProject.activeSpritePlacements
+    readonly property var editorSlots: editorProject.spriteEditorSlots
+    readonly property var visibleEditorSlots: {
+        if (editorProject.editScope === 1)
+            return editorSlots
+        const visible = []
+        for (let index = 0; index < editorSlots.length; ++index) {
+            if (editorSlots[index].size === editorProject.spriteGlobalSize)
+                visible.push(editorSlots[index])
+        }
+        return visible
+    }
+    readonly property int editorSlotCount: visibleEditorSlots.length
+    property bool sprite8Expanded:
+        editorProject.editScope === 1 || editorProject.spriteGlobalSize === 8
+    property bool sprite16Expanded:
+        editorProject.editScope === 1 || editorProject.spriteGlobalSize === 16
+    property int observedEditScope: editorProject.editScope
+    property int observedGlobalSize: editorProject.spriteGlobalSize
+
+    function bankExpanded(size) {
+        return size === 8 ? sprite8Expanded : sprite16Expanded
+    }
+
+    function setBankExpanded(size, expanded) {
+        if (size === 8)
+            sprite8Expanded = expanded
+        else
+            sprite16Expanded = expanded
+    }
+
+    function activateSpriteBank(size) {
+        const wasExpanded = bankExpanded(size)
+        if (editorProject.editScope === 0) {
+            if (editorProject.spriteGlobalSize !== size) {
+                editorProject.spriteGlobalSize = size
+                sprite8Expanded = size === 8
+                sprite16Expanded = size === 16
+            } else {
+                setBankExpanded(size, !wasExpanded)
+            }
+            return
+        }
+        editorProject.activeSpriteSize = size
+        setBankExpanded(size, !wasExpanded)
+    }
+
+    Connections {
+        target: editorProject
+        function onProjectChanged() {
+            const scope = editorProject.editScope
+            const globalSize = editorProject.spriteGlobalSize
+            if (scope !== root.observedEditScope) {
+                if (scope === 1) {
+                    root.sprite8Expanded = true
+                    root.sprite16Expanded = true
+                } else {
+                    root.sprite8Expanded = globalSize === 8
+                    root.sprite16Expanded = globalSize === 16
+                }
+            } else if (scope === 0 && globalSize !== root.observedGlobalSize) {
+                root.sprite8Expanded = globalSize === 8
+                root.sprite16Expanded = globalSize === 16
+            }
+            root.observedEditScope = scope
+            root.observedGlobalSize = globalSize
+        }
+    }
+
+    function paletteColor(index) {
+        const colors = editorProject.characterPaletteColors
+        if (index < 0 || index >= colors.length)
+            return "#000000"
+        return index === 0 ? "#20272e" : colors[index]
+    }
+
+    component SpriteBank: Item {
+        id: bank
+        required property int spriteSize
+        required property string title
+        readonly property bool expanded: root.bankExpanded(spriteSize)
+        readonly property bool activeForChipset:
+            editorProject.editScope === 1
+            || editorProject.spriteGlobalSize === spriteSize
+
+        Rectangle {
+            id: bankHeader
+            objectName: bank.spriteSize === 8
+                        ? "sprite8PatternHeader" : "sprite16PatternHeader"
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: 28
+            color: bank.activeForChipset ? "#315f82" : "#1b2229"
+            border.width: 1
+            border.color: bank.activeForChipset ? "#8fd0ff" : "#53606d"
+            radius: 3
+            Accessible.role: Accessible.Button
+            Accessible.name: bank.title
+            Accessible.description: bank.expanded
+                                    ? qsTr("Collapse sprite pattern bank")
+                                    : qsTr("Expand and activate sprite pattern bank")
+
+            function activate() {
+                root.activateSpriteBank(bank.spriteSize)
+            }
+
+            Label {
+                anchors.left: parent.left
+                anchors.leftMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                text: bank.title
+                font.weight: Font.DemiBold
+                color: bank.activeForChipset ? "white" : palette.placeholderText
+            }
+
+            Label {
+                anchors.right: parent.right
+                anchors.rightMargin: 9
+                anchors.verticalCenter: parent.verticalCenter
+                text: bank.expanded ? "▾" : "▸"
+                color: bank.activeForChipset ? "white" : palette.placeholderText
+                font.pixelSize: 16
+            }
+
+            TapHandler {
+                onTapped: bankHeader.activate()
+            }
+        }
+
+        GridView {
+            id: spriteGrid
+            objectName: bank.spriteSize === 8
+                        ? "sprite8PatternGrid" : "sprite16PatternGrid"
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: bankHeader.bottom
+            anchors.topMargin: 3
+            anchors.bottom: parent.bottom
+            visible: bank.expanded
+            enabled: visible
+            model: 32
+            clip: true
+            cellWidth: Math.max(48, Math.floor(width / 8))
+            cellHeight: Math.max(48, cellWidth)
+            ScrollBar.vertical: ScrollBar {}
+
+            delegate: Rectangle {
+                id: spriteCell
+                required property int index
+                readonly property bool active:
+                    index === editorProject.activeSprite
+                    && bank.spriteSize === editorProject.activeSpriteSize
+                readonly property var pixels: {
+                    const revision = editorProject.spriteRevision
+                    return editorProject.spritePatternPixels(
+                        editorProject.activeSpriteSet, index, bank.spriteSize)
+                }
+                width: spriteGrid.cellWidth - 3
+                height: spriteGrid.cellHeight - 3
+                color: active ? "#315f82" : "#1b2229"
+                border.width: active ? 2 : 1
+                border.color: active ? "#8fd0ff" : "#53606d"
+                radius: 2
+
+                Item {
+                    id: thumbnail
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width - 8, parent.height - 8)
+                    height: width
+
+                    Repeater {
+                        model: bank.spriteSize * bank.spriteSize
+                        Rectangle {
+                            required property int index
+                            readonly property int value:
+                                spriteCell.pixels.length > index
+                                ? spriteCell.pixels[index] : 0
+                            readonly property int colorIndex: {
+                                if (value === 0)
+                                    return 0
+                                if (editorProject.editScope === 0) {
+                                    const placement = root.placements[spriteCell.index]
+                                    return placement ? placement.color : 15
+                                }
+                                return value
+                            }
+                            x: (index % bank.spriteSize)
+                               * thumbnail.width / bank.spriteSize
+                            y: Math.floor(index / bank.spriteSize)
+                               * thumbnail.height / bank.spriteSize
+                            width: Math.ceil(thumbnail.width / bank.spriteSize)
+                            height: Math.ceil(thumbnail.height / bank.spriteSize)
+                            color: root.paletteColor(colorIndex)
+                        }
+                    }
+                }
+
+                Label {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.margins: 2
+                    padding: 1
+                    text: spriteCell.index.toString(16).toUpperCase()
+                                     .padStart(2, "0")
+                    color: "white"
+                    font.pixelSize: 10
+                    background: Rectangle { color: "#99000000"; radius: 1 }
+                }
+
+                TapHandler {
+                    onTapped: editorProject.selectSpritePattern(
+                                  spriteCell.index, bank.spriteSize)
+                }
+            }
+        }
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 6
+
+        Rectangle {
+            id: editorTray
+            objectName: "spritePatternEditorTray"
+            Layout.fillWidth: true
+            readonly property int editorCount: root.visibleEditorSlots.length
+            readonly property int totalEditorCount: root.editorSlots.length
+            property int renderedEditorCount: 0
+            readonly property bool activeEditorEmpty:
+                editorCount > 0
+                && !root.editorSlots[editorProject.activeSpriteEditor].loaded
+            readonly property real naturalHeight:
+                Math.max(188, editorFlow.implicitHeight) + 40
+            Layout.preferredHeight: editorProject.spritePlacementMode
+                                    ? 192 * root.placementScale + 42
+                                    : Math.min(naturalHeight,
+                                               Math.max(224, root.height * 0.68))
+            Layout.minimumHeight: editorProject.spritePlacementMode ? 234 : 228
+            color: "#0f151a"
+            border.width: 1
+            border.color: "#46515d"
+            radius: 4
+
+            Flickable {
+                id: editorFlick
+                objectName: "spritePatternEditorGrid"
+                visible: !editorProject.spritePlacementMode
+                enabled: visible
+                anchors {
+                    top: parent.top
+                    left: parent.left
+                    right: parent.right
+                    bottom: editorTrayControls.top
+                    margins: 4
+                }
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                contentWidth: width
+                contentHeight: editorFlow.implicitHeight
+                ScrollBar.vertical: ScrollBar {
+                    policy: editorFlick.contentHeight > editorFlick.height
+                            ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                }
+
+                Flow {
+                    id: editorFlow
+                    width: editorFlick.width
+                    spacing: 4
+
+                    Repeater {
+                        id: editorRepeater
+                        objectName: "spritePatternEditorRepeater"
+                        model: root.editorSlotCount
+                        onItemAdded: (index, item) => {
+                            editorTray.renderedEditorCount += 1
+                        }
+                        onItemRemoved: (index, item) => {
+                            editorTray.renderedEditorCount -= 1
+                        }
+
+                        delegate: Item {
+                            required property int index
+                            readonly property var slotData:
+                                root.visibleEditorSlots[index]
+                            width: spriteEditor.implicitWidth
+                            height: spriteEditor.implicitHeight
+
+                            SpritePatternEditor {
+                                id: spriteEditor
+                                objectName: "spritePatternEditor"
+                                editorIndex: parent.slotData.index
+                                editorCount: editorTray.editorCount
+                                loaded: parent.slotData.loaded
+                                setIndex: parent.slotData.setIndex
+                                spriteIndex: parent.slotData.spriteIndex
+                                spriteSize: parent.slotData.size
+                                spriteColorIndex: parent.slotData.color
+                                drawingTool: root.drawingTool
+                                active: parent.slotData.index
+                                        === editorProject.activeSpriteEditor
+                                onSelected:
+                                    editorProject.activeSpriteEditor =
+                                        parent.slotData.index
+                                onMoveRequested: targetIndex => {
+                                    const target = root.visibleEditorSlots[targetIndex]
+                                    if (target) {
+                                        editorProject.moveSpriteEditor(
+                                            parent.slotData.index, target.index)
+                                    }
+                                }
+                                onRemoveRequested: {
+                                    editorProject.activeSpriteEditor =
+                                        parent.slotData.index
+                                    editorProject.removeActiveSpriteEditor()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            SpritePlacementView {
+                objectName: "spritePlacementWorkspace"
+                anchors.fill: parent
+                anchors.margins: 4
+                visible: editorProject.spritePlacementMode
+                enabled: visible
+                zoomScale: root.placementScale
+            }
+
+            Row {
+                id: editorTrayControls
+                objectName: "spritePatternEditorControls"
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.rightMargin: 5
+                anchors.bottomMargin: 4
+                spacing: 2
+
+                ToolButton {
+                    objectName: "removeSpriteEditorButton"
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: "−"
+                    enabled: editorProject.editScope === 1
+                             ? editorTray.totalEditorCount > 1
+                             : editorTray.editorCount > 1
+                    Accessible.name: editorProject.spritePlacementMode
+                                     ? qsTr("Remove active placed sprite")
+                                     : qsTr("Remove active sprite editor")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name
+                    onClicked: editorProject.removeActiveSpriteEditor()
+                }
+                ToolButton {
+                    objectName: "addSpriteEditorButton"
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: "+"
+                    enabled: editorTray.totalEditorCount < 32
+                    Accessible.name: editorProject.spritePlacementMode
+                                     ? qsTr("Add empty placed sprite")
+                                     : qsTr("Add empty sprite editor")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name
+                    onClicked: editorProject.addSpriteEditor()
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 4
+
+            Label {
+                Layout.fillWidth: true
+                text: editorProject.editScope === 1
+                      ? qsTr("F18A: each sprite may select its own bank")
+                      : qsTr("TMS9918A: the global size selects one bank")
+                color: palette.placeholderText
+                font.pixelSize: 11
+            }
+            Label { text: qsTr("Set") }
+            ComboBox {
+                objectName: "spriteSetComboBox"
+                Layout.preferredWidth: 76
+                model: editorProject.spriteSetNames
+                currentIndex: editorProject.activeSpriteSet
+                onActivated: index => editorProject.activeSpriteSet = index
+            }
+            Label { text: qsTr("Sprite") }
+            SpinBox {
+                objectName: "spriteItemSpinBox"
+                implicitWidth: 60
+                from: 0
+                to: 31
+                value: editorProject.activeSprite
+                editable: true
+                onValueModified: editorProject.activeSprite = value
+            }
+        }
+
+        SplitView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            orientation: Qt.Vertical
+
+            SpriteBank {
+                objectName: "spritePatternGrid"
+                SplitView.preferredHeight: expanded ? parent.height / 2 : 28
+                SplitView.minimumHeight: expanded ? 80 : 28
+                SplitView.maximumHeight: expanded ? 16777215 : 28
+                spriteSize: 8
+                title: qsTr("8×8 sprite patterns · 32")
+            }
+            SpriteBank {
+                SplitView.preferredHeight: expanded ? parent.height / 2 : 28
+                SplitView.minimumHeight: expanded ? 80 : 28
+                SplitView.maximumHeight: expanded ? 16777215 : 28
+                spriteSize: 16
+                title: qsTr("16×16 sprite patterns · 32")
+            }
+        }
+    }
+}

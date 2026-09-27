@@ -10,20 +10,6 @@
 
 namespace newconvert9918::core {
 
-struct ErrorDistributionKernel {
-    std::uint8_t downLeft{};
-    std::uint8_t down{};
-    std::uint8_t downRight{};
-    std::uint8_t right{};
-    std::uint8_t farRight{};
-    std::uint8_t downTwo{};
-
-    [[nodiscard]] constexpr int totalWeight() const
-    {
-        return downLeft + down + downRight + right + farRight + downTwo;
-    }
-};
-
 struct DitherConfiguration {
     bool ordered{};
     bool distributeError{};
@@ -31,7 +17,8 @@ struct DitherConfiguration {
 };
 
 [[nodiscard]] std::optional<DitherConfiguration>
-ditherConfiguration(DitherMode mode);
+ditherConfiguration(DitherMode mode,
+                    ErrorDistributionKernel customKernel = {});
 
 [[nodiscard]] std::optional<double>
 orderedDitherThreshold(OrderedDitherMapSize size,

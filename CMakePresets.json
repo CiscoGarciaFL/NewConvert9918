@@ -16,6 +16,15 @@
       }
     },
     {
+      "name": "release-base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTING": "ON"
+      }
+    },
+    {
       "name": "windows-mingw-debug",
       "displayName": "Windows Debug (Qt MinGW)",
       "description": "Qt 6.10.3 and MinGW 13.1 installed by the Qt toolchain",
@@ -29,6 +38,25 @@
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/mingw_64",
         "CMAKE_CXX_COMPILER": "C:/Qt/Tools/mingw1310_64/bin/g++.exe",
+        "CMAKE_RC_COMPILER": "C:/Qt/Tools/mingw1310_64/bin/windres.exe",
+        "CMAKE_MAKE_PROGRAM": "C:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe"
+      }
+    },
+    {
+      "name": "windows-mingw-release",
+      "displayName": "Windows Release (Qt MinGW)",
+      "description": "Optimized Qt 6.10.3 and MinGW 13.1 build for normal use and performance testing",
+      "inherits": "release-base",
+      "generator": "MinGW Makefiles",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/mingw_64",
+        "CMAKE_CXX_COMPILER": "C:/Qt/Tools/mingw1310_64/bin/g++.exe",
+        "CMAKE_RC_COMPILER": "C:/Qt/Tools/mingw1310_64/bin/windres.exe",
         "CMAKE_MAKE_PROGRAM": "C:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe"
       }
     },
@@ -75,6 +103,11 @@
       "jobs": 4
     },
     {
+      "name": "windows-mingw-release",
+      "configurePreset": "windows-mingw-release",
+      "jobs": 4
+    },
+    {
       "name": "linux-debug",
       "configurePreset": "linux-debug",
       "jobs": 4
@@ -94,6 +127,16 @@
     {
       "name": "windows-mingw-debug",
       "configurePreset": "windows-mingw-debug",
+      "environment": {
+        "PATH": "C:/Qt/6.10.3/mingw_64/bin;C:/Qt/Tools/mingw1310_64/bin;$penv{PATH}"
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-mingw-release",
+      "configurePreset": "windows-mingw-release",
       "environment": {
         "PATH": "C:/Qt/6.10.3/mingw_64/bin;C:/Qt/Tools/mingw1310_64/bin;$penv{PATH}"
       },

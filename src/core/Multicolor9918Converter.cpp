@@ -44,6 +44,16 @@ ConversionResult failure(std::string code, std::string message)
     };
 }
 
+ConversionResult cancelled()
+{
+    return {
+        .status = ConversionStatus::Cancelled,
+        .preview = std::nullopt,
+        .diagnostics = {},
+        .target = std::nullopt,
+    };
+}
+
 RgbSample sourceSample(const RgbImage& source, std::uint32_t x, std::uint32_t y)
 {
     const std::span<const std::uint8_t> row = source.row(y);
@@ -113,27 +123,33 @@ std::uint8_t hardwareColor(std::uint8_t workingColor)
                             : workingColor;
 }
 
-std::uint8_t chooseBlockColor(const RgbImage& source,
-                              std::uint32_t blockX,
-                              std::uint32_t blockY,
-                              const Palette& palette,
-                              const ConversionSettings& settings)
+template<bool Perceptual>
+std::uint8_t chooseBlockColorSpecialized(
+    const RgbImage& source,
+    std::uint32_t blockX,
+    std::uint32_t blockY,
+    const Palette& palette,
+    const ConversionSettings& settings,
+    const std::vector<PreparedColorSample>& preparedPalette)
 {
+    std::array<RgbSample, blockSize * blockSize> shiftedSamples{};
+    std::size_t sampleIndex = 0;
+    for (std::uint32_t y = 0; y < blockSize; ++y) {
+        for (std::uint32_t x = 0; x < blockSize; ++x) {
+            shiftedSamples[sampleIndex++] = shiftTowardPalette(
+                sourceSample(source, blockX + x, blockY + y),
+                palette,
+                settings.maximumColorShiftPercent);
+        }
+    }
+
     std::uint8_t bestColor = 0;
     double bestDistance = std::numeric_limits<double>::max();
     for (std::size_t colorIndex = 0; colorIndex < palette.size(); ++colorIndex) {
-        const RgbSample candidate{palette.at(colorIndex)};
         double distance = 0.0;
-        for (std::uint32_t y = 0; y < blockSize; ++y) {
-            for (std::uint32_t x = 0; x < blockSize; ++x) {
-                distance += colorDistanceSquared(
-                    candidate,
-                    shiftTowardPalette(
-                        sourceSample(source, blockX + x, blockY + y),
-                        palette,
-                        settings.maximumColorShiftPercent),
-                    settings);
-            }
+        for (const RgbSample sample : shiftedSamples) {
+            distance += preparedColorDistanceSquared<Perceptual>(
+                preparedPalette[colorIndex], sample, settings);
         }
         if (distance < bestDistance) {
             bestDistance = distance;
@@ -143,36 +159,54 @@ std::uint8_t chooseBlockColor(const RgbImage& source,
     return bestColor;
 }
 
-std::uint8_t chooseHalfUnderlayColor(const RgbImage& source,
-                                     std::uint32_t blockX,
-                                     std::uint32_t blockY,
-                                     const Palette& palette,
-                                     const ConversionSettings& settings)
+std::uint8_t chooseBlockColor(
+    const RgbImage& source,
+    std::uint32_t blockX,
+    std::uint32_t blockY,
+    const Palette& palette,
+    const ConversionSettings& settings,
+    const std::vector<PreparedColorSample>& preparedPalette)
 {
+    if (settings.perceptualColorMatching) {
+        return chooseBlockColorSpecialized<true>(
+            source, blockX, blockY, palette, settings, preparedPalette);
+    }
+    return chooseBlockColorSpecialized<false>(
+        source, blockX, blockY, palette, settings, preparedPalette);
+}
+
+template<bool Perceptual>
+std::uint8_t chooseHalfUnderlayColorSpecialized(
+    const RgbImage& source,
+    std::uint32_t blockX,
+    std::uint32_t blockY,
+    const Palette& palette,
+    const ConversionSettings& settings,
+    const std::vector<PreparedColorSample>& preparedCandidates)
+{
+    std::array<RgbSample, blockSize * blockSize> halvedSamples{};
+    std::size_t sampleIndex = 0;
+    for (std::uint32_t y = 0; y < blockSize; ++y) {
+        for (std::uint32_t x = 0; x < blockSize; ++x) {
+            const RgbSample shifted = shiftTowardPalette(
+                sourceSample(source, blockX + x, blockY + y),
+                palette,
+                settings.maximumColorShiftPercent);
+            halvedSamples[sampleIndex++] = {
+                static_cast<double>(static_cast<int>(shifted.red) / 2),
+                static_cast<double>(static_cast<int>(shifted.green) / 2),
+                static_cast<double>(static_cast<int>(shifted.blue) / 2),
+            };
+        }
+    }
+
     std::uint8_t bestColor = 0;
     double bestDistance = std::numeric_limits<double>::max();
-    const RgbColor black = palette.at(1);
     for (std::size_t colorIndex = 0; colorIndex < palette.size(); ++colorIndex) {
-        const RgbColor base = palette.at(colorIndex);
-        const RgbSample candidate{
-            static_cast<double>((static_cast<int>(base.red) + black.red) / 2),
-            static_cast<double>((static_cast<int>(base.green) + black.green) / 2),
-            static_cast<double>((static_cast<int>(base.blue) + black.blue) / 2),
-        };
         double distance = 0.0;
-        for (std::uint32_t y = 0; y < blockSize; ++y) {
-            for (std::uint32_t x = 0; x < blockSize; ++x) {
-                const RgbSample shifted = shiftTowardPalette(
-                    sourceSample(source, blockX + x, blockY + y),
-                    palette,
-                    settings.maximumColorShiftPercent);
-                const RgbSample halved{
-                    static_cast<double>(static_cast<int>(shifted.red) / 2),
-                    static_cast<double>(static_cast<int>(shifted.green) / 2),
-                    static_cast<double>(static_cast<int>(shifted.blue) / 2),
-                };
-                distance += colorDistanceSquared(candidate, halved, settings);
-            }
+        for (const RgbSample sample : halvedSamples) {
+            distance += preparedColorDistanceSquared<Perceptual>(
+                preparedCandidates[colorIndex], sample, settings);
         }
         if (distance < bestDistance) {
             bestDistance = distance;
@@ -180,6 +214,22 @@ std::uint8_t chooseHalfUnderlayColor(const RgbImage& source,
         }
     }
     return bestColor;
+}
+
+std::uint8_t chooseHalfUnderlayColor(
+    const RgbImage& source,
+    std::uint32_t blockX,
+    std::uint32_t blockY,
+    const Palette& palette,
+    const ConversionSettings& settings,
+    const std::vector<PreparedColorSample>& preparedCandidates)
+{
+    if (settings.perceptualColorMatching) {
+        return chooseHalfUnderlayColorSpecialized<true>(
+            source, blockX, blockY, palette, settings, preparedCandidates);
+    }
+    return chooseHalfUnderlayColorSpecialized<false>(
+        source, blockX, blockY, palette, settings, preparedCandidates);
 }
 
 RgbColor mixedColor(const Palette& palette, std::uint8_t pair)
@@ -193,6 +243,26 @@ RgbColor mixedColor(const Palette& palette, std::uint8_t pair)
     };
 }
 
+struct MixedColorCache {
+    std::array<RgbSample, 256> colors{};
+    std::array<PreparedColorSample, 256> prepared{};
+};
+
+MixedColorCache prepareMixedColors(
+    const Palette& palette,
+    const ColorDistanceEvaluator& distanceEvaluator)
+{
+    MixedColorCache cache;
+    for (std::size_t first = 0; first < palette.size(); ++first) {
+        for (std::size_t second = 0; second < palette.size(); ++second) {
+            const auto pair = static_cast<std::uint8_t>((first << 4) | second);
+            cache.colors[pair] = RgbSample{mixedColor(palette, pair)};
+            cache.prepared[pair] = distanceEvaluator.prepare(cache.colors[pair]);
+        }
+    }
+    return cache;
+}
+
 double flickerLuminance(RgbColor color)
 {
     return color.red * 0.30 + color.green * 0.59 + color.blue * 0.11;
@@ -202,18 +272,18 @@ bool overlayPairAllowed(std::uint8_t leftUnderlay,
                         std::uint8_t rightUnderlay,
                         std::uint8_t foreground,
                         std::uint8_t background,
-                        const Palette& palette,
+                        const std::array<double, workingColorCount>& luminances,
                         int maximumDifferencePercent)
 {
     const double ratio = maximumDifferencePercent * 2.55;
     const double squaredLimit = ratio * ratio;
     const std::array underlayLuminances{
-        flickerLuminance(palette.at(leftUnderlay)),
-        flickerLuminance(palette.at(rightUnderlay)),
+        luminances[leftUnderlay],
+        luminances[rightUnderlay],
     };
     const std::array overlayLuminances{
-        flickerLuminance(palette.at(foreground)),
-        flickerLuminance(palette.at(background)),
+        luminances[foreground],
+        luminances[background],
     };
     for (const double underlay : underlayLuminances) {
         for (const double overlay : overlayLuminances) {
@@ -227,11 +297,14 @@ bool overlayPairAllowed(std::uint8_t leftUnderlay,
     return true;
 }
 
-OverlayChoice chooseOverlay(
+template<bool DistributeError, bool Perceptual>
+OverlayChoice chooseOverlaySpecialized(
     const std::array<RgbSample, 8>& desired,
     const std::array<std::uint8_t, 8>& underlay,
     const Palette& palette,
     const ConversionSettings& settings,
+    const MixedColorCache& mixedColors,
+    const std::array<double, workingColorCount>& flickerLuminances,
     const DitherConfiguration& dithering,
     double errorDivisor)
 {
@@ -251,7 +324,7 @@ OverlayChoice chooseOverlay(
                                     underlay[4],
                                     foreground,
                                     background,
-                                    palette,
+                                    flickerLuminances,
                                     settings.maximumMulticolorDifferencePercent)) {
                 continue;
             }
@@ -263,20 +336,21 @@ OverlayChoice chooseOverlay(
                 for (std::size_t bit = 0; bit < desired.size(); ++bit) {
                     const std::uint8_t overlay = static_cast<std::uint8_t>(
                         (pattern & mask) != 0 ? foreground : background);
-                    const RgbSample color{mixedColor(
-                        palette,
-                        static_cast<std::uint8_t>((overlay << 4) | underlay[bit]))};
+                    const auto pair = static_cast<std::uint8_t>(
+                        (overlay << 4) | underlay[bit]);
+                    const RgbSample color = mixedColors.colors[pair];
                     RgbSample candidate = desired[bit];
-                    if (dithering.distributeError) {
+                    if constexpr (DistributeError) {
                         candidate.red += carried.red / errorDivisor;
                         candidate.green += carried.green / errorDivisor;
                         candidate.blue += carried.blue / errorDivisor;
                     }
-                    distance += colorDistanceSquared(candidate, color, settings);
+                    distance += preparedColorDistanceSquared<Perceptual>(
+                        candidate, mixedColors.prepared[pair], settings);
                     if (distance >= best.distance) {
                         break;
                     }
-                    if (dithering.distributeError) {
+                    if constexpr (DistributeError) {
                         const RgbSample error{
                             candidate.red - color.red,
                             candidate.green - color.green,
@@ -309,12 +383,81 @@ OverlayChoice chooseOverlay(
     return best;
 }
 
-std::uint8_t chooseDualBlockColor(const RgbImage& source,
-                                  std::uint32_t blockX,
-                                  std::uint32_t blockY,
-                                  const Palette& palette,
-                                  const ConversionSettings& settings)
+OverlayChoice chooseOverlay(
+    const std::array<RgbSample, 8>& desired,
+    const std::array<std::uint8_t, 8>& underlay,
+    const Palette& palette,
+    const ConversionSettings& settings,
+    const MixedColorCache& mixedColors,
+    const std::array<double, workingColorCount>& flickerLuminances,
+    const DitherConfiguration& dithering,
+    double errorDivisor)
 {
+    if (settings.perceptualColorMatching) {
+        if (dithering.distributeError) {
+            return chooseOverlaySpecialized<true, true>(
+                desired,
+                underlay,
+                palette,
+                settings,
+                mixedColors,
+                flickerLuminances,
+                dithering,
+                errorDivisor);
+        }
+        return chooseOverlaySpecialized<false, true>(
+            desired,
+            underlay,
+            palette,
+            settings,
+            mixedColors,
+            flickerLuminances,
+            dithering,
+            errorDivisor);
+    }
+    if (dithering.distributeError) {
+        return chooseOverlaySpecialized<true, false>(
+            desired,
+            underlay,
+            palette,
+            settings,
+            mixedColors,
+            flickerLuminances,
+            dithering,
+            errorDivisor);
+    }
+    return chooseOverlaySpecialized<false, false>(
+        desired,
+        underlay,
+        palette,
+        settings,
+        mixedColors,
+        flickerLuminances,
+        dithering,
+        errorDivisor);
+}
+
+template<bool Perceptual>
+std::uint8_t chooseDualBlockColorSpecialized(
+    const RgbImage& source,
+    std::uint32_t blockX,
+    std::uint32_t blockY,
+    const Palette& palette,
+    const ConversionSettings& settings,
+    const MixedColorCache& mixedColors,
+    const std::array<double, workingColorCount>& luminances)
+{
+    std::array<RgbSample, blockSize * blockSize> shiftedSamples{};
+    std::size_t sampleIndex = 0;
+    for (std::uint32_t y = 0; y < blockSize; ++y) {
+        for (std::uint32_t x = 0; x < blockSize; ++x) {
+            shiftedSamples[sampleIndex++] = shiftTowardPalette(
+                sourceSample(source, blockX + x, blockY + y),
+                palette,
+                settings.maximumColorShiftPercent);
+        }
+    }
+
     std::uint8_t bestPair = 0;
     double bestDistance = std::numeric_limits<double>::max();
     const double maximumLuminanceDifference =
@@ -322,25 +465,16 @@ std::uint8_t chooseDualBlockColor(const RgbImage& source,
     for (std::size_t first = 0; first < palette.size(); ++first) {
         for (std::size_t second = 0; second < palette.size(); ++second) {
             const double luminanceDifference = std::abs(
-                luminance(RgbSample{palette.at(first)})
-                - luminance(RgbSample{palette.at(second)}));
+                luminances[first] - luminances[second]);
             if (luminanceDifference / 256.0 > maximumLuminanceDifference) {
                 continue;
             }
 
             const std::uint8_t pair = static_cast<std::uint8_t>((first << 4) | second);
-            const RgbSample candidate{mixedColor(palette, pair)};
             double distance = 0.0;
-            for (std::uint32_t y = 0; y < blockSize; ++y) {
-                for (std::uint32_t x = 0; x < blockSize; ++x) {
-                    distance += colorDistanceSquared(
-                        candidate,
-                        shiftTowardPalette(
-                            sourceSample(source, blockX + x, blockY + y),
-                            palette,
-                            settings.maximumColorShiftPercent),
-                        settings);
-                }
+            for (const RgbSample sample : shiftedSamples) {
+                distance += preparedColorDistanceSquared<Perceptual>(
+                    mixedColors.prepared[pair], sample, settings);
             }
             if (distance < bestDistance) {
                 bestDistance = distance;
@@ -351,15 +485,46 @@ std::uint8_t chooseDualBlockColor(const RgbImage& source,
     return bestPair;
 }
 
+std::uint8_t chooseDualBlockColor(
+    const RgbImage& source,
+    std::uint32_t blockX,
+    std::uint32_t blockY,
+    const Palette& palette,
+    const ConversionSettings& settings,
+    const MixedColorCache& mixedColors,
+    const std::array<double, workingColorCount>& luminances)
+{
+    if (settings.perceptualColorMatching) {
+        return chooseDualBlockColorSpecialized<true>(
+            source,
+            blockX,
+            blockY,
+            palette,
+            settings,
+            mixedColors,
+            luminances);
+    }
+    return chooseDualBlockColorSpecialized<false>(
+        source,
+        blockX,
+        blockY,
+        palette,
+        settings,
+        mixedColors,
+        luminances);
+}
+
 std::optional<RgbImage> makePreview(std::span<const std::uint8_t> indexed,
-                                    const Palette& palette)
+                                    const Palette& palette,
+                                    std::uint32_t completedRows = imageHeight)
 {
     auto preview = RgbImage::createTightlyPacked(
         imageWidth, imageHeight, PixelFormat::Rgb888);
     if (!preview) {
         return std::nullopt;
     }
-    for (std::uint32_t y = 0; y < imageHeight; ++y) {
+    std::fill(preview->bytes().begin(), preview->bytes().end(), 0);
+    for (std::uint32_t y = 0; y < std::min(completedRows, imageHeight); ++y) {
         std::span<std::uint8_t> row = preview->row(y);
         for (std::uint32_t x = 0; x < imageWidth; ++x) {
             const RgbColor color = palette.at(
@@ -374,14 +539,16 @@ std::optional<RgbImage> makePreview(std::span<const std::uint8_t> indexed,
 }
 
 std::optional<RgbImage> makeDualPreview(std::span<const std::uint8_t> indexed,
-                                        const Palette& palette)
+                                        const Palette& palette,
+                                        std::uint32_t completedRows = imageHeight)
 {
     auto preview = RgbImage::createTightlyPacked(
         imageWidth, imageHeight, PixelFormat::Rgb888);
     if (!preview) {
         return std::nullopt;
     }
-    for (std::uint32_t y = 0; y < imageHeight; ++y) {
+    std::fill(preview->bytes().begin(), preview->bytes().end(), 0);
+    for (std::uint32_t y = 0; y < std::min(completedRows, imageHeight); ++y) {
         std::span<std::uint8_t> row = preview->row(y);
         for (std::uint32_t x = 0; x < imageWidth; ++x) {
             const RgbColor color = mixedColor(
@@ -515,7 +682,9 @@ std::vector<std::uint8_t> encodeHalfMulticolorTable(
 
 ConversionResult convertMulticolor9918(const RgbImage& source,
                                        const Palette& workingPalette,
-                                       const ConversionSettings& settings)
+                                       const ConversionSettings& settings,
+                                       CancellationToken cancellation,
+                                       ConversionProgressCallback progress)
 {
     if (settings.mode != ConversionMode::Multicolor9918) {
         return failure("multicolor9918-wrong-mode",
@@ -536,17 +705,42 @@ ConversionResult convertMulticolor9918(const RgbImage& source,
                        "Multicolor 9918 conversion requires fifteen working colors.");
     }
 
+    if (cancellation.isCancellationRequested()) {
+        return cancelled();
+    }
+
+    const ColorDistanceEvaluator distanceEvaluator(settings);
+    std::vector<PreparedColorSample> preparedPalette;
+    preparedPalette.reserve(workingPalette.size());
+    for (const RgbColor color : workingPalette.colors()) {
+        preparedPalette.push_back(distanceEvaluator.prepare(RgbSample{color}));
+    }
+
     std::vector<std::uint8_t> indexed(
         static_cast<std::size_t>(imageWidth) * imageHeight);
     for (std::uint32_t y = 0; y < imageHeight; y += blockSize) {
+        if (cancellation.isCancellationRequested()) {
+            return cancelled();
+        }
         for (std::uint32_t x = 0; x < imageWidth; x += blockSize) {
             const std::uint8_t color = chooseBlockColor(
-                source, x, y, workingPalette, settings);
+                source,
+                x,
+                y,
+                workingPalette,
+                settings,
+                preparedPalette);
             for (std::uint32_t subY = 0; subY < blockSize; ++subY) {
                 for (std::uint32_t subX = 0; subX < blockSize; ++subX) {
                     indexed[static_cast<std::size_t>(y + subY) * imageWidth
                             + x + subX] = color;
                 }
+            }
+        }
+        const std::uint32_t completedRows = y + blockSize;
+        if (progress && completedRows % 8 == 0) {
+            if (auto partial = makePreview(indexed, workingPalette, completedRows)) {
+                progress(*partial, completedRows, imageHeight);
             }
         }
     }
@@ -572,7 +766,9 @@ ConversionResult convertMulticolor9918(const RgbImage& source,
 
 ConversionResult convertDualMulticolor9918(const RgbImage& source,
                                            const Palette& workingPalette,
-                                           const ConversionSettings& settings)
+                                           const ConversionSettings& settings,
+                                           CancellationToken cancellation,
+                                           ConversionProgressCallback progress)
 {
     if (settings.mode != ConversionMode::DualMulticolor9918) {
         return failure("dual-multicolor9918-wrong-mode",
@@ -593,17 +789,44 @@ ConversionResult convertDualMulticolor9918(const RgbImage& source,
                        "Dual Multicolor 9918 conversion requires fifteen working colors.");
     }
 
+    if (cancellation.isCancellationRequested()) {
+        return cancelled();
+    }
+
+    const ColorDistanceEvaluator distanceEvaluator(settings);
+    const MixedColorCache mixedColors = prepareMixedColors(
+        workingPalette, distanceEvaluator);
+    std::array<double, workingColorCount> luminances{};
+    for (std::size_t index = 0; index < workingPalette.size(); ++index) {
+        luminances[index] = luminance(RgbSample{workingPalette.at(index)});
+    }
+
     std::vector<std::uint8_t> indexed(
         static_cast<std::size_t>(imageWidth) * imageHeight);
     for (std::uint32_t y = 0; y < imageHeight; y += blockSize) {
+        if (cancellation.isCancellationRequested()) {
+            return cancelled();
+        }
         for (std::uint32_t x = 0; x < imageWidth; x += blockSize) {
             const std::uint8_t pair = chooseDualBlockColor(
-                source, x, y, workingPalette, settings);
+                source,
+                x,
+                y,
+                workingPalette,
+                settings,
+                mixedColors,
+                luminances);
             for (std::uint32_t subY = 0; subY < blockSize; ++subY) {
                 for (std::uint32_t subX = 0; subX < blockSize; ++subX) {
                     indexed[static_cast<std::size_t>(y + subY) * imageWidth
                             + x + subX] = pair;
                 }
+            }
+        }
+        const std::uint32_t completedRows = y + blockSize;
+        if (progress && completedRows % 8 == 0) {
+            if (auto partial = makeDualPreview(indexed, workingPalette, completedRows)) {
+                progress(*partial, completedRows, imageHeight);
             }
         }
     }
@@ -632,7 +855,9 @@ ConversionResult convertDualMulticolor9918(const RgbImage& source,
 
 ConversionResult convertHalfMulticolor9918(const RgbImage& source,
                                            const Palette& workingPalette,
-                                           const ConversionSettings& settings)
+                                           const ConversionSettings& settings,
+                                           CancellationToken cancellation,
+                                           ConversionProgressCallback progress)
 {
     if (settings.mode != ConversionMode::HalfMulticolor9918) {
         return failure("half-multicolor9918-wrong-mode",
@@ -652,23 +877,60 @@ ConversionResult convertHalfMulticolor9918(const RgbImage& source,
         return failure("half-multicolor9918-invalid-palette",
                        "Half Multicolor 9918A conversion requires fifteen working colors.");
     }
-    const auto dithering = ditherConfiguration(settings.dither);
+    const auto dithering = ditherConfiguration(settings.dither, settings.errorDistribution);
     if (!dithering) {
         return failure("half-multicolor9918-invalid-dither",
                        "Half Multicolor 9918A received an unsupported dither mode.");
     }
 
+    if (cancellation.isCancellationRequested()) {
+        return cancelled();
+    }
+
+    const ColorDistanceEvaluator distanceEvaluator(settings);
+    const MixedColorCache mixedColors = prepareMixedColors(
+        workingPalette, distanceEvaluator);
+    std::array<double, workingColorCount> flickerLuminances{};
+    for (std::size_t index = 0; index < workingPalette.size(); ++index) {
+        flickerLuminances[index] = flickerLuminance(workingPalette.at(index));
+    }
+    std::vector<PreparedColorSample> preparedUnderlayCandidates;
+    preparedUnderlayCandidates.reserve(workingPalette.size());
+    const RgbColor black = workingPalette.at(1);
+    for (const RgbColor base : workingPalette.colors()) {
+        const RgbSample candidate{
+            static_cast<double>((static_cast<int>(base.red) + black.red) / 2),
+            static_cast<double>((static_cast<int>(base.green) + black.green) / 2),
+            static_cast<double>((static_cast<int>(base.blue) + black.blue) / 2),
+        };
+        preparedUnderlayCandidates.push_back(distanceEvaluator.prepare(candidate));
+    }
+
     std::vector<std::uint8_t> indexed(
         static_cast<std::size_t>(imageWidth) * imageHeight);
     for (std::uint32_t y = 0; y < imageHeight; y += blockSize) {
+        if (cancellation.isCancellationRequested()) {
+            return cancelled();
+        }
         for (std::uint32_t x = 0; x < imageWidth; x += blockSize) {
             const std::uint8_t underlay = chooseHalfUnderlayColor(
-                source, x, y, workingPalette, settings);
+                source,
+                x,
+                y,
+                workingPalette,
+                settings,
+                preparedUnderlayCandidates);
             for (std::uint32_t subY = 0; subY < blockSize; ++subY) {
                 for (std::uint32_t subX = 0; subX < blockSize; ++subX) {
                     indexed[static_cast<std::size_t>(y + subY) * imageWidth
-                            + x + subX] = underlay;
+                            + x + subX] = static_cast<std::uint8_t>((1U << 4U) | underlay);
                 }
+            }
+        }
+        const std::uint32_t completedRows = y + blockSize;
+        if (progress && completedRows % 8 == 0) {
+            if (auto partial = makeDualPreview(indexed, workingPalette, completedRows)) {
+                progress(*partial, completedRows, imageHeight * 2);
             }
         }
     }
@@ -699,6 +961,9 @@ ConversionResult convertHalfMulticolor9918(const RgbImage& source,
     };
 
     for (std::uint32_t y = 0; y < imageHeight; ++y) {
+        if (cancellation.isCancellationRequested()) {
+            return cancelled();
+        }
         const double errorDivisor = settings.errorAccumulation
                 == ErrorAccumulationMode::Average
                 && y != 0
@@ -737,6 +1002,8 @@ ConversionResult convertHalfMulticolor9918(const RgbImage& source,
                 underlay,
                 workingPalette,
                 settings,
+                mixedColors,
+                flickerLuminances,
                 *dithering,
                 errorDivisor);
             int mask = 0x80;
@@ -788,6 +1055,12 @@ ConversionResult convertHalfMulticolor9918(const RgbImage& source,
                     };
                 }
                 mask >>= 1;
+            }
+        }
+        const std::uint32_t completedRows = y + 1;
+        if (progress && completedRows % 8 == 0) {
+            if (auto partial = makeDualPreview(indexed, workingPalette, completedRows)) {
+                progress(*partial, imageHeight + completedRows, imageHeight * 2);
             }
         }
     }

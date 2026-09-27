@@ -26,7 +26,8 @@ bool bypassOrderedDither(RgbSample input)
 
 } // namespace
 
-std::optional<DitherConfiguration> ditherConfiguration(DitherMode mode)
+std::optional<DitherConfiguration>
+ditherConfiguration(DitherMode mode, ErrorDistributionKernel customKernel)
 {
     switch (mode) {
     case DitherMode::None:
@@ -43,6 +44,8 @@ std::optional<DitherConfiguration> ditherConfiguration(DitherMode mode)
         return DitherConfiguration{true, false, {}};
     case DitherMode::OrderedWithError:
         return DitherConfiguration{true, true, {1, 2, 2, 2, 0, 0}};
+    case DitherMode::Custom:
+        return DitherConfiguration{false, true, customKernel};
     }
     return std::nullopt;
 }

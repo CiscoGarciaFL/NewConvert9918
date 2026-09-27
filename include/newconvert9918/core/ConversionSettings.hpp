@@ -24,6 +24,21 @@ enum class DitherMode : std::uint8_t {
     Diagonal,
     Ordered,
     OrderedWithError,
+    Custom,
+};
+
+struct ErrorDistributionKernel {
+    std::uint8_t downLeft{};
+    std::uint8_t down{};
+    std::uint8_t downRight{};
+    std::uint8_t right{};
+    std::uint8_t farRight{};
+    std::uint8_t downTwo{};
+
+    [[nodiscard]] constexpr int totalWeight() const
+    {
+        return downLeft + down + downRight + right + farRight + downTwo;
+    }
 };
 
 enum class OrderedDitherMapSize : std::uint8_t {
@@ -36,12 +51,18 @@ enum class ErrorAccumulationMode : std::uint8_t {
     Accumulate,
 };
 
+enum class PaletteSelectionMode : std::uint8_t {
+    MedianCut,
+    Popularity,
+};
+
 struct ConversionSettings {
     ConversionMode mode{ConversionMode::Bitmap9918};
     DitherMode dither{DitherMode::Atkinson};
     OrderedDitherMapSize orderedDitherMapSize{OrderedDitherMapSize::TwoByTwo};
     int orderedDitherBrightness{0};
     ErrorAccumulationMode errorAccumulation{ErrorAccumulationMode::Accumulate};
+    ErrorDistributionKernel errorDistribution{2, 2, 2, 2, 1, 1};
     int targetWidth{256};
     int targetHeight{192};
     double gamma{1.0};
@@ -53,6 +74,11 @@ struct ConversionSettings {
     double perceptualBlueWeight{0.18};
     double lumaEmphasis{1.2};
     bool stretchHistogram{false};
+    PaletteSelectionMode paletteSelection{PaletteSelectionMode::MedianCut};
+    int scanlineStaticColorCount{0};
+    bool scanlineRegion1{true};
+    bool scanlineRegion2{true};
+    bool scanlineRegion3{true};
 };
 
 } // namespace newconvert9918::core

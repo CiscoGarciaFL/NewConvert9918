@@ -1,6 +1,6 @@
 # New Convert 9918 — Project Plan and Checklist
 
-Last updated: 2026-09-17
+Last updated: 2026-09-20
 
 This document is the durable handoff for future development sessions. Read it
 before starting work, update the checkboxes as milestones are completed, and
@@ -128,6 +128,21 @@ improvement.
   controller with monotonic generation IDs and stale-result rejection.
 - [x] Added a reproducible Release benchmark and conservative buffer-memory
   estimates; the 2026-09-16 VM baseline is recorded in `docs/PERFORMANCE.md`.
+- [x] Completed the first performance pass with Release preview tooling,
+  in-converter cancellation, prepared color distances, and Multicolor caches.
+  Its intermediate side-by-side total was 31.7% faster than the initial New
+  Release result and 1.19x the legacy total.
+- [x] Completed the legacy compute-parity pass with specialized quantizer
+  variants, quantizer-scoped fast floating point, and Release whole-program
+  optimization. The final total is 25.872 seconds versus 31.595 seconds for
+  legacy (0.82x), with all nine modes at or faster than parity. Full staged
+  results are recorded in `docs/PERFORMANCE_COMPARISON.md`.
+- [x] Completed a conversion-acceleration research study covering exact
+  algorithm reductions, portable runtime SIMD, safe multicore partitioning,
+  fixed-point feasibility, and cross-platform GPU options. The benchmark-based
+  estimates and staged implementation gates are recorded in
+  `docs/CONVERSION_ACCELERATION_RESEARCH.md`; no accelerator implementation is
+  implied by this research milestone.
 - [x] Completed the Phase 3 implementation review. Exact end-to-end golden
   comparison remains an explicit Phase 5 integration dependency, and the
   deterministic scanline-palette difference is documented.
@@ -162,14 +177,22 @@ improvement.
   reopen control; eliminated QML binding errors during application shutdown.
 - [x] Added the New Convert 9918 logo as the cross-platform application icon,
   generated native multi-size icon assets, and watermarked empty preview panes.
+- [x] Added immediate 256×192 source framing with compact positioning,
+  palette-constrained background fill and eyedropper controls, plus selectable
+  automatic or manual conversion updates.
+- [x] Made pane and settings outlines theme-aware and consolidated each preview's
+  zoom controls into a percentage menu with Fit/1:1 and stacked step buttons.
+- [x] Consolidated Conversion-panel groups behind compact disclosure headers,
+  with Art Style expanded initially and expert/output sections collapsed.
+- [x] Added the headless `newconvert9918-cli` frontend with deterministic
+  one-shot conversion/export, stable exit codes, JSON diagnostics, safe
+  overwrite handling, and executable-level tests.
 
 ### Development environment
 
-- [x] Add `C:\Users\Cisco\projects\NewConvert9918` as a local project in the
-  Codex desktop app.
-- [x] Start future Codex tasks from that project in **Local** mode.
-- [x] Select **Ask for approval** or **Full access** for tasks that must write
-  Git metadata.
+- [x] Use `C:\Users\Cisco\projects\NewConvert9918` as the local project root.
+- [x] Keep build, test, packaging, and release commands reproducible from a
+  normal local checkout.
 - [x] Install a Qt 6 desktop development kit.
 - [x] Install a Windows C++20 compiler (Qt MinGW 13.1).
 - [x] Install CMake and Ninja with the Qt development tools.
@@ -368,6 +391,8 @@ upstream machine code out of production. See `docs/EXPORT_FORMATS.md`.
 - [x] Add crop/fill positioning with immediate visual feedback.
 - [x] Replace the manual Reload button with debounced background conversion.
 - [x] Prevent stale background results from replacing newer previews.
+- [x] Add an optional persisted progressive preview that publishes real
+  completed rows without adding work when disabled.
 - [x] Group common settings separately from advanced settings.
 - [x] Add named presets for recommended dithering configurations.
 - [x] Add undo/reset for settings changes.
@@ -389,30 +414,174 @@ workers keep interaction live and prevent stale publication. Common controls
 remain visible, expert controls collapse, and the workflow is verified at
 narrow, wide, and fractional-scale layouts. See `docs/INTERFACE_WORKFLOW.md`.
 
+### Phase 6A — Legacy feature parity and expert controls
+
+The original feature inventory is recorded in `docs/BEHAVIORAL_BASELINE.md`.
+This phase tracks the remaining gap between that inventory and functionality
+that an end user can actually reach in New Convert 9918. A portable algorithm
+or writer is not considered complete here until its required settings,
+resources, validation, and interface are also available.
+
+#### Already ported or intentionally superseded
+
+- [x] Expose all nine original TMS9918A and F18A conversion modes.
+- [x] Expose all six scaling filters and all four fit/crop positions.
+- [x] Provide source positioning, including one-pixel nudging and centering.
+- [x] Expose histogram stretch, perceptual matching, gamma, luma emphasis,
+  maximum color shift, flicker difference, and ordered brightness.
+- [x] Provide Floyd–Steinberg, Atkinson, Pattern, Diagonal, None, Ordered, and
+  Ordered-with-error choices.
+- [x] Replace the original stale manual-Reload workflow with cancellable Auto
+  conversion and an explicit Update command; provide File → Reload separately
+  to reread a file-backed source.
+- [x] Replace modifier-key TI Artist loading with automatic bounded format and
+  header detection.
+- [x] Provide active-palette swatches and optional scanline-palette inspection.
+- [x] Expose TIFILES, V9T9, RAW, RLE, MSX SC2, Coleco CVPaint, Adam
+  PowerPaint, Adam HGR/HGRH, and PNG export.
+- [x] Persist every setting currently exposed by the application.
+
+#### Remaining parity work
+
+- [x] Add an Average/Accumulate error-handling control and persist it; both
+  algorithms already exist in the portable core.
+- [x] Add a 2×2/4×4 ordered-dither selector and map the four original Order
+  combinations clearly; both threshold maps already exist in the core.
+- [x] Add editable six-cell error-distribution weights with validation,
+  presets, persistence, and focused conversion tests.
+- [x] Correct the ordered-brightness UI range to the core-supported 0–16 range
+  and verify its brighten/darken semantics against the original executable.
+- [x] Expose and persist perceptual red/green/blue weights, including a
+  one-click restore to the audited 30/52/18 defaults.
+- [x] Restore the full original 0–100% maximum-color-shift UI range while
+  retaining compact controls for the commonly useful lower values.
+- [x] Keep portable one-pixel source nudging without hidden modifier
+  acceleration or the original seven-pixel horizontal cap; this intentional
+  interaction difference is recorded in the Phase 6A review.
+- [x] Defer Toon/restricted-color matching until independent executable
+  fixtures define it; do not expose an unverified compatibility claim.
+- [x] Add editable working-palette support, default restoration, persistence,
+  and palette-aware golden cases without importing the original INI format.
+- [x] Expose Median Cut versus Popularity F18A palette selection; both global
+  selection algorithms already exist in the core.
+- [x] Implement F18A scanline static-color count and Region 1/2/3 inclusion,
+  including stability tests for horizontal palette banding.
+- [x] Add the PowerPaint 240×160 framing option so source preparation matches
+  the already-implemented PowerPaint reader and writer.
+- [x] Keep ColecoVision ROM, Extended BASIC, and Extended BASIC RLE export at
+  the tested library boundary until independently built or separately
+  authorized loader templates are supplied; no legacy machine code is bundled.
+- [x] Approve the hash-pinned original captures as the behavioral oracle and
+  document the clean implementation's intentional output differences in
+  `docs/PHASE6A_PARITY_REVIEW.md`.
+
+#### Intentional exclusions or post-v1 decisions
+
+- [x] Keep the original broken ColecoVision RLE cartridge writer unsupported.
+- [x] Keep `.jpc` unsupported because the audited application indexes it but
+  contains no corresponding decoder.
+- [x] Defer random-folder slideshow/Next mode,
+  recursive image indexing, and automatic clipboard polling.
+- [x] Defer cross-instance filename synchronization; any later implementation
+  requires a new portable and secure design.
+
+**Exit criterion:** every approved legacy conversion control is either exposed
+and tested end to end or recorded as an explicit intentional difference. Core-
+only exporters are not described as user-facing until their legal loader
+resources and interface paths are complete.
+
+**Exit review:** complete. See `docs/PHASE6A_PARITY_REVIEW.md` for implemented
+controls, compatibility-gated exclusions, and intentional interaction changes.
+
 ### Phase 7 — Command line and automation
 
-- [ ] Define a stable command-line syntax independent of the GUI.
-- [ ] Support one-shot input, conversion preset, and export operations.
-- [ ] Return meaningful exit codes and machine-readable diagnostics.
-- [ ] Keep GUI and CLI behavior on the same conversion core.
-- [ ] Add end-to-end CLI tests suitable for continuous integration.
+- [x] Define a stable command-line syntax independent of the GUI.
+- [x] Support one-shot input, conversion preset, and export operations.
+- [x] Return meaningful exit codes and machine-readable diagnostics.
+- [x] Keep GUI and CLI behavior on the same conversion core.
+- [x] Add end-to-end CLI tests suitable for continuous integration.
+
+**Exit review:** complete. The desktop controller and headless executable share
+one synchronous transform/adjust/convert pipeline. The CLI uses the same
+bounded loaders, manifest exporters, and atomic writer as the desktop, never
+prompts, and reports stable JSON or human-readable output. See
+`docs/COMMAND_LINE.md`.
 
 **Exit criterion:** repeatable conversions can run without a graphical session.
 
 ### Phase 8 — Packaging and releases
 
-- [ ] Windows: package the application and shared Qt runtime.
-- [ ] Linux: choose AppImage, Flatpak, or both after compatibility testing.
-- [ ] macOS: create an application bundle and test Intel/Apple Silicon policy.
-- [ ] Bundle only the required Qt and image-format plugins.
-- [ ] Include `LICENSE`, `NOTICE.md`, and third-party notices in every package.
-- [ ] Generate checksums for release artifacts.
-- [ ] Decide whether code signing/notarization is required for each platform.
-- [ ] Test installation, first launch, conversion, and export on clean systems.
-- [ ] Publish release notes including compatibility differences and known issues.
+The detailed artifact matrix, self-contained runtime contract, preview/update
+policy, signing policy, GitHub workflow, clean-system tests, and operator
+checklist are defined in `docs/RELEASE_PROCESS.md`. The shared-library Qt model
+is the release standard; users must not need Qt, CMake, a compiler, or another
+development environment.
+
+The first unsigned cross-platform package set was published as
+`v0.1.0-beta.1`. The corrective `v0.1.0-beta.2` prerelease incorporates hands-on
+Windows and Linux installation feedback. Testers may authorize the clearly
+labeled preview packages. Signing and notarization remain required for the
+later official stable release.
+
+#### Preview prerelease milestone
+
+- [x] Make CMake the single version source for GUI, CLI, package metadata,
+  tags, asset names, and release titles.
+- [x] Freeze the Windows installer ID, macOS bundle ID, Linux application ID,
+  package/executable names, install paths, and Qt settings identity before the
+  first beta.
+- [x] Build unsigned Windows setup/portable, Linux AppImage/DEB, and Intel and
+  Apple Silicon macOS DMG preview assets from clean CI checkouts.
+- [x] Include licenses, notices, and verified SHA-256 checksums, and audit the
+  staged runtime content for every preview package.
+- [x] Smoke-test packaged launch and representative conversion/export on clean
+  CI runners, and record hands-on Windows and Linux package feedback.
+- [x] Publish `v0.1.0-beta.1` as a GitHub prerelease with platform guidance,
+  unsigned-package authorization instructions, known issues, and manual update
+  instructions.
+- [ ] Publish the corrective `v0.1.0-beta.2` prerelease with a Windows GUI
+  subsystem check and a documented Debian terminal-install fallback.
+- [ ] Verify settings and recipe persistence plus beta replacement/upgrade on
+  clean target systems before the stable release.
+- [ ] Add a notification-only `Help -> Check for Updates` flow before a later
+  prerelease or stable release, with stable/preview/off channels; do not block
+  the first beta on this feature.
+- [x] Defer automatic executable download and installation until signed update
+  verification, recovery, rollback, and migration behavior are designed and
+  tested.
+
+#### Stable release completion
+
+- [ ] Add Qt's QML deployment install script and stage GUI/CLI runtime
+  dependencies from CMake install rules.
+- [ ] Windows x64: produce a signed NSIS installer and a portable ZIP from one
+  audited staged tree.
+- [ ] Linux x64: produce an AppImage and a Debian package after pinning and
+  testing the oldest supported Linux/glibc baseline.
+- [ ] macOS: produce separately tested, Developer ID-signed and notarized Intel
+  and Apple Silicon DMGs; reconsider a universal bundle only after both native
+  packages are established.
+- [ ] Bundle only required Qt/QML, platform, image-format, accessibility,
+  style, and compiler runtime files; reject debug or unresolved dependencies.
+- [ ] Include `LICENSE`, `NOTICE.md`, Qt license text, third-party notices, and
+  available SBOM material in every applicable package.
+- [ ] Confirm original-author redistribution permission covers public binary
+  releases and these package formats.
+- [ ] Define and enforce minimum Windows, macOS, and Linux versions and CPU
+  architectures in CMake, CI, package metadata, and release notes.
+- [ ] Add a protected, tag-driven GitHub Actions workflow that builds, tests,
+  deploys, packages, signs, smoke-tests, generates SHA-256 checksums, and creates
+  a draft GitHub Release.
+- [ ] Test installation/portable launch, first launch, representative input,
+  conversion, export, recipe round-trip, CLI operation, upgrade, and removal on
+  clean supported systems.
+- [ ] Publish prerelease/stable notes with asset guidance, compatibility
+  differences, known issues, signing state, checksums, and support boundaries.
 
 **Exit criterion:** users on each target OS can download, launch, convert, and
-export without installing a development environment.
+export without installing a development environment, and a maintainer can
+reproduce and publish the complete release from a clean tag by following
+`docs/RELEASE_PROCESS.md` without undocumented workstation state.
 
 ### Phase 9 — GitHub governance
 
@@ -435,6 +604,25 @@ export without installing a development environment.
 **Exit criterion:** the code is publicly visible, but only approved maintainers
 can push or merge changes.
 
+### Post-v1 proposal — Batch Mode
+
+Video, animated GIF, slideshow, and numbered-image sources will eventually be
+normalized into enumerated still frames and processed with one frozen snapshot
+of the ordinary conversion settings. This is new functionality rather than
+legacy parity and remains documentation-only until the media backend,
+licensing, packaging, limits, and frame/timing contract are approved. See
+`docs/BATCH_MODE.md`.
+
+### Post-v1 proposal — 9918 and F18A Design Tools
+
+A separate hardware-aware authoring workspace will support original TMS9918A
+and enhanced F18A sprite patterns, arbitrarily arranged composite sprites,
+accurate scanline/collision diagnostics, one-to-three-bank character viewing
+and editing, pattern reservations and stable image allocation, and Multicolor
+simulation. This remains documentation-only until the hardware contracts,
+project format, fixtures, and implementation phase are approved. See
+`docs/9918_DESIGN_TOOLS.md`.
+
 ## Release milestones
 
 ### v0.1 — First proven conversion
@@ -452,7 +640,7 @@ can push or merge changes.
 - [x] Common and retro source formats implemented.
 - [x] Primary export formats implemented.
 - [x] Redesigned workflow usable end-to-end.
-- [ ] CLI conversion available.
+- [x] CLI conversion available.
 
 ### v1.0 — Public cross-platform release
 
@@ -513,19 +701,21 @@ A task is not complete merely because it compiles. Apply the relevant gates:
 | 2026-09-17 | Preflight complete export manifests before atomic Qt writes | Users see every collision before any output is changed, avoiding partial or silent overwrites. |
 | 2026-09-17 | Debounce UI conversion and publish only the newest generation | Keeps the interface responsive while guaranteeing that rapid settings changes cannot display stale output. |
 | 2026-09-17 | Use the Qt Fusion control style for the application | Provides consistent contrast and control rendering across Windows, Linux, and macOS while retaining platform font and DPI behavior. |
+| 2026-09-18 | Separate source framing feedback from conversion updates | Position and background-fill edits remain immediate while Auto or an explicit Update controls expensive conversion work. |
+| 2026-09-19 | Share one synchronous conversion pipeline between the desktop and CLI | Prevents headless automation from drifting away from the transform, adjustment, palette, and conversion behavior users see in the application. |
+| 2026-09-20 | Optimize the exact CPU search before attempting a GPU backend | Shared-prefix reduction, runtime SIMD, and independent-work threading can improve every platform while preserving a scalar oracle; a fixed-point numeric contract is the gate for portable GPU work. |
+| 2026-09-20 | Model 9918/F18A design tools as a hardware-profiled project workspace | Sprite, character, allocation, and Multicolor editors must share one validated memory model so previews expose real chip limits and exports cannot drift from what the user designed. |
 
 ## Next session checklist
 
 When opening this project again:
 
-1. [ ] Open `C:\Users\Cisco\projects\NewConvert9918` as the Codex project.
-2. [ ] Use the **Local** environment.
-3. [ ] Select **Ask for approval** or **Full access** if Codex should commit.
-4. [ ] Read this file and `docs/ARCHITECTURE.md`.
-5. [ ] Run `git status --short --branch` and `git log --oneline -5`.
-6. [ ] Confirm the platform preset and required Qt toolchain are available.
-7. [ ] Configure, build, and test with the matching CMake preset.
-8. [ ] Update the Current Status section with any environment changes.
+1. [ ] Open `C:\Users\Cisco\projects\NewConvert9918` as the local project.
+2. [ ] Read this file and `docs/ARCHITECTURE.md`.
+3. [ ] Run `git status --short --branch` and `git log --oneline -5`.
+4. [ ] Confirm the platform preset and required Qt toolchain are available.
+5. [ ] Configure, build, and test with the matching CMake preset.
+6. [ ] Update the Current Status section with any environment changes.
 9. [x] Begin Phase 2's feature inventory and golden-output corpus.
 10. [x] Select and license the representative Phase 2 source-image corpus.
 11. [x] Capture default Bitmap 9918A previews and TIFILES exports from the
@@ -558,7 +748,9 @@ When opening this project again:
 34. [x] Complete Phase 4 image input and source formats.
 35. [x] Complete Phase 5 export formats and generated-file manifests.
 36. [x] Complete Phase 6 live conversion and export workflow integration.
-37. [ ] Begin Phase 7 command-line syntax and one-shot conversion workflow.
+37. [x] Complete Phase 7 command-line syntax, one-shot conversion/export,
+    JSON diagnostics, stable exit codes, and executable-level tests.
+38. [x] Begin Phase 8 cross-platform packaging and clean-system release tests.
 
 Suggested opening prompt:
 

@@ -1,5 +1,7 @@
 param(
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [ValidateSet('Debug', 'Release')]
+    [string]$Configuration = 'Debug'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -7,7 +9,10 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $cmake = 'C:\Qt\Tools\CMake_64\bin\cmake.exe'
 $deployQt = 'C:\Qt\6.10.3\mingw_64\bin\windeployqt.exe'
-$executable = Join-Path $projectRoot 'build/windows-mingw-debug/bin/NewConvert9918.exe'
+$env:PATH = 'C:\Qt\Tools\mingw1310_64\bin;C:\Qt\6.10.3\mingw_64\bin;' `
+    + $env:PATH
+$preset = "windows-mingw-$($Configuration.ToLowerInvariant())"
+$executable = Join-Path $projectRoot "build/$preset/bin/NewConvert9918.exe"
 $qmlDirectory = Join-Path $projectRoot 'app/qml'
 
 foreach ($requiredTool in @($cmake, $deployQt)) {
@@ -17,14 +22,14 @@ foreach ($requiredTool in @($cmake, $deployQt)) {
 }
 
 if (-not $SkipBuild) {
-    & $cmake --build --preset windows-mingw-debug --target NewConvert9918
+    & $cmake --build --preset $preset --target NewConvert9918
     if ($LASTEXITCODE -ne 0) {
         throw "The Windows preview build failed with exit code $LASTEXITCODE."
     }
 }
 
 if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
-    throw 'NewConvert9918.exe was not built. Configure the windows-mingw-debug preset first.'
+    throw "NewConvert9918.exe was not built. Configure the $preset preset first."
 }
 
 # The Qt online installer supplies release runtime DLLs for this MinGW kit even

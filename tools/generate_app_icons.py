@@ -47,6 +47,23 @@ def render_pngs(inkscape: str, source: Path, output_dir: Path) -> dict[int, Path
     return rendered
 
 
+def render_watermark(inkscape: str, source: Path, output_dir: Path) -> Path:
+    """Render the larger source used by the subdued preview watermark."""
+    output = output_dir / "NewConvert9918-watermark-512.png"
+    subprocess.run(
+        [
+            inkscape,
+            str(source),
+            "--export-type=png",
+            f"--export-filename={output}",
+            "--export-width=512",
+            "--export-height=512",
+        ],
+        check=True,
+    )
+    return output
+
+
 def write_ico(rendered: dict[int, Path], output: Path) -> None:
     images = [(size, rendered[size].read_bytes()) for size in ICO_SIZES]
     header_size = 6 + 16 * len(images)
@@ -101,6 +118,7 @@ def main() -> None:
         raise SystemExit(f"Application logo was not found: {source}")
 
     rendered = render_pngs(inkscape, source, output_dir)
+    render_watermark(inkscape, source, output_dir)
     write_ico(rendered, output_dir / "NewConvert9918.ico")
     write_icns(rendered, output_dir / "NewConvert9918.icns")
     print(f"Generated application icons in {output_dir}")
