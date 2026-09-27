@@ -1,6 +1,6 @@
 # New Convert 9918 — Project Plan and Checklist
 
-Last updated: 2026-09-20
+Last updated: 2026-09-27
 
 This document is the durable handoff for future development sessions. Read it
 before starting work, update the checkboxes as milestones are completed, and
@@ -557,6 +557,13 @@ later official stable release.
 - [ ] Add a notification-only `Help -> Check for Updates` flow before a later
   prerelease or stable release, with stable/preview/off channels; do not block
   the first beta on this feature.
+- [ ] Add validated AppStream MetaInfo using the frozen Linux application ID,
+  with matching desktop file, icon, screenshots, release data, URLs, and
+  license declarations.
+- [ ] Evaluate and acceptance-test a Snap beta channel as the first
+  Discover-visible preview option while retaining direct AppImage and isolated
+  Debian downloads; target Flatpak/Flathub after a stable source-build and
+  sandbox contract is ready.
 - [x] Defer automatic executable download and installation until signed update
   verification, recovery, rollback, and migration behavior are designed and
   tested.
@@ -576,6 +583,14 @@ test remains required before closing this milestone again.
   audited staged tree.
 - [ ] Linux x64: produce an AppImage and a Debian package after pinning and
   testing the oldest supported Linux/glibc baseline.
+- [ ] Linux ARM64/AArch64: add a native ARM64 CI build, AppImage, isolated
+  `arm64` Debian package, architecture/dependency audits, and clean-system
+  install, launch, desktop-session, upgrade, removal, and host-integrity tests.
+- [ ] Parameterize Linux runner, Qt host/architecture, linuxdeploy tool,
+  Debian `Architecture`, asset naming, and final manifest without weakening
+  the existing x64 or filesystem-isolation gates.
+- [ ] Establish the ARM64 minimum glibc from the actual Qt/runtime build; use
+  the x64 Ubuntu 22.04 baseline only if native clean-system tests prove it.
 - [ ] macOS: produce separately tested, Developer ID-signed and notarized Intel
   and Apple Silicon DMGs; reconsider a universal bundle only after both native
   packages are established.
@@ -723,6 +738,8 @@ A task is not complete merely because it compiles. Apply the relevant gates:
 | 2026-09-19 | Share one synchronous conversion pipeline between the desktop and CLI | Prevents headless automation from drifting away from the transform, adjustment, palette, and conversion behavior users see in the application. |
 | 2026-09-20 | Optimize the exact CPU search before attempting a GPU backend | Shared-prefix reduction, runtime SIMD, and independent-work threading can improve every platform while preserving a scalar oracle; a fixed-point numeric contract is the gate for portable GPU work. |
 | 2026-09-20 | Model 9918/F18A design tools as a hardware-profiled project workspace | Sprite, character, allocation, and Multicolor editors must share one validated memory model so previews expose real chip limits and exports cannot drift from what the user designed. |
+| 2026-09-27 | Keep GitHub AppImage and isolated Debian downloads for the current Linux beta; add AppStream metadata, evaluate a Snap beta channel for Discover, and target Flatpak/Flathub for stable cross-distribution delivery | Discover installs from configured repository and store backends rather than turning an arbitrary local `.deb` into a catalog application; each new channel needs its own sandbox, update, authorization, and clean-system acceptance tests. |
+| 2026-09-27 | Plan native Linux ARM64/AArch64 AppImage and Debian artifacts using the existing private-runtime packaging model; treat ARM32 as a separate target | The portable C++/Qt design and pinned deployment tools can support AArch64, but architecture-specific runners, Qt binaries, metadata, dependency audits, glibc verification, and clean-system tests are required before support is advertised. |
 
 ## Next session checklist
 
