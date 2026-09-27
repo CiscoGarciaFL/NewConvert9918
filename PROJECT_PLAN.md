@@ -190,11 +190,9 @@ improvement.
 
 ### Development environment
 
-- [x] Add `C:\Users\Cisco\projects\NewConvert9918` as a local project in the
-  Codex desktop app.
-- [x] Start future Codex tasks from that project in **Local** mode.
-- [x] Select **Ask for approval** or **Full access** for tasks that must write
-  Git metadata.
+- [x] Use `C:\Users\Cisco\projects\NewConvert9918` as the local project root.
+- [x] Keep build, test, packaging, and release commands reproducible from a
+  normal local checkout.
 - [x] Install a Qt 6 desktop development kit.
 - [x] Install a Windows C++20 compiler (Qt MinGW 13.1).
 - [x] Install CMake and Ninja with the Qt development tools.
@@ -519,11 +517,11 @@ checklist are defined in `docs/RELEASE_PROCESS.md`. The shared-library Qt model
 is the release standard; users must not need Qt, CMake, a compiler, or another
 development environment.
 
-The near-term packaging milestone, after the current code-fix pass, is an
-unsigned `v0.1.0-beta.1` GitHub prerelease for Windows, Linux, Intel macOS, and
-Apple Silicon macOS testing. Testers may authorize the clearly labeled preview
-packages. Signing and notarization remain required for the later official
-stable release.
+The first unsigned cross-platform package set was published as
+`v0.1.0-beta.1`. The corrective `v0.1.0-beta.2` prerelease incorporates hands-on
+Windows and Linux installation feedback. Testers may authorize the clearly
+labeled preview packages. Signing and notarization remain required for the
+later official stable release.
 
 #### Preview prerelease milestone
 
@@ -532,19 +530,23 @@ stable release.
 - [x] Freeze the Windows installer ID, macOS bundle ID, Linux application ID,
   package/executable names, install paths, and Qt settings identity before the
   first beta.
-- [ ] Build unsigned Windows setup/portable, Linux AppImage/DEB, and Intel and
+- [x] Build unsigned Windows setup/portable, Linux AppImage/DEB, and Intel and
   Apple Silicon macOS DMG preview assets from clean CI checkouts.
-- [ ] Include licenses, notices, and verified SHA-256 checksums, and audit the
+- [x] Include licenses, notices, and verified SHA-256 checksums, and audit the
   staged runtime content for every preview package.
-- [ ] Smoke-test launch, representative conversion/export, settings and recipe
-  persistence, and beta replacement/upgrade on clean target systems.
-- [ ] Publish `v0.1.0-beta.1` as a GitHub prerelease with platform guidance,
+- [x] Smoke-test packaged launch and representative conversion/export on clean
+  CI runners, and record hands-on Windows and Linux package feedback.
+- [x] Publish `v0.1.0-beta.1` as a GitHub prerelease with platform guidance,
   unsigned-package authorization instructions, known issues, and manual update
   instructions.
+- [ ] Publish the corrective `v0.1.0-beta.2` prerelease with a Windows GUI
+  subsystem check and a documented Debian terminal-install fallback.
+- [ ] Verify settings and recipe persistence plus beta replacement/upgrade on
+  clean target systems before the stable release.
 - [ ] Add a notification-only `Help -> Check for Updates` flow before a later
   prerelease or stable release, with stable/preview/off channels; do not block
   the first beta on this feature.
-- [ ] Defer automatic executable download and installation until signed update
+- [x] Defer automatic executable download and installation until signed update
   verification, recovery, rollback, and migration behavior are designed and
   tested.
 
@@ -708,14 +710,12 @@ A task is not complete merely because it compiles. Apply the relevant gates:
 
 When opening this project again:
 
-1. [ ] Open `C:\Users\Cisco\projects\NewConvert9918` as the Codex project.
-2. [ ] Use the **Local** environment.
-3. [ ] Select **Ask for approval** or **Full access** if Codex should commit.
-4. [ ] Read this file and `docs/ARCHITECTURE.md`.
-5. [ ] Run `git status --short --branch` and `git log --oneline -5`.
-6. [ ] Confirm the platform preset and required Qt toolchain are available.
-7. [ ] Configure, build, and test with the matching CMake preset.
-8. [ ] Update the Current Status section with any environment changes.
+1. [ ] Open `C:\Users\Cisco\projects\NewConvert9918` as the local project.
+2. [ ] Read this file and `docs/ARCHITECTURE.md`.
+3. [ ] Run `git status --short --branch` and `git log --oneline -5`.
+4. [ ] Confirm the platform preset and required Qt toolchain are available.
+5. [ ] Configure, build, and test with the matching CMake preset.
+6. [ ] Update the Current Status section with any environment changes.
 9. [x] Begin Phase 2's feature inventory and golden-output corpus.
 10. [x] Select and license the representative Phase 2 source-image corpus.
 11. [x] Capture default Bitmap 9918A previews and TIFILES exports from the

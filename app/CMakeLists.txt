@@ -74,6 +74,10 @@ qt_add_qml_module(NewConvert9918
 )
 
 if(WIN32)
+    # The desktop application must use the Windows GUI subsystem so launching
+    # it from Explorer or an installer shortcut never opens a console window.
+    # NewConvert9918Cli intentionally remains a console-subsystem executable.
+    set_target_properties(NewConvert9918 PROPERTIES WIN32_EXECUTABLE TRUE)
     set(NEWCONVERT9918_WINDOWS_ICON
         "${CMAKE_CURRENT_SOURCE_DIR}/assets/icons/NewConvert9918.ico"
     )

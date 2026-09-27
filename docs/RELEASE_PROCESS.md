@@ -25,7 +25,7 @@ is intentionally built and tested.
 ## Distribution channel
 
 GitHub Releases is the canonical public distribution channel. A release is
-created from an immutable version tag on the protected release branch and
+created from an immutable version tag whose commit is contained in `main` and
 contains release notes plus all approved binary assets. GitHub's automatically
 generated source archives are not substitutes for the user packages.
 
@@ -42,9 +42,10 @@ deferred until package signing and update verification are established.
 
 ## Preview and beta release policy
 
-After the current editor fixes, the first packaging target is
-`v0.1.0-beta.1`, published as a GitHub prerelease. Follow-up builds use
-monotonically increasing identifiers such as `v0.1.0-beta.2` and
+The first packaging target, `v0.1.0-beta.1`, was published as a GitHub
+prerelease. Tester feedback is delivered through corrective prereleases such
+as `v0.1.0-beta.2`, and later builds use monotonically increasing identifiers
+such as `v0.1.0-beta.3` and
 `v0.1.0-rc.1`; the first stable build then uses the approved stable version.
 
 Preview packages may be unsigned. This is acceptable for testing on Windows,
@@ -136,9 +137,9 @@ upgrade their matching preview forms. Portable ZIP and AppImage users still
 replace the old artifact manually. User settings and recipes must survive all
 of these transitions.
 
-The current source already uses `CiscoGarciaFL` and `NewConvert9918` for Qt
-settings identity. The GUI version is still hard-coded separately from the
-CMake project version; that must be corrected before the first prerelease.
+The current source uses `CiscoGarciaFL` and `NewConvert9918` for Qt settings
+identity. The GUI, CLI, packages, and release workflow derive their version
+from `NEWCONVERT9918_VERSION` in the root `CMakeLists.txt`.
 
 ## Planned release assets
 
@@ -165,6 +166,9 @@ for the official stable release.
 
 The Windows installer and portable ZIP contain `NewConvert9918.exe` and
 `newconvert9918-cli.exe`. The installer does not modify `PATH` by default. The
+desktop executable uses the Windows GUI subsystem so Explorer and installer
+shortcuts do not open a console window; the CLI deliberately uses the Windows
+console subsystem. The release workflow inspects both PE subsystem values. The
 Debian package installs both programs in conventional system locations. The
 macOS DMG and Linux AppImage focus on the GUI; matching, versioned CLI archives
 may be attached when terminal installation instructions and architecture
@@ -231,14 +235,14 @@ Debian package. Packaging tool versions are pinned in release automation.
   conversion compatibility changes, known issues, and any recipe or settings
   migration concern.
 
-The first packaging exercise is planned as `v0.1.0-beta.1` after the current
-code-fix pass. It is deliberately a prerelease and may be unsigned under the
-preview policy above. `v1.0.0` remains gated by the v1.0 criteria in
-`PROJECT_PLAN.md`.
+The first packaging exercise was published as `v0.1.0-beta.1`. Corrective
+package changes are released under a new tag rather than replacing its assets.
+Preview builds may be unsigned under the policy above. `v1.0.0` remains gated
+by the v1.0 criteria in `PROJECT_PLAN.md`.
 
-## Pre-beta readiness checklist
+## Prerelease readiness checklist
 
-Before tagging `v0.1.0-beta.1`:
+Before tagging each prerelease:
 
 - make CMake the single application-version source and verify that the GUI,
   CLI, package metadata, tag, asset names, and release title agree;
@@ -256,8 +260,8 @@ Before tagging `v0.1.0-beta.1`:
 - prepare release notes with preview status, signing state, platform support,
   expected trust prompts, installation steps, known issues, and manual update
   instructions; and
-- publish a draft GitHub prerelease for final maintainer review before making
-  it visible to testers.
+- publish a complete GitHub prerelease only after every required packaging job
+  and final asset-set check succeeds.
 
 The notification-only update checker is recommended before later prereleases
 or the first stable release, but it does not block `v0.1.0-beta.1`. A full
@@ -282,9 +286,8 @@ version/tag validation
     -> signing/notarization where required
     -> clean-runner package smoke tests
     -> SHA-256 generation
-    -> draft GitHub Release with all assets
-    -> maintainer review
-    -> publish
+    -> exact final asset-set and checksum verification
+    -> immutable GitHub prerelease with all assets
 ```
 
 The workflow uses least-privilege permissions. Signing identities, tokens, and
@@ -293,10 +296,10 @@ available to pull-request jobs, and are not printed in logs. Packaging jobs
 upload intermediate artifacts for diagnosis, but only reviewed final packages
 are attached to the release.
 
-The release is created as a draft. A maintainer verifies names, versions,
-signatures, checksums, notices, release notes, and smoke-test results before
-publication. If immutable GitHub Releases are enabled, all assets must be
-present before the draft is published.
+The release is created only after all platform jobs succeed. The publish job
+verifies names, versions, checksums, notices, release notes, and the exact
+asset set before creating the visible prerelease. If the tag already has a
+release, the workflow refuses to replace it.
 
 ## Signing and platform trust
 
@@ -323,8 +326,12 @@ verifies both the code signature and Gatekeeper assessment before publishing.
 
 Linux artifacts receive SHA-256 checksums. GPG signing may be added when a
 maintainer key and rotation policy are established. The Debian package records
-its dependencies and package metadata; the AppImage is checked for unresolved
-libraries and tested outside the build directory.
+its dependencies and package metadata and is published with mode `0644`; the
+AppImage is checked for unresolved libraries and tested outside the build
+directory. Desktop package installers depend on a functioning authorization
+agent and may fail silently when it is unavailable. Release notes therefore
+document `sudo apt install ./<package>.deb` as the reliable fallback without
+weakening system-wide security settings.
 
 ## Supported-system policy
 
@@ -348,7 +355,11 @@ tree. At minimum, each supported platform verifies:
 
 1. Download or transfer the final artifact and verify its SHA-256 digest.
 2. Install, mount, extract, or enable the package exactly as documented.
-3. Launch the GUI with no Qt or compiler installed separately.
+   For Debian packages, verify the normal desktop installer where available
+   and the documented terminal fallback when its authorization agent fails.
+3. Launch the GUI with no Qt or compiler installed separately. On Windows,
+   launching from Explorer or an installer shortcut must not open a console
+   window, while the separate CLI must retain console behavior.
 4. Confirm icons, fonts, theme, file dialogs, menus, QML controls, and image
    plugins load without missing-module warnings.
 5. Open representative PNG, JPEG, PCX, and supported retro-format inputs.
@@ -414,10 +425,13 @@ asset set, generates SHA-256 checksums, and publishes an immutable GitHub
 prerelease.
 
 The Windows portable tree has also passed the package audit and GUI/CLI smoke
-test locally. The notification-only update checker remains optional for a later
-prerelease, and automatic installation remains intentionally deferred. Stable
-Windows and macOS publication still requires the signing and notarization gates
-described above; the first beta uses the documented unsigned-preview policy.
+test locally. Feedback from `v0.1.0-beta.1` identified a Windows GUI-subsystem
+error and an unreliable graphical Debian installation path; `v0.1.0-beta.2`
+corrects the former, normalizes Debian package permissions, and documents the
+terminal fallback for the latter. The notification-only update checker remains
+optional for a later prerelease, and automatic installation remains
+intentionally deferred. Stable Windows and macOS publication still requires
+the signing and notarization gates described above.
 
 ## Phase 8 completion definition
 
@@ -430,6 +444,6 @@ Phase 8 is complete only when:
 - package smoke tests and dependency audits pass;
 - required Windows and macOS trust checks pass;
 - notices and checksums are present and verified;
-- GitHub creates a complete draft release automatically; and
+- GitHub creates a complete immutable prerelease automatically; and
 - a maintainer can publish using this document without relying on undocumented
   workstation state or conversation history.

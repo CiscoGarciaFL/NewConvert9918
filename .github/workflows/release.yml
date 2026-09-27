@@ -9,7 +9,7 @@ on:
       tag:
         description: Existing version tag to package
         required: true
-        default: v0.1.0-beta.1
+        default: v0.1.0-beta.2
 
 permissions:
   contents: write
@@ -88,6 +88,16 @@ jobs:
         shell: pwsh
         run: |
           cmake --install build/release --prefix "${PWD}/stage"
+          $guiSubsystem = (& objdump -p "${PWD}/stage/bin/NewConvert9918.exe" |
+            Select-String '\(Windows GUI\)' | Out-String)
+          if (-not $guiSubsystem) {
+            throw "NewConvert9918.exe is not a Windows GUI-subsystem executable."
+          }
+          $cliSubsystem = (& objdump -p "${PWD}/stage/bin/newconvert9918-cli.exe" |
+            Select-String '\(Windows CUI\)' | Out-String)
+          if (-not $cliSubsystem) {
+            throw "newconvert9918-cli.exe is not a Windows console-subsystem executable."
+          }
           cmake -D ROOT="${PWD}/stage" `
             -D GUI_REL=bin/NewConvert9918.exe `
             -D CLI_REL=bin/newconvert9918-cli.exe `
@@ -228,6 +238,8 @@ jobs:
             packaging/linux/control.in > DebRoot/DEBIAN/control
           dpkg-deb --root-owner-group --build DebRoot \
             "dist/newconvert9918_${RELEASE_VERSION}_amd64.deb"
+          chmod 0644 "dist/newconvert9918_${RELEASE_VERSION}_amd64.deb"
+          test "$(stat -c '%a' "dist/newconvert9918_${RELEASE_VERSION}_amd64.deb")" = 644
           sudo apt-get install --yes \
             "./dist/newconvert9918_${RELEASE_VERSION}_amd64.deb"
           newconvert9918-cli --version | grep "${RELEASE_VERSION}"
