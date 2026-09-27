@@ -379,7 +379,9 @@ Before tagging each prerelease:
 - create and verify `SHA256SUMS.txt`;
 - prepare release notes with preview status, signing state, platform support,
   expected trust prompts, installation steps, known issues, and manual update
-  instructions; and
+  instructions; include the harmless local-file `_apt` notice, the
+  warning-free `/tmp` installation method, and any desktop-session icon-cache
+  refresh guidance; and
 - publish a complete GitHub prerelease only after every required packaging job
   and final asset-set check succeeds.
 
@@ -453,6 +455,30 @@ agent and may fail silently when it is unavailable. Release notes therefore
 document `sudo apt install ./<package>.deb` as the reliable fallback without
 weakening system-wide security settings.
 
+When that local `.deb` is stored below a directory the restricted `_apt` user
+cannot traverse, APT may finish successfully and then report:
+
+```text
+N: Download is performed unsandboxed as root ... couldn't be accessed by user '_apt'.
+```
+
+This notice concerns APT acquiring the already-local archive; it is not a
+package installation or runtime-isolation failure. Making the archive mode
+`0644` is insufficient when a parent directory remains private, and the
+package cannot change its source path before APT opens it. Release notes must
+explain the notice and give this warning-free alternative:
+
+```shell
+install -m 0644 ./package.deb /tmp/newconvert9918.deb
+sudo apt install /tmp/newconvert9918.deb
+rm /tmp/newconvert9918.deb
+```
+
+Do not recommend disabling APT's sandbox, making a home directory
+world-readable, changing `_apt` ownership, or using mode `0777`. An
+authenticated APT repository would avoid this local-file condition because
+APT controls its download/cache path.
+
 The Debian archive also records a positive `Installed-Size`, confines bundled
 runtime files to `/opt/newconvert9918`, and passes both archive-layout and
 post-install path audits. A successful application launch alone is not enough:
@@ -489,11 +515,18 @@ tree. At minimum, each supported platform verifies:
 2. Install, mount, extract, or enable the package exactly as documented.
    For Debian packages, verify the normal desktop installer where available
    and the documented terminal fallback when its authorization agent fails.
+   Exercise both a private download location that produces the expected
+   `_apt` notice and the documented `/tmp` copy that avoids it.
 3. Launch the GUI with no Qt or compiler installed separately. On Windows,
    launching from Explorer or an installer shortcut must not open a console
    window, while the separate CLI must retain console behavior.
 4. Confirm icons, fonts, theme, file dialogs, menus, QML controls, and image
-   plugins load without missing-module warnings.
+   plugins load without missing-module warnings. On KDE Plasma, confirm the
+   application-menu icon in both a session that was active during installation
+   and a fresh login. If only the active session shows a generic icon, verify
+   the desktop entry and hicolor files, then rebuild that user's KService cache
+   with the matching `kbuildsycoca` version instead of adding a package script
+   that edits per-user caches.
 5. Open representative PNG, JPEG, PCX, and supported retro-format inputs.
 6. Run representative TMS9918A and F18A conversions.
 7. Export at least one raw and one wrapped output and verify the manifest.
