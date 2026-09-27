@@ -539,7 +539,7 @@ later official stable release.
 - [x] Publish `v0.1.0-beta.1` as a GitHub prerelease with platform guidance,
   unsigned-package authorization instructions, known issues, and manual update
   instructions.
-- [ ] Publish the corrective `v0.1.0-beta.2` prerelease with a Windows GUI
+- [x] Publish the corrective `v0.1.0-beta.2` prerelease with a Windows GUI
   subsystem check and a documented Debian terminal-install fallback.
 - [ ] Verify settings and recipe persistence plus beta replacement/upgrade on
   clean target systems before the stable release.
@@ -549,6 +549,12 @@ later official stable release.
 - [x] Defer automatic executable download and installation until signed update
   verification, recovery, rollback, and migration behavior are designed and
   tested.
+
+**Preview milestone review:** complete. `v0.1.0-beta.2` was produced from its
+immutable tag after all Windows, Linux, Intel macOS, and Apple Silicon macOS
+build, test, package-audit, install/smoke-test, asset-set, and checksum gates
+passed. Stable signing/notarization and the explicitly deferred update and
+upgrade checks remain part of the later stable-release work below.
 
 #### Stable release completion
 
