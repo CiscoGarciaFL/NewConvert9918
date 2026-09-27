@@ -118,7 +118,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-windows-x64
-          path: dist/*
+          path: |
+            dist/*.exe
+            dist/*.zip
           compression-level: 0
           if-no-files-found: error
 
@@ -235,7 +237,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-linux-x64
-          path: dist/*
+          path: |
+            dist/*.AppImage
+            dist/*.deb
           compression-level: 0
           if-no-files-found: error
 
@@ -343,7 +347,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-macos-${{ matrix.arch }}
-          path: dist/*
+          path: dist/*.dmg
           compression-level: 0
           if-no-files-found: error
 
@@ -384,7 +388,7 @@ jobs:
             -printf '%f\n' | sort > actual-assets.txt
           printf '%s\n' "${expected[@]}" | sort > expected-assets.txt
           diff -u expected-assets.txt actual-assets.txt
-          (cd release-assets && sha256sum * > SHA256SUMS.txt)
+          (cd release-assets && sha256sum "${expected[@]}" > SHA256SUMS.txt)
           (cd release-assets && sha256sum --check SHA256SUMS.txt)
 
       - name: Create immutable GitHub prerelease
