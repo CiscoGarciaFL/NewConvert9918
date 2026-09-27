@@ -483,13 +483,16 @@ The Windows portable tree has also passed the package audit and GUI/CLI smoke
 test locally. Feedback from `v0.1.0-beta.1` identified a Windows GUI-subsystem
 error and an unreliable graphical Debian installation path; `v0.1.0-beta.2`
 corrected the former but retained an unsafe Debian filesystem layout. The
-beta.3 implementation isolates the deployed runtime under
+published `v0.1.0-beta.3` implementation isolates the deployed runtime under
 `/opt/newconvert9918`, adds explicit launchers and desktop integration, records
 `Installed-Size`, rejects forbidden global paths, and verifies installation,
-launch, removal, and cleanup. The notification-only update checker remains
-optional for a later prerelease, and automatic installation remains
-intentionally deferred. Stable Windows and macOS publication still requires
-the signing and notarization gates described above.
+launch, removal, and cleanup. Its tagged release workflow passed on 2026-09-27
+and published the complete seven-file asset set. The remaining Linux acceptance
+item is a recorded clean-Kubuntu install plus reboot/logout, SDDM login, GUI/CLI
+launch, and removal test. The notification-only update checker remains optional
+for a later prerelease, and automatic installation remains intentionally
+deferred. Stable Windows and macOS publication still requires the signing and
+notarization gates described above.
 
 ## Phase 8 completion definition
 
