@@ -338,10 +338,12 @@ weakening system-wide security settings.
 The first beta supports Windows 10 version 1809 or newer on x64, macOS 13 or
 newer on Intel x86_64 and Apple Silicon arm64, and Linux x86_64 with glibc 2.34
 or newer. Ubuntu 22.04 is the pinned Linux build and package-test baseline. X11
-is the declared Linux display target for this beta; Wayland through Qt may work
-but is not yet part of the support promise. No architecture-specific CPU
-instructions beyond each platform's normal x86_64 or arm64 baseline are
-required.
+is the automated Linux display-test target. A hands-on `v0.1.0-beta.2` test on
+Kubuntu under Wayland completed successfully, so that configuration is a
+verified preview environment. Broader Wayland support remains provisional
+until additional distributions and compositors are covered. No
+architecture-specific CPU instructions beyond each platform's normal x86_64
+or arm64 baseline are required.
 
 The CI operating system used to produce a Linux release is pinned rather than
 `ubuntu-latest`; it must be old enough for the declared compatibility target.
