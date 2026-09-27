@@ -9,7 +9,7 @@ on:
       tag:
         description: Existing version tag to package
         required: true
-        default: v0.1.0-beta.2
+        default: v0.1.0-beta.3
 
 permissions:
   contents: write
@@ -220,30 +220,61 @@ jobs:
 
       - name: Build and install-test Debian package
         run: |
-          cp -a AppDir DebRoot
-          rm -f DebRoot/AppRun DebRoot/.DirIcon DebRoot/*.desktop DebRoot/*.png
-          # linuxdeploy preserves distribution copyright files for bundled
-          # libraries. They are useful in the AppImage, but a .deb must not
-          # claim paths owned by the host distribution's dependency packages.
-          rm -rf -- DebRoot/usr/share/doc
-          mkdir -p DebRoot/DEBIAN
-          if [[ "${RELEASE_VERSION}" == *-* ]]; then
-            version_core="${RELEASE_VERSION%%-*}"
-            version_suffix="${RELEASE_VERSION#*-}"
-            deb_version="${version_core}~${version_suffix}"
-          else
-            deb_version="${RELEASE_VERSION}"
-          fi
-          sed -e "s|@VERSION@|${deb_version}|g" \
-            packaging/linux/control.in > DebRoot/DEBIAN/control
-          dpkg-deb --root-owner-group --build DebRoot \
-            "dist/newconvert9918_${RELEASE_VERSION}_amd64.deb"
-          chmod 0644 "dist/newconvert9918_${RELEASE_VERSION}_amd64.deb"
-          test "$(stat -c '%a' "dist/newconvert9918_${RELEASE_VERSION}_amd64.deb")" = 644
-          sudo apt-get install --yes \
-            "./dist/newconvert9918_${RELEASE_VERSION}_amd64.deb"
-          newconvert9918-cli --version | grep "${RELEASE_VERSION}"
+          deb="dist/newconvert9918_${RELEASE_VERSION}_amd64.deb"
+          bash packaging/linux/build-isolated-deb.sh \
+            "${PWD}/AppDir/usr" "${PWD}/DebRoot" \
+            "${RELEASE_VERSION}" "${PWD}/${deb}"
+
+          cmake -D ROOT="${PWD}/DebRoot/opt/newconvert9918" \
+            -D GUI_REL=bin/NewConvert9918 \
+            -D CLI_REL=bin/newconvert9918-cli \
+            -D PLATFORM=linux -D REQUIRE_QT_LICENSES=ON \
+            -P tools/audit_package.cmake
+          cmake -D ROOT="${PWD}/DebRoot" \
+            -P tools/audit_debian_layout.cmake
+          xvfb-run -a cmake \
+            -D ROOT="${PWD}/DebRoot/opt/newconvert9918" \
+            -D GUI_REL=bin/NewConvert9918 \
+            -D CLI_REL=bin/newconvert9918-cli \
+            -D SOURCE_IMAGE="${PWD}/tests/golden/source/tiny-rgba.png" \
+            -D OUTPUT_DIR="${PWD}/deb-smoke-output" \
+            -D VERSION="${RELEASE_VERSION}" \
+            -P tools/smoke_test_package.cmake
+
+          test "$(stat -c '%a' "${deb}")" = 644
+          installed_size="$(dpkg-deb -f "${deb}" Installed-Size)"
+          [[ "${installed_size}" =~ ^[1-9][0-9]*$ ]]
+          dpkg-deb --contents "${deb}" > deb-contents.txt
+          ! grep -Eq \
+            '[.]/usr/bin/qt[.]conf$|[.]/usr/(plugins|qml)(/|$)|[.]/apprun-hooks(/|$)|[.]/usr/lib/lib(Qt|xcb|X11)' \
+            deb-contents.txt
+
+          for forbidden in \
+            /usr/bin/qt.conf /usr/plugins /usr/qml /apprun-hooks; do
+            test ! -e "${forbidden}"
+          done
+          sudo apt-get install --yes "./${deb}"
+          test -f /opt/newconvert9918/bin/qt.conf
+          test -f /opt/newconvert9918/plugins/platforms/libqxcb.so
+          for forbidden in \
+            /usr/bin/qt.conf /usr/plugins /usr/qml /apprun-hooks; do
+            test ! -e "${forbidden}"
+          done
+          dpkg-query -L newconvert9918 > installed-files.txt
+          ! grep -Eq \
+            '^/usr/bin/qt[.]conf$|^/usr/(plugins|qml)(/|$)|^/apprun-hooks(/|$)|^/usr/lib/lib(Qt|xcb|X11)' \
+            installed-files.txt
+          xvfb-run -a /usr/bin/NewConvert9918 --smoke-test
+          /usr/bin/newconvert9918-cli --version | grep "${RELEASE_VERSION}"
+
           sudo apt-get remove --yes newconvert9918
+          test ! -e /opt/newconvert9918
+          test ! -e /usr/bin/NewConvert9918
+          test ! -e /usr/bin/newconvert9918-cli
+          for forbidden in \
+            /usr/bin/qt.conf /usr/plugins /usr/qml /apprun-hooks; do
+            test ! -e "${forbidden}"
+          done
 
       - name: Upload Linux release assets
         uses: actions/upload-artifact@v4

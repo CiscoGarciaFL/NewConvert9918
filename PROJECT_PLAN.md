@@ -518,10 +518,13 @@ is the release standard; users must not need Qt, CMake, a compiler, or another
 development environment.
 
 The first unsigned cross-platform package set was published as
-`v0.1.0-beta.1`. The corrective `v0.1.0-beta.2` prerelease incorporates hands-on
-Windows and Linux installation feedback. Testers may authorize the clearly
-labeled preview packages. Signing and notarization remain required for the
-later official stable release.
+`v0.1.0-beta.1`, followed by `v0.1.0-beta.2`. Both Debian packages incorrectly
+installed an AppImage runtime into global system paths; a global
+`/usr/bin/qt.conf` redirected unrelated Qt applications to the package's Qt 6
+plugins and prevented Kubuntu's Qt 5 SDDM greeter from starting after reboot.
+The AppImage and non-Linux assets were not affected by that path collision.
+`v0.1.0-beta.3` is the corrective isolation release. Signing and notarization
+remain required for the later official stable release.
 
 #### Preview prerelease milestone
 
@@ -541,6 +544,12 @@ later official stable release.
   instructions.
 - [x] Publish the corrective `v0.1.0-beta.2` prerelease with a Windows GUI
   subsystem check and a documented Debian terminal-install fallback.
+- [ ] Publish `v0.1.0-beta.3` with the bundled Debian runtime confined to
+  `/opt/newconvert9918`, positive `Installed-Size` metadata, forbidden-path
+  audits, installed-launch tests, and complete removal verification.
+- [x] Add a release-blocking Debian layout audit that rejects global
+  `/usr/bin/qt.conf`, `/usr/plugins`, `/usr/qml`, `/apprun-hooks`, and bundled
+  Qt/X11 libraries placed directly in `/usr/lib`.
 - [ ] Verify settings and recipe persistence plus beta replacement/upgrade on
   clean target systems before the stable release.
 - [ ] Add a notification-only `Help -> Check for Updates` flow before a later
@@ -550,12 +559,13 @@ later official stable release.
   verification, recovery, rollback, and migration behavior are designed and
   tested.
 
-**Preview milestone review:** complete. `v0.1.0-beta.2` was produced from its
-immutable tag after all Windows, Linux, Intel macOS, and Apple Silicon macOS
-build, test, package-audit, install/smoke-test, asset-set, and checksum gates
-passed. Hands-on testing also confirmed successful operation on Kubuntu under
-Wayland. Stable signing/notarization and the explicitly deferred update and
-upgrade checks remain part of the later stable-release work below.
+**Preview milestone review:** reopened for the Debian isolation correction.
+`v0.1.0-beta.2` passed the original gates, and its application launched on
+Kubuntu under Wayland, but those checks did not inspect system-wide paths or
+test the display manager after reboot. The new gate treats host integrity,
+private runtime placement, installed launch, uninstall cleanup, and a
+post-install reboot/logout check as part of package correctness. The preview
+milestone closes again only after `v0.1.0-beta.3` is published and verified.
 
 #### Stable release completion
 
