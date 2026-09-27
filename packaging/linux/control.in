@@ -4,6 +4,7 @@ Section: graphics
 Priority: optional
 Architecture: amd64
 Maintainer: Cisco Garcia
+Installed-Size: @INSTALLED_SIZE@
 Depends: libc6 (>= 2.34), libgcc-s1, libstdc++6, libgl1, libx11-6, libxcb1, libxkbcommon0, libxkbcommon-x11-0
 Description: Cross-platform image converter for TMS9918A and F18A graphics
  New Convert 9918 converts common and retro image formats into deterministic

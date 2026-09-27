@@ -48,6 +48,15 @@ as `v0.1.0-beta.2`, and later builds use monotonically increasing identifiers
 such as `v0.1.0-beta.3` and
 `v0.1.0-rc.1`; the first stable build then uses the approved stable version.
 
+The Debian packages in `v0.1.0-beta.1` and `v0.1.0-beta.2` are unsafe to
+install. They copied a linuxdeploy/AppImage tree into the system root and could
+install `/usr/bin/qt.conf`, `/usr/plugins`, `/usr/qml`, and bundled libraries in
+global locations. A Kubuntu VM demonstrated the resulting cross-application
+failure: SDDM remained active, but its Qt 5 greeter aborted after being
+redirected to the application's Qt 6 plugin tree. `v0.1.0-beta.3` supersedes
+those Debian assets with an isolated layout. This incident is a release-gate
+regression case, not merely a release-note limitation.
+
 Preview packages may be unsigned. This is acceptable for testing on Windows,
 Linux, and macOS provided that the release notes:
 
@@ -152,7 +161,7 @@ from `NEWCONVERT9918_VERSION` in the root `CMakeLists.txt`.
 | macOS Apple Silicon | `NewConvert9918-<version>-macOS-arm64.dmg` | Signed and notarized drag-to-Applications GUI bundle. |
 | macOS Intel | `NewConvert9918-<version>-macOS-x86_64.dmg` | Signed and notarized drag-to-Applications GUI bundle. |
 | Linux x64 | `NewConvert9918-<version>-Linux-x86_64.AppImage` | Primary portable GUI package. |
-| Debian/Ubuntu x64 | `newconvert9918_<version>_amd64.deb` | Native package containing the GUI, CLI, desktop entry, icons, and declared dependencies. |
+| Debian/Ubuntu x64 | `newconvert9918_<version>_amd64.deb` | Isolated package with its bundled runtime under `/opt/newconvert9918` plus launchers, desktop integration, documentation, and declared base-system dependencies. |
 | All binary releases | `SHA256SUMS.txt` | Digest of every published binary artifact. |
 
 Intel and Apple Silicon DMGs are separate initially because both architectures
@@ -169,10 +178,11 @@ The Windows installer and portable ZIP contain `NewConvert9918.exe` and
 desktop executable uses the Windows GUI subsystem so Explorer and installer
 shortcuts do not open a console window; the CLI deliberately uses the Windows
 console subsystem. The release workflow inspects both PE subsystem values. The
-Debian package installs both programs in conventional system locations. The
-macOS DMG and Linux AppImage focus on the GUI; matching, versioned CLI archives
-may be attached when terminal installation instructions and architecture
-coverage are finalized.
+Debian package installs small launchers in `/usr/bin`, desktop integration
+under `/usr/share`, and the actual GUI, CLI, `qt.conf`, Qt libraries, plugins,
+and QML modules under `/opt/newconvert9918`. The macOS DMG and Linux AppImage
+focus on the GUI; matching, versioned CLI archives may be attached when
+terminal installation instructions and architecture coverage are finalized.
 
 ARM Linux, 32-bit Windows, and other architectures are not implied by the
 first release. They require explicit build, package, and clean-system test
@@ -199,10 +209,32 @@ metadata, debug runtimes, developer tools, and unused Qt plugins are excluded.
 Symbols may be retained as private CI artifacts or published separately for
 diagnostics, but are not placed in normal user packages.
 
+### Debian filesystem isolation
+
+A self-contained application runtime must never become a global Qt runtime.
+The Debian package therefore follows these ownership boundaries:
+
+- `/opt/newconvert9918` owns the private executables, `qt.conf`, libraries,
+  plugins, QML modules, resources, and bundled license material;
+- `/usr/bin/NewConvert9918` and `/usr/bin/newconvert9918-cli` are launchers that
+  execute the corresponding private binaries;
+- `/usr/share/applications`, `/usr/share/icons`, and
+  `/usr/share/doc/newconvert9918` contain only normal desktop integration and
+  documentation; and
+- the package must not create `/usr/bin/qt.conf`, `/usr/plugins`, `/usr/qml`,
+  `/apprun-hooks`, or unnamespaced bundled Qt, X11, or XCB libraries directly
+  under `/usr/lib`.
+
+Keeping `qt.conf` beside the real executable under the private prefix limits
+its plugin-path changes to New Convert 9918. Removing the package must remove
+the complete `/opt/newconvert9918` tree and both launchers without touching
+host Qt packages or configuration.
+
 ## CMake deployment and packaging design
 
 The installed tree is the source of every package. Packaging must not copy an
-arbitrary developer build directory.
+arbitrary developer build directory, and an AppImage staging root must never
+be repurposed as the Debian filesystem root.
 
 1. `install(TARGETS ...)` installs the GUI, CLI, icons, license files, and
    platform metadata into a staging prefix.
@@ -212,14 +244,18 @@ arbitrary developer build directory.
 3. CLI runtime dependencies not already supplied by the GUI deployment are
    collected explicitly.
 4. CPack or a narrowly scoped platform packaging script consumes only the
-   staged install tree.
+   staged install tree. Linux creates distinct package roots: linuxdeploy may
+   mutate `AppDir` for the AppImage, while the Debian builder relocates that
+   deployed runtime under `/opt/newconvert9918` and explicitly constructs only
+   the approved `/usr` integration files.
 5. A package-content audit rejects debug libraries, build-machine paths,
    unintended plugins, missing notices, and unresolved dynamic dependencies.
 
 Windows uses the Qt deployment result to produce an NSIS installer and a ZIP
 from the same staged tree. macOS uses a proper `.app` bundle and DMG. Linux uses
-an AppImage tool selected and pinned during implementation; CPack produces the
-Debian package. Packaging tool versions are pinned in release automation.
+an AppImage tool selected and pinned during implementation and a separate,
+narrowly scoped Debian builder with a release-blocking filesystem-layout
+audit. Packaging tool versions are pinned in release automation.
 
 ## Version and release policy
 
@@ -253,7 +289,12 @@ Before tagging each prerelease:
   package, and both macOS DMGs from clean CI checkouts;
 - audit each package for required Qt/QML/runtime files, missing dependencies,
   debug files, build-machine paths, licenses, and notices;
+- reject Debian archives containing global Qt configuration, plugin, QML, or
+  unnamespaced bundled-library paths, and require a positive `Installed-Size`;
 - run the package smoke tests on clean systems with no development Qt install;
+- install and remove the Debian archive on a clean runner, launch both installed
+  entry points, and prove that the private runtime is removed while host Qt
+  paths remain unchanged;
 - verify beta-to-beta upgrade or replacement without losing settings or saved
   recipes;
 - create and verify `SHA256SUMS.txt`;
@@ -333,15 +374,24 @@ agent and may fail silently when it is unavailable. Release notes therefore
 document `sudo apt install ./<package>.deb` as the reliable fallback without
 weakening system-wide security settings.
 
+The Debian archive also records a positive `Installed-Size`, confines bundled
+runtime files to `/opt/newconvert9918`, and passes both archive-layout and
+post-install path audits. A successful application launch alone is not enough:
+the test must also prove that unrelated host Qt applications retain their own
+configuration and plugin discovery after installation and reboot/logout.
+
 ## Supported-system policy
 
 The first beta supports Windows 10 version 1809 or newer on x64, macOS 13 or
 newer on Intel x86_64 and Apple Silicon arm64, and Linux x86_64 with glibc 2.34
 or newer. Ubuntu 22.04 is the pinned Linux build and package-test baseline. X11
-is the automated Linux display-test target. A hands-on `v0.1.0-beta.2` test on
-Kubuntu under Wayland completed successfully, so that configuration is a
-verified preview environment. Broader Wayland support remains provisional
-until additional distributions and compositors are covered. No
+is the automated Linux display-test target. The application itself launched
+successfully during a Kubuntu/Wayland test, but the beta.1 Debian package later
+prevented SDDM from starting its greeter after reboot. Kubuntu/Wayland is not a
+verified Debian installation environment again until the isolated beta.3
+package passes installation, reboot/logout, GUI, CLI, and removal checks on
+that system. Broader Wayland support remains provisional until additional
+distributions and compositors are covered. No
 architecture-specific CPU instructions beyond each platform's normal x86_64
 or arm64 baseline are required.
 
@@ -373,6 +423,9 @@ tree. At minimum, each supported platform verifies:
 11. Upgrade from the preceding released version without losing user settings.
 12. Uninstall or remove the application and verify that only documented user
     settings remain.
+13. For Debian packages, verify that no global Qt configuration, plugin, QML,
+    or unnamespaced bundled-library path was created and that the desktop login
+    manager still starts after reboot/logout.
 
 Automated smoke tests cover everything practical on fresh hosted runners.
 Signing, Gatekeeper, SmartScreen, desktop integration, and real installer UX
@@ -429,8 +482,11 @@ prerelease.
 The Windows portable tree has also passed the package audit and GUI/CLI smoke
 test locally. Feedback from `v0.1.0-beta.1` identified a Windows GUI-subsystem
 error and an unreliable graphical Debian installation path; `v0.1.0-beta.2`
-corrects the former, normalizes Debian package permissions, and documents the
-terminal fallback for the latter. The notification-only update checker remains
+corrected the former but retained an unsafe Debian filesystem layout. The
+beta.3 implementation isolates the deployed runtime under
+`/opt/newconvert9918`, adds explicit launchers and desktop integration, records
+`Installed-Size`, rejects forbidden global paths, and verifies installation,
+launch, removal, and cleanup. The notification-only update checker remains
 optional for a later prerelease, and automatic installation remains
 intentionally deferred. Stable Windows and macOS publication still requires
 the signing and notarization gates described above.
@@ -444,6 +500,8 @@ Phase 8 is complete only when:
 - each package runs on clean supported systems without development software;
 - the complete GUI and CLI test suites pass before packaging;
 - package smoke tests and dependency audits pass;
+- Debian filesystem-isolation, installed-launch, host-integrity, and removal
+  audits pass;
 - required Windows and macOS trust checks pass;
 - notices and checksums are present and verified;
 - GitHub creates a complete immutable prerelease automatically; and
