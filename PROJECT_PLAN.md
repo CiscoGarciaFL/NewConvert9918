@@ -523,8 +523,10 @@ installed an AppImage runtime into global system paths; a global
 `/usr/bin/qt.conf` redirected unrelated Qt applications to the package's Qt 6
 plugins and prevented Kubuntu's Qt 5 SDDM greeter from starting after reboot.
 The AppImage and non-Linux assets were not affected by that path collision.
-`v0.1.0-beta.3` is the corrective isolation release. Signing and notarization
-remain required for the later official stable release.
+`v0.1.0-beta.3` is the published corrective isolation release. Its tagged
+workflow passed the Debian archive-layout, installation, launch, forbidden-path,
+removal, and cleanup gates. Signing and notarization remain required for the
+later official stable release.
 
 #### Preview prerelease milestone
 
@@ -544,7 +546,7 @@ remain required for the later official stable release.
   instructions.
 - [x] Publish the corrective `v0.1.0-beta.2` prerelease with a Windows GUI
   subsystem check and a documented Debian terminal-install fallback.
-- [ ] Publish `v0.1.0-beta.3` with the bundled Debian runtime confined to
+- [x] Publish `v0.1.0-beta.3` with the bundled Debian runtime confined to
   `/opt/newconvert9918`, positive `Installed-Size` metadata, forbidden-path
   audits, installed-launch tests, and complete removal verification.
 - [x] Add a release-blocking Debian layout audit that rejects global
@@ -559,13 +561,12 @@ remain required for the later official stable release.
   verification, recovery, rollback, and migration behavior are designed and
   tested.
 
-**Preview milestone review:** reopened for the Debian isolation correction.
-`v0.1.0-beta.2` passed the original gates, and its application launched on
-Kubuntu under Wayland, but those checks did not inspect system-wide paths or
-test the display manager after reboot. The new gate treats host integrity,
-private runtime placement, installed launch, uninstall cleanup, and a
-post-install reboot/logout check as part of package correctness. The preview
-milestone closes again only after `v0.1.0-beta.3` is published and verified.
+**Preview milestone review:** `v0.1.0-beta.3` was published after its clean
+tagged workflow passed the new private-runtime, forbidden-path, installed-launch,
+uninstall, and cleanup gates. The earlier Kubuntu incident showed that automated
+application launch alone does not verify the desktop login path. A recorded
+clean-Kubuntu install plus reboot/logout, SDDM login, GUI/CLI launch, and removal
+test remains required before closing this milestone again.
 
 #### Stable release completion
 
