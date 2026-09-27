@@ -553,7 +553,8 @@ later official stable release.
 **Preview milestone review:** complete. `v0.1.0-beta.2` was produced from its
 immutable tag after all Windows, Linux, Intel macOS, and Apple Silicon macOS
 build, test, package-audit, install/smoke-test, asset-set, and checksum gates
-passed. Stable signing/notarization and the explicitly deferred update and
+passed. Hands-on testing also confirmed successful operation on Kubuntu under
+Wayland. Stable signing/notarization and the explicitly deferred update and
 upgrade checks remain part of the later stable-release work below.
 
 #### Stable release completion
