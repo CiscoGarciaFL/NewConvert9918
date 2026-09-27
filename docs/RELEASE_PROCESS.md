@@ -83,6 +83,41 @@ This keeps the first packaging exercise independent of an updater and allows
 the packages themselves to be tested before more release infrastructure is
 added.
 
+KDE Discover is a repository/store client, not a generic replacement for the
+local Debian-package installer. Publishing a `.deb` file on GitHub does not
+make it discoverable in Discover. The current beta therefore keeps the
+AppImage and isolated `.deb` as direct GitHub downloads, and documents
+`sudo apt install ./<package>.deb` as the reliable Debian fallback when a
+desktop authorization agent is unavailable, including some remote-desktop
+sessions.
+
+The Linux software-center roadmap is:
+
+1. Add a validated AppStream MetaInfo file using the frozen
+   `io.github.ciscogarciafl.NewConvert9918` application ID, and keep its
+   desktop file, icon, screenshots, releases, summary, licenses, and URLs in
+   sync. This metadata improves package presentation but does not by itself
+   create a Discover repository.
+2. Evaluate a separately tested Snap in a beta channel as the first
+   Discover-visible preview channel. Discover can use a configured Snap
+   backend, but the confined package has its own filesystem, portal, hardware,
+   and update behavior and does not replace AppImage or Debian testing.
+3. Target Flatpak/Flathub for the eventual stable cross-distribution channel
+   after the application satisfies Flathub's source-build, sandbox, metadata,
+   icon, desktop-file, and stable-release requirements. New beta-only Flathub
+   submissions are not currently the preview path.
+4. Consider a signed APT repository or PPA only when native Debian/Ubuntu
+   repository updates justify its source-package, signing, AppStream-catalog,
+   and maintenance overhead. Discover's native package backend still relies on
+   PolicyKit, so this channel does not eliminate authorization failures in a
+   session without a working authentication agent.
+
+No software-center channel is advertised until its install, launch, update,
+rollback or removal, sandbox/permission, and host-integrity checks pass on
+clean supported systems. See [KDE Discover](https://userbase.kde.org/Discover/en),
+[Flathub application requirements](https://docs.flathub.org/docs/for-app-authors/requirements),
+and [Ubuntu source-package guidance](https://documentation.ubuntu.com/project/contributors/bug-fix/build-packages/).
+
 The preferred next step is a notification-only `Help -> Check for Updates`
 feature. It should:
 
@@ -162,6 +197,8 @@ from `NEWCONVERT9918_VERSION` in the root `CMakeLists.txt`.
 | macOS Intel | `NewConvert9918-<version>-macOS-x86_64.dmg` | Signed and notarized drag-to-Applications GUI bundle. |
 | Linux x64 | `NewConvert9918-<version>-Linux-x86_64.AppImage` | Primary portable GUI package. |
 | Debian/Ubuntu x64 | `newconvert9918_<version>_amd64.deb` | Isolated package with its bundled runtime under `/opt/newconvert9918` plus launchers, desktop integration, documentation, and declared base-system dependencies. |
+| Linux ARM64 (future) | `NewConvert9918-<version>-Linux-aarch64.AppImage` | Native AArch64 portable GUI package, added only after the ARM64 acceptance gates pass. |
+| Debian/Ubuntu ARM64 (future) | `newconvert9918_<version>_arm64.deb` | Native ARM64 package using the same private `/opt/newconvert9918` runtime boundary as the x64 package. |
 | All binary releases | `SHA256SUMS.txt` | Digest of every published binary artifact. |
 
 Intel and Apple Silicon DMGs are separate initially because both architectures
@@ -184,9 +221,11 @@ and QML modules under `/opt/newconvert9918`. The macOS DMG and Linux AppImage
 focus on the GUI; matching, versioned CLI archives may be attached when
 terminal installation instructions and architecture coverage are finalized.
 
-ARM Linux, 32-bit Windows, and other architectures are not implied by the
-first release. They require explicit build, package, and clean-system test
-coverage before being advertised.
+Linux ARM64/AArch64 is a planned expansion, not part of the first supported
+Linux release. ARM32/armhf, 32-bit Windows, and other architectures are not
+implied by that plan. Every additional architecture requires an explicit
+native build, package, dependency audit, and clean-system test matrix before
+release notes call it supported.
 
 ## Package contents
 
@@ -256,6 +295,46 @@ from the same staged tree. macOS uses a proper `.app` bundle and DMG. Linux uses
 an AppImage tool selected and pinned during implementation and a separate,
 narrowly scoped Debian builder with a release-blocking filesystem-layout
 audit. Packaging tool versions are pinned in release automation.
+
+### Linux ARM64 expansion
+
+The present Linux packaging method can be extended to ARM64 without changing
+the private-runtime design. The application is portable C++/Qt, the current
+pinned linuxdeploy and Qt plugin releases publish `aarch64` tools, GitHub
+provides native Ubuntu ARM64 runners, and Qt's installer supports the
+`linux_arm64` host with the `linux_gcc_arm64` architecture. The current
+workflow is nevertheless x86-64-only: it selects x86-64 runners and
+linuxdeploy tools, writes `Architecture: amd64`, names only x86-64/amd64
+assets, and verifies a fixed x64 asset set.
+
+ARM64 release work must:
+
+1. add a native, pinned Ubuntu ARM64 build-and-test job rather than assembling
+   an ARM package from x86-64 Qt files;
+2. install the matching Qt ARM64 desktop runtime and use the pinned
+   `linuxdeploy-aarch64.AppImage` and
+   `linuxdeploy-plugin-qt-aarch64.AppImage` tools;
+3. parameterize Debian `Architecture`, tool selection, artifact names, and the
+   final release manifest so `amd64` and `arm64` cannot be confused;
+4. preserve the same Debian filesystem isolation, forbidden-path audit,
+   installed GUI/CLI smoke tests, uninstall cleanup, and host-Qt integrity
+   checks for both architectures;
+5. audit ELF machine types and dynamic dependencies so every bundled binary
+   and library is AArch64 and no x86-64 artifact crosses into the package; and
+6. pass clean ARM64 testing on the oldest declared distribution and at least
+   one current target, including a real or virtual ARM64 graphical system and
+   each display backend claimed in the release notes.
+
+The x64 `glibc 2.34` promise does not automatically apply to ARM64. Start with
+an Ubuntu 22.04 ARM64 runner to pursue the same baseline, then verify the
+actual Qt ARM64 binaries and every bundled dependency. If the selected Qt
+binary distribution requires a newer glibc, either build Qt against the older
+baseline or declare, test, and document a newer ARM64 minimum separately. See
+[GitHub-hosted runner images](https://docs.github.com/en/enterprise-cloud@latest/actions/reference/runners/github-hosted-runners),
+[install-qt-action](https://github.com/jurplel/install-qt-action),
+[aqtinstall platform support](https://github.com/miurahr/aqtinstall/blob/master/docs/getting_started.rst),
+[linuxdeploy releases](https://github.com/linuxdeploy/linuxdeploy/releases/tag/1-alpha-20251107-1),
+and [linuxdeploy-plugin-qt releases](https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/tag/1-alpha-20250213-1).
 
 ## Version and release policy
 
@@ -398,7 +477,8 @@ or arm64 baseline are required.
 The CI operating system used to produce a Linux release is pinned rather than
 `ubuntu-latest`; it must be old enough for the declared compatibility target.
 The macOS deployment target is explicit in CMake. Packages are tested on the
-oldest supported system and at least one current system.
+oldest supported system and at least one current system. Until the ARM64 gates
+above pass, Linux support and release notes remain explicitly x86-64-only.
 
 ## Clean-system acceptance tests
 
@@ -492,7 +572,9 @@ item is a recorded clean-Kubuntu install plus reboot/logout, SDDM login, GUI/CLI
 launch, and removal test. The notification-only update checker remains optional
 for a later prerelease, and automatic installation remains intentionally
 deferred. Stable Windows and macOS publication still requires the signing and
-notarization gates described above.
+notarization gates described above. AppStream/software-center metadata and the
+native Linux ARM64 workflow are documented future work; no current Linux asset
+or support statement implies ARM64 compatibility.
 
 ## Phase 8 completion definition
 
