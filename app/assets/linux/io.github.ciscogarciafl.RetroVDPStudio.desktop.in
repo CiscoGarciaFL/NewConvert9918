@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=RetroVDP Studio
+Comment=Create and convert graphics for classic video display processors
+Exec=RetroVDPStudio %f
+Icon=@RETROVDP_LINUX_APP_ID@
+Terminal=false
+Categories=Graphics;2DGraphics;RasterGraphics;
+MimeType=image/png;image/jpeg;image/bmp;image/gif;image/tiff;image/webp;
+StartupNotify=true
+StartupWMClass=RetroVDPStudio
+X-AppImage-Version=@RETROVDP_VERSION@

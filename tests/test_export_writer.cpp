@@ -1,4 +1,4 @@
-#include "newconvert9918/imageio/ExportWriter.hpp"
+#include "retrovdp/imageio/ExportWriter.hpp"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -13,7 +13,7 @@
 
 namespace {
 
-using namespace newconvert9918;
+using namespace retrovdp;
 
 struct TestContext {
     int failures{};

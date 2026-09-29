@@ -1,4 +1,4 @@
-#include "newconvert9918/core/PaletteSelection.hpp"
+#include "retrovdp/core/PaletteSelection.hpp"
 
 #include <algorithm>
 #include <array>
@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 namespace {
 
 constexpr std::size_t channelCount = 3;
@@ -349,4 +349,4 @@ PaletteSelectionResult selectPopularPalette(const RgbImage& source,
     return makeResult(std::move(colors));
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

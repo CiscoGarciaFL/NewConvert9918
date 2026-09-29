@@ -1,9 +1,9 @@
-#include "newconvert9918/core/ConversionTypes.hpp"
+#include "retrovdp/core/ConversionTypes.hpp"
 
 #include <algorithm>
 #include <utility>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 
 CancellationToken::CancellationToken(
     std::shared_ptr<const std::atomic_bool> requested)
@@ -43,4 +43,4 @@ bool ConversionResult::succeeded() const
     return status == ConversionStatus::Succeeded && !hasErrors();
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

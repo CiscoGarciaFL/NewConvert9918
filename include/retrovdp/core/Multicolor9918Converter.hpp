@@ -1,0 +1,34 @@
+#pragma once
+
+#include "retrovdp/core/ConversionTypes.hpp"
+
+namespace retrovdp::core {
+
+// Converts a prepared 256x192 RGB image into the TMS9918A's 64x48 logical
+// multicolor grid and its 1536-byte pattern-generator table.
+[[nodiscard]] ConversionResult
+convertMulticolor9918(const RgbImage& source,
+                      const Palette& workingPalette,
+                      const ConversionSettings& settings,
+                      CancellationToken cancellation = {},
+                      ConversionProgressCallback progress = {});
+
+// Converts each 4x4 logical pixel to an ordered pair of colors displayed on
+// alternating frames. The preview contains their temporal average.
+[[nodiscard]] ConversionResult
+convertDualMulticolor9918(const RgbImage& source,
+                          const Palette& workingPalette,
+                          const ConversionSettings& settings,
+                          CancellationToken cancellation = {},
+                          ConversionProgressCallback progress = {});
+
+// Flickers a Graphics II bitmap overlay with a multicolor underlay. The three
+// returned tables use the legacy display-list rotations and addresses.
+[[nodiscard]] ConversionResult
+convertHalfMulticolor9918(const RgbImage& source,
+                          const Palette& workingPalette,
+                          const ConversionSettings& settings,
+                          CancellationToken cancellation = {},
+                          ConversionProgressCallback progress = {});
+
+} // namespace retrovdp::core

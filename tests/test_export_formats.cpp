@@ -1,4 +1,4 @@
-#include "newconvert9918/formats/Export.hpp"
+#include "retrovdp/formats/Export.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -12,7 +12,7 @@
 
 namespace {
 
-using namespace newconvert9918;
+using namespace retrovdp;
 namespace fs = std::filesystem;
 
 struct TestContext {
@@ -29,7 +29,7 @@ struct TestContext {
 
 fs::path golden(std::string_view relative)
 {
-    return fs::path(NEWCONVERT9918_GOLDEN_DIR) / fs::path(relative);
+    return fs::path(RETROVDP_GOLDEN_DIR) / fs::path(relative);
 }
 
 std::vector<std::uint8_t> readFile(const fs::path& path)

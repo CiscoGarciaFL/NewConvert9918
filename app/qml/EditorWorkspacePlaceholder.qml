@@ -13,9 +13,9 @@ PreviewPane {
     required property string description
     required property string importDescription
     required property int editorKind // 0 = character, 1 = sprite
-    property int characterDrawingTool: 1 // 1 = pencil, 2 = eraser
+    property int characterDrawingTool: 1 // 1 pencil, 2 eraser, 3 line, 4 K-Line, 5 Rays
     property int characterActiveColor: 0 // 0 = foreground, 1 = background
-    property int spriteDrawingTool: 1 // 1 = pencil, 2 = eraser
+    property int spriteDrawingTool: 1 // 1 pencil, 2 eraser, 3 line, 4 K-Line, 5 Rays
     property int spriteActiveColor: 0 // 0 = foreground, 1 = transparent
     readonly property var activeCharacterSlot:
         editorProject.characterEditorSlots.length > 0
@@ -324,6 +324,136 @@ PreviewPane {
                         context.lineTo(1, 3)
                         context.stroke()
                         context.restore()
+                    }
+                }
+            }
+            ToolButton {
+                id: patternLineButton
+                objectName: root.editorKind === 0
+                            ? "characterPatternLineButton"
+                            : "spritePatternLineButton"
+                implicitWidth: 26
+                implicitHeight: 26
+                enabled: root.activeEditorItemLoaded && !root.activeEditorPan
+                         && !(root.editorKind === 1
+                              && editorProject.spritePlacementMode)
+                checkable: true
+                checked: root.activeDrawingTool === 3
+                Accessible.name: root.editorKind === 0
+                                 ? qsTr("Draw a pattern line")
+                                 : qsTr("Draw a sprite line")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("%1; hold Shift for horizontal or vertical")
+                                  .arg(Accessible.name)
+                onClicked: root.setActiveDrawingTool(3)
+
+                contentItem: Canvas {
+                    implicitWidth: 16
+                    implicitHeight: 16
+                    property color iconColor: patternLineButton.palette.buttonText
+                    onIconColorChanged: requestPaint()
+                    onPaint: {
+                        const context = getContext("2d")
+                        context.clearRect(0, 0, width, height)
+                        context.strokeStyle = iconColor
+                        context.lineCap = "round"
+                        context.lineWidth = 2
+                        context.beginPath()
+                        context.moveTo(3, 13)
+                        context.lineTo(13, 3)
+                        context.stroke()
+                    }
+                }
+            }
+            ToolButton {
+                id: patternKLineButton
+                objectName: root.editorKind === 0
+                            ? "characterPatternKLineButton"
+                            : "spritePatternKLineButton"
+                implicitWidth: 26
+                implicitHeight: 26
+                enabled: root.activeEditorItemLoaded && !root.activeEditorPan
+                         && !(root.editorKind === 1
+                              && editorProject.spritePlacementMode)
+                checkable: true
+                checked: root.activeDrawingTool === 4
+                Accessible.name: root.editorKind === 0
+                                 ? qsTr("Draw connected pattern lines")
+                                 : qsTr("Draw connected sprite lines")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("%1; hold Shift to constrain, Escape to finish")
+                                  .arg(Accessible.name)
+                onClicked: root.setActiveDrawingTool(4)
+
+                contentItem: Canvas {
+                    implicitWidth: 16
+                    implicitHeight: 16
+                    property color iconColor: patternKLineButton.palette.buttonText
+                    onIconColorChanged: requestPaint()
+                    onPaint: {
+                        const context = getContext("2d")
+                        context.clearRect(0, 0, width, height)
+                        context.strokeStyle = iconColor
+                        context.fillStyle = iconColor
+                        context.lineJoin = "round"
+                        context.lineCap = "round"
+                        context.lineWidth = 2
+                        context.beginPath()
+                        context.moveTo(2, 12)
+                        context.lineTo(7, 4)
+                        context.lineTo(14, 10)
+                        context.stroke()
+                        context.beginPath()
+                        context.arc(2, 12, 1.5, 0, Math.PI * 2)
+                        context.arc(7, 4, 1.5, 0, Math.PI * 2)
+                        context.arc(14, 10, 1.5, 0, Math.PI * 2)
+                        context.fill()
+                    }
+                }
+            }
+            ToolButton {
+                id: patternRaysButton
+                objectName: root.editorKind === 0
+                            ? "characterPatternRaysButton"
+                            : "spritePatternRaysButton"
+                implicitWidth: 26
+                implicitHeight: 26
+                enabled: root.activeEditorItemLoaded && !root.activeEditorPan
+                         && !(root.editorKind === 1
+                              && editorProject.spritePlacementMode)
+                checkable: true
+                checked: root.activeDrawingTool === 5
+                Accessible.name: root.editorKind === 0
+                                 ? qsTr("Draw fixed-origin pattern rays")
+                                 : qsTr("Draw fixed-origin sprite rays")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("%1; hold Shift to constrain, Escape to finish")
+                                  .arg(Accessible.name)
+                onClicked: root.setActiveDrawingTool(5)
+
+                contentItem: Canvas {
+                    implicitWidth: 16
+                    implicitHeight: 16
+                    property color iconColor: patternRaysButton.palette.buttonText
+                    onIconColorChanged: requestPaint()
+                    onPaint: {
+                        const context = getContext("2d")
+                        context.clearRect(0, 0, width, height)
+                        context.strokeStyle = iconColor
+                        context.fillStyle = iconColor
+                        context.lineCap = "round"
+                        context.lineWidth = 1.5
+                        context.beginPath()
+                        context.moveTo(3, 8)
+                        context.lineTo(13, 3)
+                        context.moveTo(3, 8)
+                        context.lineTo(14, 8)
+                        context.moveTo(3, 8)
+                        context.lineTo(13, 13)
+                        context.stroke()
+                        context.beginPath()
+                        context.arc(3, 8, 2, 0, Math.PI * 2)
+                        context.fill()
                     }
                 }
             }

@@ -1,25 +1,45 @@
-# New Convert 9918
+# RetroVDP Studio
 
-New Convert 9918 is a cross-platform reimplementation and modernization of
-[Convert9918](https://github.com/tursilion/convert9918), an image conversion
-tool for TMS9918A bitmap modes and F18A enhanced bitmap modes.
+<p align="center">
+  <img src="app/assets/RetroVDPStudio.svg" width="220" alt="RetroVDP Studio logo">
+</p>
 
-The project is starting with two goals:
+RetroVDP Studio is a cross-platform graphics workspace for classic video
+display processors. It combines source preparation and conversion with
+hardware-aware screen, character, pattern, palette, and sprite tools.
 
-1. Preserve the excellent output and format support of the original tool.
-2. Provide a clearer, responsive interface on Windows, Linux, and macOS.
+The application is organized around three independent ideas:
+
+1. **Sources are reusable.** Common images and supported retro formats can be
+   opened as source material without being restricted to the hardware or
+   software that originally created them.
+2. **Targets own their output.** Each selected VDP profile applies its own
+   display modes, palettes, memory organization, sprite limits, validation,
+   and export formats. A future project may retain several managed target
+   outputs derived from the same source.
+3. **Native imports preserve structure only when it is meaningful.** Pattern,
+   sprite, tile-map, palette, and other editors offer direct import only when
+   the source data can be represented by the active target. Other supported
+   files remain available through the visual conversion path.
+
+RetroVDP Studio is inspired by
+[Convert9918](https://github.com/tursilion/convert9918), created by Mike Brent
+(Tursi). Convert9918 remains a historical inspiration and behavioral reference;
+RetroVDP Studio has its own product identity and a broader multi-target design.
 
 ## Status
 
-The portable core includes every planned 9918A and F18A conversion mode. The
-input pipeline loads common Qt raster formats, PCX, and the original retro
-formats with explicit safety limits. Phase 5 adds deterministic RAW, RLE,
+The current release implements complete TMS9918A and F18A conversion profiles,
+while the target-profile architecture is intended to add V9938 and other
+classic VDPs without another product redesign. The input pipeline loads common
+Qt raster formats, PCX, and supported retro formats with explicit safety
+limits. The export layer provides deterministic RAW, RLE,
 TIFILES, V9T9, MSX, Coleco, Adam, Extended BASIC, ROM, and PNG exporters with
-generated-file manifests and overwrite preflight. Phase 6 completes the
-redesigned Qt workflow with menu-driven tabbed/horizontal/vertical previews,
-an adjacent or overlay Conversion panel, debounced background conversion,
+generated-file manifests and overwrite preflight. The Qt workspace provides
+menu-driven tabbed/horizontal/vertical previews, an adjacent or overlay Side
+Panel, debounced background conversion,
 presets, undo/reset, palette inspection, persistent settings, export summaries,
-and accessible narrow/wide layouts. Phase 7 adds a headless command-line
+and accessible narrow/wide layouts. It also provides a headless command-line
 frontend for deterministic one-shot conversion and export, stable exit codes,
 JSON diagnostics, and automation-friendly overwrite handling.
 
@@ -54,9 +74,11 @@ release checklist are defined in
 The post-v1 design for enumerating video, animated-image, slideshow, and still
 sequence sources into deterministic conversion jobs is in
 [`docs/BATCH_MODE.md`](docs/BATCH_MODE.md).
-The proposed hardware-aware sprite, composite-sprite, character-bank,
-pattern-reservation, and Multicolor authoring workspace is specified in
-[`docs/9918_DESIGN_TOOLS.md`](docs/9918_DESIGN_TOOLS.md).
+The multi-target source, project-output, import, and export philosophy is
+specified in [`docs/TARGET_PROFILES.md`](docs/TARGET_PROFILES.md). The
+hardware-aware sprite, composite-sprite, character-bank, pattern-reservation,
+and Multicolor authoring workspace is specified in
+[`docs/VDP_DESIGN_TOOLS.md`](docs/VDP_DESIGN_TOOLS.md).
 
 ## Technology
 
@@ -119,11 +141,11 @@ known-current build without rebuilding, pass `-SkipBuild`:
 Close the preview window before rebuilding the application because Windows
 locks a running executable.
 
-The same build also creates `newconvert9918-cli` in the `bin` directory. A
+The same build also creates `retrovdp-cli` in the `bin` directory. A
 minimal headless conversion is:
 
 ```shell
-newconvert9918-cli --input artwork.png --output converted --mode bitmap-9918a --format tifiles
+retrovdp-cli --input artwork.png --output converted --mode bitmap-9918a --format tifiles
 ```
 
 Add `--json` for machine-readable results. See
@@ -145,9 +167,9 @@ runners with AppleClang.
 ## Project structure
 
 - `app/` — Qt desktop shell, QML interface, shared application pipeline, and CLI
-- `include/newconvert9918/core/` — public, platform-neutral core API
-- `include/newconvert9918/formats/` — portable export requests and manifests
-- `include/newconvert9918/imageio/` — Qt image-loading adapter API
+- `include/retrovdp/core/` — public, platform-neutral core API
+- `include/retrovdp/formats/` — portable export requests and manifests
+- `include/retrovdp/imageio/` — Qt image-loading adapter API
 - `src/core/` — conversion and independent codec implementation
 - `src/formats/` — deterministic retro output writers
 - `src/imageio/` — common raster, PNG, and filesystem adapters
@@ -160,11 +182,11 @@ Its exact audited commit is pinned in the behavioral-baseline document.
 
 ## Attribution
 
-Convert9918 was created by Mike Brent (Tursi/HarmlessLion.com). New Convert
-9918 retains his original copyright, license terms, visible attribution, and
-a link to the original project.
+Convert9918 was created by Mike Brent (Tursi/HarmlessLion.com). RetroVDP Studio
+is inspired by that work and retains the original copyright, license terms,
+visible attribution, and link required by the project's governing terms.
 
-The New Convert 9918 cross-platform architecture, Qt interface, user
+The RetroVDP Studio cross-platform architecture, Qt interface, user
 experience, and new features are created by Cisco Garcia / CiscoGarciaFL.
 
 See [`NOTICE.md`](NOTICE.md) for full attribution and [`LICENSE`](LICENSE) for

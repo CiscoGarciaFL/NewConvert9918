@@ -57,7 +57,7 @@ update, validation, and the interface workflow tests.
   embedded loader bytes are copied or redistributed.
 - **Byte-for-byte legacy equivalence:** the hash-pinned Convert9918 1.9.1
   capture corpus is approved as the behavioral oracle. Current automated
-  tests approve deterministic New Convert 9918 output, file layouts, table
+  tests approve deterministic RetroVDP Studio output, file layouts, table
   validation, and the documented compatibility cases; they do not assert that
   every table is byte-identical to the stateful original quantizers. Known
   algorithm differences include Qt-based scaling/histogram handling and the

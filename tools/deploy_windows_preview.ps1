@@ -12,7 +12,7 @@ $deployQt = 'C:\Qt\6.10.3\mingw_64\bin\windeployqt.exe'
 $env:PATH = 'C:\Qt\Tools\mingw1310_64\bin;C:\Qt\6.10.3\mingw_64\bin;' `
     + $env:PATH
 $preset = "windows-mingw-$($Configuration.ToLowerInvariant())"
-$executable = Join-Path $projectRoot "build/$preset/bin/NewConvert9918.exe"
+$executable = Join-Path $projectRoot "build/$preset/bin/RetroVDPStudio.exe"
 $qmlDirectory = Join-Path $projectRoot 'app/qml'
 
 foreach ($requiredTool in @($cmake, $deployQt)) {
@@ -22,14 +22,14 @@ foreach ($requiredTool in @($cmake, $deployQt)) {
 }
 
 if (-not $SkipBuild) {
-    & $cmake --build --preset $preset --target NewConvert9918
+    & $cmake --build --preset $preset --target RetroVDPStudio
     if ($LASTEXITCODE -ne 0) {
         throw "The Windows preview build failed with exit code $LASTEXITCODE."
     }
 }
 
 if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
-    throw "NewConvert9918.exe was not built. Configure the $preset preset first."
+    throw "RetroVDPStudio.exe was not built. Configure the $preset preset first."
 }
 
 # The Qt online installer supplies release runtime DLLs for this MinGW kit even

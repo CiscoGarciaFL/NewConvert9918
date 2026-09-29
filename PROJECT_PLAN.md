@@ -1,6 +1,6 @@
-# New Convert 9918 — Project Plan and Checklist
+# RetroVDP Studio — Project Plan and Checklist
 
-Last updated: 2026-09-27
+Last updated: 2026-09-29
 
 This document is the durable handoff for future development sessions. Read it
 before starting work, update the checkboxes as milestones are completed, and
@@ -8,9 +8,9 @@ record important changes in the Decision Log.
 
 ## Project identity
 
-- Repository name: `NewConvert9918`
-- Application title: **New Convert 9918**
-- Local repository: `C:\Users\Cisco\projects\NewConvert9918`
+- Repository name: `retrovdp-studio`
+- Application title: **RetroVDP Studio**
+- Local repository: `C:\Users\Cisco\projects\retrovdp-studio`
 - Intended GitHub owner: `CiscoGarciaFL`
 - Visibility: public
 - Original project: <https://github.com/tursilion/convert9918>
@@ -19,9 +19,17 @@ record important changes in the Decision Log.
 
 ## Mission
 
-Create a polished, cross-platform successor to Convert9918 while preserving
-the original application's excellent conversion output and retro-computer
-format support.
+Create a polished, cross-platform workspace for preparing, converting,
+authoring, validating, and exporting graphics for classic video display
+processors. RetroVDP Studio is inspired by Convert9918 and preserves its
+valuable conversion knowledge without defining the new application by that
+relationship.
+
+Sources are reusable inputs. Each selected target profile applies its own
+hardware rules and owns independently managed output. Retro file formats are
+accepted broadly as sources when they can be decoded safely; direct imports
+into pattern, sprite, tile-map, and other native editors are exposed only when
+the source format and selected target have a meaningful representation.
 
 The application must run on Windows, Linux, and macOS. The conversion engine
 must be testable independently from the interface, and results should match
@@ -30,6 +38,15 @@ improvement.
 
 ## Confirmed decisions
 
+- [x] Use **RetroVDP Studio** as the target-independent product identity and
+  `retrovdp-studio` as the repository name.
+- [x] Describe Convert9918 as an inspiration and historical behavioral
+  reference rather than defining RetroVDP Studio as its successor.
+- [x] Treat decoded source assets as reusable inputs and keep each target
+  profile's managed output independent.
+- [x] Accept safe retro formats broadly through the visual source path, while
+  exposing direct native-editor imports only when source structure and target
+  capabilities are compatible.
 - [x] Use a clean Git history rather than preserving the original repository's
   commits.
 - [x] Use C++20 for conversion, codec, and export logic.
@@ -53,8 +70,41 @@ improvement.
 
 ## Current status
 
+### Rebrand completion gate
+
+- [x] Rename the application, executable, CLI, source include root, QML module,
+  assets, package identities, desktop integration, and documentation.
+- [x] Rename the GitHub repository to `CiscoGarciaFL/retrovdp-studio` and update
+  the local `origin` URL.
+- [x] Update Windows, Linux, Debian, macOS, and GitHub Release automation.
+- [x] Add branded Windows file properties for the GUI and CLI executables.
+- [x] Add one-time migration for earlier settings and version-1 recipes.
+- [x] Reserve and validate `v0.1.0-beta.4` as the first rebranded release.
+- [x] Pass the complete test suite, staged-package audit, smoke checks, and
+  portable-ZIP generation under the new identity.
+- [ ] Commit and push the rebrand baseline after deciding how to include the
+  pre-existing uncommitted editor work that overlaps rebranded files.
+- [ ] Confirm the policy for the beta.1-beta.3 GitHub prereleases and their
+  old-identity downloadable assets: retain as history or remove after beta.4.
+- [ ] Let the beta.4 cross-platform release workflow validate Linux, Debian,
+  Intel macOS, Apple Silicon macOS, and the Windows installer.
+- [ ] Rename or replace the active local checkout after this attached workspace
+  is closed; its current directory name is not safe to change in place.
+- [x] Replace the previous icon artwork with the RetroVDP Studio SVG and
+  regenerate every PNG size, Windows ICO, macOS ICNS, and preview watermark.
+
 ### Completed
 
+- [x] Reserved `v0.1.0-beta.4` as the first RetroVDP Studio release so the
+  rebranded artifacts cannot be confused with published beta.1-beta.3 files.
+- [x] Added one-time settings and version-1 recipe migration from the retired
+  beta identity; all subsequent writes use RetroVDP Studio identifiers.
+- [x] Rebranded application, libraries, CLI, packaging, assets, recipes, and
+  documentation as RetroVDP Studio.
+- [x] Added the initial target-profile registry with implemented TMS9918A and
+  F18A profiles plus a planned V9938 profile.
+- [x] Added target selection to the Screen Image interface, saved recipes, and
+  command-line workflow.
 - [x] Created the local project directory.
 - [x] Initialized a Git repository on `main`.
 - [x] Added the Qt Quick application shell.
@@ -66,7 +116,7 @@ improvement.
 - [x] Added `NOTICE.md` with original and new-work attribution.
 - [x] Added controlled-contribution guidance.
 - [x] Created and pushed the public GitHub repository at
-  <https://github.com/CiscoGarciaFL/NewConvert9918>.
+  <https://github.com/CiscoGarciaFL/retrovdp-studio>.
 - [x] Installed Qt 6.10.3, MinGW 13.1, CMake 3.30.5, and Ninja 1.12.1.
 - [x] Installed Zed 1.19.2 on the Windows development VM.
 - [x] Configured and built the application shell with MinGW Makefiles.
@@ -175,7 +225,7 @@ improvement.
 - [x] Polished tabbed previews with non-redundant titles and bottom-right zoom
   controls; added overlay close, automatic mouse-leave hiding, and a right-edge
   reopen control; eliminated QML binding errors during application shutdown.
-- [x] Added the New Convert 9918 logo as the cross-platform application icon,
+- [x] Added the RetroVDP Studio logo as the cross-platform application icon,
   generated native multi-size icon assets, and watermarked empty preview panes.
 - [x] Added immediate 256×192 source framing with compact positioning,
   palette-constrained background fill and eyedropper controls, plus selectable
@@ -184,13 +234,13 @@ improvement.
   zoom controls into a percentage menu with Fit/1:1 and stacked step buttons.
 - [x] Consolidated Conversion-panel groups behind compact disclosure headers,
   with Art Style expanded initially and expert/output sections collapsed.
-- [x] Added the headless `newconvert9918-cli` frontend with deterministic
+- [x] Added the headless `retrovdp-cli` frontend with deterministic
   one-shot conversion/export, stable exit codes, JSON diagnostics, safe
   overwrite handling, and executable-level tests.
 
 ### Development environment
 
-- [x] Use `C:\Users\Cisco\projects\NewConvert9918` as the local project root.
+- [x] Use `C:\Users\Cisco\projects\retrovdp-studio` as the local project root.
 - [x] Keep build, test, packaging, and release commands reproducible from a
   normal local checkout.
 - [x] Install a Qt 6 desktop development kit.
@@ -208,10 +258,10 @@ by CMake and can run from any editor or terminal.
 ## Target architecture
 
 ```text
-NewConvert9918/
+retrovdp-studio/
 ├── app/                         Qt Quick application and adapters
 │   └── qml/                     Windows, views, and reusable controls
-├── include/newconvert9918/
+├── include/retrovdp/
 │   ├── core/                    Public conversion API
 │   └── formats/                 Public codec/export API
 ├── src/
@@ -418,7 +468,7 @@ narrow, wide, and fractional-scale layouts. See `docs/INTERFACE_WORKFLOW.md`.
 
 The original feature inventory is recorded in `docs/BEHAVIORAL_BASELINE.md`.
 This phase tracks the remaining gap between that inventory and functionality
-that an end user can actually reach in New Convert 9918. A portable algorithm
+that an end user can actually reach in RetroVDP Studio. A portable algorithm
 or writer is not considered complete here until its required settings,
 resources, validation, and interface are also available.
 
@@ -547,7 +597,7 @@ later official stable release.
 - [x] Publish the corrective `v0.1.0-beta.2` prerelease with a Windows GUI
   subsystem check and a documented Debian terminal-install fallback.
 - [x] Publish `v0.1.0-beta.3` with the bundled Debian runtime confined to
-  `/opt/newconvert9918`, positive `Installed-Size` metadata, forbidden-path
+  `/opt/retrovdp-studio`, positive `Installed-Size` metadata, forbidden-path
   audits, installed-launch tests, and complete removal verification.
 - [x] Add a release-blocking Debian layout audit that rejects global
   `/usr/bin/qt.conf`, `/usr/plugins`, `/usr/qml`, `/apprun-hooks`, and bundled
@@ -618,7 +668,7 @@ reproduce and publish the complete release from a clean tag by following
 
 ### Phase 9 — GitHub governance
 
-- [x] Create `CiscoGarciaFL/NewConvert9918` as a public repository.
+- [x] Create `CiscoGarciaFL/RetroVDPStudio` as a public repository.
 - [x] Add the local remote and push `main`.
 - [ ] Keep organization base permissions read-only.
 - [ ] Grant Write or Maintain access only to approved people or teams.
@@ -646,15 +696,14 @@ legacy parity and remains documentation-only until the media backend,
 licensing, packaging, limits, and frame/timing contract are approved. See
 `docs/BATCH_MODE.md`.
 
-### Post-v1 proposal — 9918 and F18A Design Tools
+### Multi-target design tools
 
-A separate hardware-aware authoring workspace will support original TMS9918A
-and enhanced F18A sprite patterns, arbitrarily arranged composite sprites,
-accurate scanline/collision diagnostics, one-to-three-bank character viewing
-and editing, pattern reservations and stable image allocation, and Multicolor
-simulation. This remains documentation-only until the hardware contracts,
-project format, fixtures, and implementation phase are approved. See
-`docs/9918_DESIGN_TOOLS.md`.
+Hardware-aware authoring workspaces begin with original TMS9918A and enhanced
+F18A sprite and character patterns, composite sprites, scanline/collision
+diagnostics, pattern reservations, stable image allocation, and Multicolor
+simulation. These tools must obtain constraints from target profiles rather
+than from product-wide assumptions so V9938 and later VDPs can join the same
+workflow. See `docs/VDP_DESIGN_TOOLS.md` and `docs/TARGET_PROFILES.md`.
 
 ## Release milestones
 
@@ -745,7 +794,7 @@ A task is not complete merely because it compiles. Apply the relevant gates:
 
 When opening this project again:
 
-1. [ ] Open `C:\Users\Cisco\projects\NewConvert9918` as the local project.
+1. [ ] Open `C:\Users\Cisco\projects\retrovdp-studio` as the local project.
 2. [ ] Read this file and `docs/ARCHITECTURE.md`.
 3. [ ] Run `git status --short --branch` and `git log --oneline -5`.
 4. [ ] Confirm the platform preset and required Qt toolchain are available.
@@ -789,6 +838,6 @@ When opening this project again:
 
 Suggested opening prompt:
 
-> Continue New Convert 9918 from PROJECT_PLAN.md. Verify the repository and
+> Continue RetroVDP Studio from PROJECT_PLAN.md. Verify the repository and
 > toolchain state, update the checklist, and complete the next unchecked task
 > without changing established architecture or license decisions.

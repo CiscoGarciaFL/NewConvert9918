@@ -37,14 +37,17 @@ Item {
                    ? qsTr("The screen image will appear here")
                    : qsTr("Open a source image to begin")
         busy: imageInput.busy
+        screenImageTools: true
         convertedTools: true
         showTitle: root.layoutMode !== 0
+        onColorPointPicked: (normalizedX, normalizedY, foreground) =>
+            imageInput.pickScreenImageColor(normalizedX, normalizedY, foreground)
     }
 
     component CharacterEditorPane: EditorWorkspacePlaceholder {
         objectName: "characterEditorWorkspace"
         title: qsTr("Character Editor")
-        description: qsTr("Create and edit TMS9918A and F18A character patterns here.")
+        description: qsTr("Create and edit character patterns under the active target VDP's rules.")
         importDescription: qsTr("Source-image selection, scaling, color reduction, and palette fitting will feed this editor.")
         editorKind: 0
         showTitle: root.layoutMode !== 0
@@ -53,7 +56,7 @@ Item {
     component SpriteEditorPane: EditorWorkspacePlaceholder {
         objectName: "spriteEditorWorkspace"
         title: qsTr("Sprite Editor")
-        description: qsTr("Create and edit TMS9918A and F18A sprite patterns here.")
+        description: qsTr("Create and edit sprite patterns under the active target VDP's rules.")
         importDescription: qsTr("Source-image selection, scaling, transparency, color reduction, and palette fitting will feed this editor.")
         editorKind: 1
         showTitle: root.layoutMode !== 0

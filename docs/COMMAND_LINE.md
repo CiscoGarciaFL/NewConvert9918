@@ -1,6 +1,6 @@
 # Command-line interface
 
-`newconvert9918-cli` is the headless automation frontend for New Convert 9918.
+`retrovdp-cli` is the headless automation frontend for RetroVDP Studio.
 It uses the same bounded image loaders, transform and adjustment pipeline,
 conversion core, export manifest generators, and atomic file writer as the
 desktop application. It does not open a window or read the desktop
@@ -11,24 +11,25 @@ recipe supplies the source path and every Screen Image conversion-panel value;
 the script supplies the output directory:
 
 ```shell
-newconvert9918-cli \
-  --recipe artwork.nc9918.json \
+retrovdp-cli \
+  --recipe artwork.rvdp.json \
   --output converted
 ```
 
-`--input`, `--mode`, `--preset`, and `--format` override their recipe values
-when explicitly supplied. Character and Sprite recipes retain their editor and
-set state but are rejected by the CLI until those hardware-data converters are
-implemented.
+`--input`, `--target`, `--mode`, `--preset`, and `--format` override their
+recipe values when explicitly supplied. Character and Sprite recipes retain
+their editor and set state but are rejected by the CLI until those
+hardware-data converters are implemented.
 
 ## One-shot conversion
 
 Both the source file and destination directory are required:
 
 ```shell
-newconvert9918-cli \
+retrovdp-cli \
   --input artwork.png \
   --output converted \
+  --target tms9918a \
   --mode bitmap-9918a \
   --preset balanced \
   --format tifiles
@@ -38,13 +39,16 @@ The output directory is created when necessary. Existing files are rejected
 as a complete preflight operation; no file is changed unless `--overwrite` is
 explicitly supplied.
 
-Use `newconvert9918-cli --help` for the installed executable's complete option
+Use `retrovdp-cli --help` for the installed executable's complete option
 summary.
 
-## Modes, presets, and formats
+## Targets, modes, presets, and formats
 
-The default mode is `bitmap-9918a`, the default preset is `balanced`, and the
-default format is `tifiles`.
+The implemented target names are `tms9918a` and `f18a`. The default target is
+`tms9918a`; the default mode is `bitmap-9918a`, the default preset is
+`balanced`, and the default format is `tifiles`. A target accepts only modes
+declared compatible by its profile. V9938 is registered as planned but is not
+offered by the CLI until conversion support is implemented.
 
 Supported modes are:
 
@@ -73,12 +77,12 @@ letters, digits, underscore, and hyphen are replaced with underscores.
 ## Automation and JSON
 
 Pass `--json` to receive exactly one compact JSON object on standard output.
-A successful object includes the resolved input/output paths, selected mode,
-preset and format, generated file paths and byte counts, and any manifest
-warnings:
+A successful object includes the resolved input/output paths, stable target
+identifier, selected mode, preset and format, generated file paths and byte
+counts, and any manifest warnings:
 
 ```json
-{"status":"ok","mode":"bitmap-9918a","preset":"balanced","format":"raw","files":[{"path":"/output/ART.TIAP","bytes":6144}],"warnings":[]}
+{"status":"ok","target":"tms9918a","mode":"bitmap-9918a","preset":"balanced","format":"raw","files":[{"path":"/output/ART.TIAP","bytes":6144}],"warnings":[]}
 ```
 
 Failures contain `status: "error"`, a stable diagnostic `code`, a human-readable
@@ -90,7 +94,7 @@ conflicting paths under `details.conflicts`.
 | Code | Meaning |
 | ---: | --- |
 | `0` | Conversion and export completed successfully. |
-| `2` | Command syntax, required option, mode, preset, format, or base name is invalid. |
+| `2` | Command syntax, required option, target, mode, preset, format, or base name is invalid. |
 | `3` | The source image could not be loaded safely. |
 | `4` | Image transformation or conversion failed. |
 | `5` | The selected export is unavailable or could not be generated. |
@@ -102,6 +106,6 @@ replacement is intended and should treat every nonzero code as failure.
 ## Verification
 
 `cli_workflow_validation` launches the built CLI as a separate process. It
-checks help output, a complete image-to-RAW conversion, JSON results and file
-sizes, overwrite preflight, explicit overwrite, invalid-mode diagnostics, and
-input-load failure codes.
+checks help output, explicit target selection, a complete image-to-RAW
+conversion, JSON results and file sizes, overwrite preflight, explicit
+overwrite, invalid-mode diagnostics, and input-load failure codes.

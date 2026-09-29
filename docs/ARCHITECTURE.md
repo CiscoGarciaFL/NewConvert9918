@@ -2,13 +2,19 @@
 
 ## Design rules
 
-1. Conversion behavior is independent of the user interface.
-2. The core uses standard C++ value types and does not expose native Windows,
+1. Source assets are reusable; every selected VDP target owns its generated
+   output and validation state.
+2. Target-specific behavior comes from named capability profiles, not
+   application-wide chipset assumptions.
+3. Conversion behavior is independent of the user interface.
+4. The core uses standard C++ value types and does not expose native Windows,
    macOS, Linux, or QML types.
-3. Qt adapts files, clipboard data, and display images at the application edge.
-4. Retro file formats live in independent codecs with documented inputs and
+5. Qt adapts files, clipboard data, and display images at the application edge.
+6. Retro file formats live in independent codecs with documented inputs and
    outputs.
-5. Every supported conversion mode is covered by deterministic fixtures.
+7. Source decoding is intentionally broader than direct native-editor import;
+   editor actions appear only when the format and target capabilities agree.
+8. Every supported conversion mode is covered by deterministic fixtures.
 
 ## Layers
 
@@ -25,7 +31,7 @@ The user-facing behavior is specified in `docs/INTERFACE_WORKFLOW.md`.
 
 ### Image I/O
 
-The `newconvert9918_imageio` adapter uses Qt image readers for common formats,
+The `retrovdp_imageio` adapter uses Qt image readers for common formats,
 color-profile conversion, embedded orientation, and the first animation frame.
 Dedicated standard-C++ codecs handle PCX and machine-specific formats where Qt
 has no built-in support. Both paths produce the same bounded `RgbImage` value;
@@ -33,9 +39,17 @@ the detailed format and trust-boundary policy is in `docs/IMAGE_INPUT.md`.
 
 ### Conversion core
 
-The core owns scaling policy, palette selection, color matching,
-dithering, TMS9918A constraints, F18A extensions, and conversion diagnostics.
-It must be callable from the GUI, tests, and a future command-line frontend.
+The core owns scaling policy, palette selection, color matching, dithering,
+target-profile capabilities, hardware constraints, and conversion diagnostics.
+The target registry currently implements TMS9918A and F18A profiles and
+reserves V9938 as the next planned profile. It must be callable from the GUI,
+tests, and command-line frontend without embedding target rules in QML.
+
+The current workspaces still operate on individual screen, pattern, and sprite
+artifacts. The future project model will collect reusable sources and one or
+more selected targets, with a separate managed-output tree for each target.
+That model must not overwrite one target's artifacts when another target is
+rebuilt from the same source.
 
 The portable `RgbImage` boundary uses interleaved 8-bit RGB or RGBA channels.
 Its row stride is explicit and includes any padding at the end of each stored
@@ -185,7 +199,7 @@ both non-cancelled and still the newest generation.
 
 ### Export codecs
 
-The standard-C++ `newconvert9918_formats` library consumes completed target
+The standard-C++ `retrovdp_formats` library consumes completed target
 tables and constructs an owned `GeneratedFileManifest` before any file is
 opened. It implements RAW, original RLE, TIFILES, V9T9, MSX SC2,
 Coleco/Adam, Extended BASIC, and ROM layouts. Machine-code formats accept

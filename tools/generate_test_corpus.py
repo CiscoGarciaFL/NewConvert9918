@@ -193,7 +193,7 @@ def generate() -> None:
         entries.append(
             {
                 "path": path.relative_to(ROOT).as_posix(),
-                "origin": "OpenAI image generation for New Convert 9918",
+                "origin": "OpenAI image generation for RetroVDP Studio",
                 **metadata,
                 **read_png_header(path),
                 "sha256": sha256(path),
@@ -238,7 +238,7 @@ def generate() -> None:
 
     manifest = {
         "schema_version": 1,
-        "license": "Project LICENSE; all fixtures were created specifically for New Convert 9918.",
+        "license": "Project LICENSE; all fixtures were created specifically for RetroVDP Studio.",
         "source_images": entries,
         "malformed_inputs": malformed,
     }

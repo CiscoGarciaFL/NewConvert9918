@@ -1,11 +1,11 @@
 #pragma once
 
-#include "newconvert9918/core/ConversionTypes.hpp"
-#include "newconvert9918/core/ImageTransform.hpp"
+#include "retrovdp/core/ConversionTypes.hpp"
+#include "retrovdp/core/ImageTransform.hpp"
 
 #include <vector>
 
-namespace newconvert9918::appsupport {
+namespace retrovdp::appsupport {
 
 struct ConversionPipelineOptions {
     core::ScalingFilter scalingFilter{core::ScalingFilter::Bilinear};
@@ -25,4 +25,4 @@ struct ConversionPipelineOptions {
 runConversion(const core::ConversionRequest& request,
               ConversionPipelineOptions options = {});
 
-} // namespace newconvert9918::appsupport
+} // namespace retrovdp::appsupport

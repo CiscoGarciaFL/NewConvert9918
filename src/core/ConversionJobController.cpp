@@ -1,8 +1,8 @@
-#include "newconvert9918/core/ConversionJobController.hpp"
+#include "retrovdp/core/ConversionJobController.hpp"
 
 #include <utility>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 
 ConversionRequest ConversionJobController::begin(
     std::shared_ptr<const RgbImage> source,
@@ -60,4 +60,4 @@ bool ConversionJobController::accepts(const ConversionResult& result) const
         && isCurrent(result.generation);
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

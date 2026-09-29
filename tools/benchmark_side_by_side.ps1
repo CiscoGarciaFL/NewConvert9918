@@ -17,7 +17,7 @@ $expectedLegacyHash = '7A97A25CF58ADCF55E81D714A62A51D1F65FF2298BD3EA6B05348415F
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($NewExecutable)) {
     $NewExecutable = Join-Path $repositoryRoot `
-        'build\windows-mingw-release\bin\newconvert9918-cli.exe'
+        'build\windows-mingw-release\bin\retrovdp-cli.exe'
 }
 if ([string]::IsNullOrWhiteSpace($InputImage)) {
     $InputImage = Join-Path $repositoryRoot `
@@ -118,7 +118,7 @@ function Get-Median {
 }
 
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) `
-    ('newconvert9918-performance-' + [Guid]::NewGuid().ToString('N'))
+    ('retrovdp-performance-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
 
 try {

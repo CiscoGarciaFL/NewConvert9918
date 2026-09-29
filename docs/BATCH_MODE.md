@@ -206,7 +206,7 @@ The headless interface should eventually expose the same feature without
 inventing a second pipeline. A possible shape is:
 
 ```text
-newconvert9918-cli batch --input movie.mp4 --output converted-frames \
+retrovdp-cli batch --input movie.mp4 --output converted-frames \
   --mode bitmap-9918a --format tifiles --start 00:00:05 --fps 15
 ```
 

@@ -1,9 +1,9 @@
 # Export formats
 
 Phase 5 separates deterministic file construction from Qt filesystem and PNG
-services. The standard-C++ `newconvert9918_formats` library accepts a completed
+services. The standard-C++ `retrovdp_formats` library accepts a completed
 `TargetMemoryImage` and returns a `GeneratedFileManifest`; it never opens a
-file or prompts the user. The Qt `newconvert9918_imageio` adapter encodes PNG,
+file or prompts the user. The Qt `retrovdp_imageio` adapter encodes PNG,
 preflights the complete manifest for conflicts, and writes each approved file
 with `QSaveFile`.
 

@@ -1,6 +1,6 @@
 # Third-party notices
 
-New Convert 9918 uses Qt 6.10.3 dynamically and redistributes the Qt runtime
+RetroVDP Studio uses Qt 6.10.3 dynamically and redistributes the Qt runtime
 libraries needed by each platform package. Qt is available under commercial
 licenses and open-source licenses including GNU LGPL version 3. The release
 packages use the LGPL option; recipients may replace the dynamically linked Qt

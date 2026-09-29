@@ -1,6 +1,6 @@
 # Original Convert9918 behavioral baseline
 
-This document records the behavior that New Convert 9918 must be able to test
+This document records the behavior that RetroVDP Studio must be able to test
 and intentionally reproduce or supersede. It is an inventory, not permission
 to copy implementation code from the original application.
 
@@ -18,7 +18,7 @@ The completed user-facing decisions from this inventory are recorded in
 The reference checkout is deliberately outside this repository. It contains
 the original Windows/MFC project, distribution archive, and ImgSource-related
 material. None of those files may be copied, linked, vendored, or packaged in
-New Convert 9918. Only observed behavior, independently written test fixtures,
+RetroVDP Studio. Only observed behavior, independently written test fixtures,
 and factual format descriptions may cross the boundary.
 
 If upstream changes, keep this commit as the compatibility baseline until a
@@ -36,7 +36,7 @@ views and configuration controls around them. Its main workflow is:
 5. Save one or more generated files using **Save Pic**.
 
 Changing a mode without reloading can leave the prior conversion active. The
-application warns when saving in that state. New Convert 9918 will preserve the
+application warns when saving in that state. RetroVDP Studio will preserve the
 result semantics but replace this stale-state workflow with automatic,
 cancellable preview generation.
 
@@ -142,7 +142,7 @@ resolve that documentation discrepancy before golden fixtures are approved.
 - TIFF (`.tif` and `.tiff`)
 
 The original delegates BMP, JPEG, PNG, PCX, TIFF, scaling, histogram work, and
-drawing to ImgSource. New Convert 9918 must use Qt image I/O or independently
+drawing to ImgSource. RetroVDP Studio must use Qt image I/O or independently
 implemented codecs and must define color-space, orientation, alpha, animation,
 allocation-limit, and malformed-input policies explicitly.
 

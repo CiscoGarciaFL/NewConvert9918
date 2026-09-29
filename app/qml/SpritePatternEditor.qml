@@ -27,6 +27,13 @@ Rectangle {
     readonly property var paletteColors: editorProject.characterPaletteColors
     readonly property bool pixelEditingEnabled:
         loaded && !editorProject.spritePanActive
+    property bool kLineActive: false
+    property int kLineRow: 0
+    property int kLineColumn: 0
+    property bool raysActive: false
+    property int raysOriginRow: 0
+    property int raysOriginColumn: 0
+    property var linePreviewCells: []
 
     signal selected()
     signal moveRequested(int targetIndex)
@@ -68,6 +75,79 @@ Rectangle {
         editorProject.paintSpritePixel(setIndex, spriteIndex, spriteSize,
                                        row, column, drawingTool === 1)
     }
+
+    function cellAt(localX, localY) {
+        return Qt.point(
+            Math.max(0, Math.min(spriteSize - 1,
+                                 Math.floor(localX / cellSize))),
+            Math.max(0, Math.min(spriteSize - 1,
+                                 Math.floor(localY / cellSize))))
+    }
+
+    function constrainedCell(fromColumn, fromRow, column, row, locked) {
+        if (!locked)
+            return Qt.point(column, row)
+        if (Math.abs(column - fromColumn) >= Math.abs(row - fromRow))
+            return Qt.point(column, fromRow)
+        return Qt.point(fromColumn, row)
+    }
+
+    function lineCells(fromColumn, fromRow, toColumn, toRow) {
+        const result = []
+        let x = fromColumn
+        let y = fromRow
+        const deltaX = Math.abs(toColumn - fromColumn)
+        const stepX = fromColumn < toColumn ? 1 : -1
+        const deltaY = -Math.abs(toRow - fromRow)
+        const stepY = fromRow < toRow ? 1 : -1
+        let error = deltaX + deltaY
+        while (true) {
+            result.push(y * spriteSize + x)
+            if (x === toColumn && y === toRow)
+                break
+            const twiceError = error * 2
+            if (twiceError >= deltaY) {
+                error += deltaY
+                x += stepX
+            }
+            if (twiceError <= deltaX) {
+                error += deltaX
+                y += stepY
+            }
+        }
+        return result
+    }
+
+    function updateLinePreview(fromColumn, fromRow, localX, localY, locked) {
+        const cell = cellAt(localX, localY)
+        const end = constrainedCell(fromColumn, fromRow, cell.x, cell.y, locked)
+        linePreviewCells = lineCells(fromColumn, fromRow, end.x, end.y)
+        return end
+    }
+
+    function finishMultiLine() {
+        if (!kLineActive && !raysActive)
+            return
+        editorProject.endSpriteEdit()
+        kLineActive = false
+        raysActive = false
+        linePreviewCells = []
+    }
+
+    function finishKLine() {
+        finishMultiLine()
+    }
+
+    onDrawingToolChanged: {
+        if ((kLineActive && drawingTool !== 4)
+                || (raysActive && drawingTool !== 5))
+            finishMultiLine()
+    }
+    onActiveChanged: {
+        if (!active)
+            finishMultiLine()
+    }
+    Component.onDestruction: finishMultiLine()
 
     Menu {
         id: orderMenu
@@ -187,27 +267,137 @@ Rectangle {
                 }
             }
 
+            Repeater {
+                model: root.linePreviewCells
+                Rectangle {
+                    required property int modelData
+                    x: (modelData % root.spriteSize) * root.cellSize + 2
+                    y: Math.floor(modelData / root.spriteSize) * root.cellSize + 2
+                    width: root.cellSize - 4
+                    height: root.cellSize - 4
+                    color: "#55ffffff"
+                    border.width: 2
+                    border.color: root.palette.highlight
+                }
+            }
+
             MouseArea {
+                id: drawingArea
                 anchors.fill: parent
                 acceptedButtons: Qt.LeftButton
                 cursorShape: root.pixelEditingEnabled
                              ? Qt.CrossCursor : Qt.PointingHandCursor
                 preventStealing: true
+                hoverEnabled: true
+                focus: root.kLineActive || root.raysActive
+                property int dragTool: 0
+                property int startRow: 0
+                property int startColumn: 0
+                Keys.onEscapePressed: event => {
+                    if (root.kLineActive || root.raysActive) {
+                        root.finishMultiLine()
+                        event.accepted = true
+                    }
+                }
                 onPressed: mouse => {
                     root.selected()
-                    if (root.pixelEditingEnabled) {
+                    dragTool = root.drawingTool
+                    if (!root.pixelEditingEnabled)
+                        return
+                    const cell = root.cellAt(mouse.x, mouse.y)
+                    if (dragTool <= 2) {
                         editorProject.beginSpriteEdit(root.setIndex,
                                                       root.spriteIndex,
                                                       root.spriteSize)
                         root.paintAt(mouse.x, mouse.y)
+                    } else if (dragTool === 3) {
+                        startColumn = cell.x
+                        startRow = cell.y
+                        root.updateLinePreview(startColumn, startRow,
+                                               mouse.x, mouse.y, false)
+                    } else if (dragTool === 4 || dragTool === 5) {
+                        forceActiveFocus()
+                        const active = dragTool === 4
+                            ? root.kLineActive : root.raysActive
+                        if (!active) {
+                            editorProject.beginSpriteEdit(
+                                root.setIndex, root.spriteIndex, root.spriteSize)
+                            editorProject.paintSpritePixel(
+                                root.setIndex, root.spriteIndex, root.spriteSize,
+                                cell.y, cell.x, true)
+                            if (dragTool === 4) {
+                                root.kLineColumn = cell.x
+                                root.kLineRow = cell.y
+                                root.kLineActive = true
+                            } else {
+                                root.raysOriginColumn = cell.x
+                                root.raysOriginRow = cell.y
+                                root.raysActive = true
+                            }
+                        } else {
+                            const fromColumn = dragTool === 4
+                                ? root.kLineColumn : root.raysOriginColumn
+                            const fromRow = dragTool === 4
+                                ? root.kLineRow : root.raysOriginRow
+                            const end = root.constrainedCell(
+                                fromColumn, fromRow,
+                                cell.x, cell.y,
+                                (mouse.modifiers & Qt.ShiftModifier) !== 0)
+                            editorProject.drawSpriteLine(
+                                root.setIndex, root.spriteIndex, root.spriteSize,
+                                fromRow, fromColumn,
+                                end.y, end.x, true)
+                            if (dragTool === 4) {
+                                root.kLineColumn = end.x
+                                root.kLineRow = end.y
+                            }
+                        }
+                        root.linePreviewCells = []
                     }
                 }
                 onPositionChanged: mouse => {
-                    if (pressed && root.pixelEditingEnabled)
-                        root.paintAt(mouse.x, mouse.y)
+                    if ((root.kLineActive && root.drawingTool === 4)
+                            || (root.raysActive && root.drawingTool === 5)) {
+                        const fromColumn = root.drawingTool === 4
+                            ? root.kLineColumn : root.raysOriginColumn
+                        const fromRow = root.drawingTool === 4
+                            ? root.kLineRow : root.raysOriginRow
+                        root.updateLinePreview(
+                            fromColumn, fromRow,
+                            mouse.x, mouse.y,
+                            (mouse.modifiers & Qt.ShiftModifier) !== 0)
+                    } else if (pressed && root.pixelEditingEnabled) {
+                        if (dragTool <= 2) {
+                            root.paintAt(mouse.x, mouse.y)
+                        } else if (dragTool === 3) {
+                            root.updateLinePreview(
+                                startColumn, startRow, mouse.x, mouse.y,
+                                (mouse.modifiers & Qt.ShiftModifier) !== 0)
+                        }
+                    }
                 }
-                onReleased: editorProject.endSpriteEdit()
-                onCanceled: editorProject.endSpriteEdit()
+                onReleased: mouse => {
+                    if (dragTool <= 2) {
+                        editorProject.endSpriteEdit()
+                    } else if (dragTool === 3 && root.pixelEditingEnabled) {
+                        const end = root.updateLinePreview(
+                            startColumn, startRow, mouse.x, mouse.y,
+                            (mouse.modifiers & Qt.ShiftModifier) !== 0)
+                        editorProject.drawSpriteLine(
+                            root.setIndex, root.spriteIndex, root.spriteSize,
+                            startRow, startColumn, end.y, end.x, true)
+                        root.linePreviewCells = []
+                    }
+                    dragTool = 0
+                }
+                onCanceled: {
+                    if (dragTool <= 2)
+                        editorProject.endSpriteEdit()
+                    else if (dragTool === 4 || dragTool === 5)
+                        root.finishMultiLine()
+                    root.linePreviewCells = []
+                    dragTool = 0
+                }
             }
         }
     }

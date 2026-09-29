@@ -1,6 +1,6 @@
-#include "newconvert9918/imageio/ExportWriter.hpp"
+#include "retrovdp/imageio/ExportWriter.hpp"
 
-#include "newconvert9918/imageio/ImageLoader.hpp"
+#include "retrovdp/imageio/ImageLoader.hpp"
 
 #include <QBuffer>
 #include <QDir>
@@ -12,7 +12,7 @@
 #include <cctype>
 #include <span>
 
-namespace newconvert9918::imageio {
+namespace retrovdp::imageio {
 namespace {
 
 bool endsWithPng(const std::string& value)
@@ -160,4 +160,4 @@ ExportWriteResult writeExportManifest(const QString& directory,
     return result;
 }
 
-} // namespace newconvert9918::imageio
+} // namespace retrovdp::imageio

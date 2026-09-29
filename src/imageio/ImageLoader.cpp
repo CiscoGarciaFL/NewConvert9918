@@ -1,4 +1,4 @@
-#include "newconvert9918/imageio/ImageLoader.hpp"
+#include "retrovdp/imageio/ImageLoader.hpp"
 
 #include <QBuffer>
 #include <QColorSpace>
@@ -14,7 +14,7 @@
 #include <span>
 #include <vector>
 
-namespace newconvert9918::imageio {
+namespace retrovdp::imageio {
 namespace {
 
 ImageLoadResult failure(QString message, ImageSourceFormat format = ImageSourceFormat::Unknown)
@@ -412,4 +412,4 @@ QImage toQImage(const core::RgbImage& image)
     return view.copy();
 }
 
-} // namespace newconvert9918::imageio
+} // namespace retrovdp::imageio

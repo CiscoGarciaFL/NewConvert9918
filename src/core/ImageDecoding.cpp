@@ -1,11 +1,11 @@
-#include "newconvert9918/core/ImageDecoding.hpp"
+#include "retrovdp/core/ImageDecoding.hpp"
 
 #include <algorithm>
 #include <array>
 #include <limits>
 #include <vector>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 namespace {
 
 constexpr std::size_t graphicsTableSize = 6144;
@@ -307,4 +307,4 @@ ImageDecodeResult decodeAdamHgr(std::span<const std::uint8_t> bytes,
     return decodeGraphics2(patterns, colors, {}, {}, limits);
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

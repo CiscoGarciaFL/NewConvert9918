@@ -1,10 +1,10 @@
-#include "newconvert9918/core/TargetData.hpp"
+#include "retrovdp/core/TargetData.hpp"
 
 #include <array>
 #include <stdexcept>
 #include <utility>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 namespace {
 
 constexpr std::array bitmap9918Tables{
@@ -136,4 +136,4 @@ TargetTableValidation validateTargetTables(ConversionMode mode,
     return {};
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

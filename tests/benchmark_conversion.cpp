@@ -1,7 +1,7 @@
-#include "newconvert9918/core/Bitmap9918Converter.hpp"
-#include "newconvert9918/core/ConversionPerformance.hpp"
-#include "newconvert9918/core/F18AConverter.hpp"
-#include "newconvert9918/core/Multicolor9918Converter.hpp"
+#include "retrovdp/core/Bitmap9918Converter.hpp"
+#include "retrovdp/core/ConversionPerformance.hpp"
+#include "retrovdp/core/F18AConverter.hpp"
+#include "retrovdp/core/Multicolor9918Converter.hpp"
 
 #include <chrono>
 #include <cstddef>
@@ -10,7 +10,7 @@
 #include <iostream>
 #include <string_view>
 
-using namespace newconvert9918::core;
+using namespace retrovdp::core;
 
 namespace {
 

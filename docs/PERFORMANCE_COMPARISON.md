@@ -1,10 +1,10 @@
 # Legacy and new application performance comparison
 
-This comparison answers whether New Convert 9918 only feels slower because of
+This comparison answers whether RetroVDP Studio only feels slower because of
 its interface or whether the conversion engine is measurably slower than
 Convert9918 1.9.1. After the completed parity optimization pass, the new engine
 is faster in all nine measured modes. Bitmap and Paletted F18A are effectively
-at compute parity, while the complete New Convert total is 0.82x the legacy
+at compute parity, while the complete RetroVDP Studio total is 0.82x the legacy
 total. Algorithmic innovation can now be measured separately against this
 stable pre-innovation baseline.
 
@@ -16,7 +16,7 @@ stable pre-innovation baseline.
 - Legacy executable: Convert9918 1.9.1.0, verified SHA-256
   `7a97a25cf58adcf55e81d714a62a51d1f65ff2298bd3ea6b05348415f17f0c9a`
 - New executable: parity-optimized MinGW GCC 13.1 Release build of
-  `newconvert9918-cli`; historical totals are retained below
+  `retrovdp-cli`; historical totals are retained below
 - Settings: the audited legacy defaults and matching `balanced` preset
 - Output: TIFILES tables; the legacy command line additionally writes its BMP
   preview where supported
@@ -82,7 +82,7 @@ is still the dominant cost.
 
 The original implementation precomputes the palette side of its YCrCb color
 space and compiles specialized quantizers for perceptual/YCrCb and
-error-distribution/ordered variants. New Convert now follows the same
+error-distribution/ordered variants. RetroVDP Studio now follows the same
 structure: fixed palette and mixed colors are prepared once, hot formulas are
 inlined in specialized paths, and Release builds use whole-program optimization
 plus fast floating point only in the quantizer translation units.

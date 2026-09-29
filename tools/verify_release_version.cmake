@@ -7,11 +7,11 @@ endif()
 
 file(READ "${SOURCE_DIR}/CMakeLists.txt" root_cmake)
 string(REGEX MATCH
-    "set\\(NEWCONVERT9918_VERSION[ \\t\\r\\n]+\"([^\"]+)\"\\)"
+    "set\\(RETROVDP_VERSION[ \\t\\r\\n]+\"([^\"]+)\"\\)"
     version_declaration "${root_cmake}")
 if(NOT version_declaration)
     message(FATAL_ERROR
-        "Could not read NEWCONVERT9918_VERSION from CMakeLists.txt")
+        "Could not read RETROVDP_VERSION from CMakeLists.txt")
 endif()
 set(source_version "${CMAKE_MATCH_1}")
 set(expected_tag "v${source_version}")
