@@ -8,6 +8,7 @@
 #include <QJsonParseError>
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace {
 
@@ -332,6 +333,53 @@ void EditorProjectController::paintSpritePixel(int setIndex,
     if (standalone) endSpriteEdit();
 }
 
+void EditorProjectController::drawSpriteLine(int setIndex,
+                                             int spriteIndex,
+                                             int size,
+                                             int fromRow,
+                                             int fromColumn,
+                                             int toRow,
+                                             int toColumn,
+                                             bool foreground)
+{
+    size = normalizedSpriteSize(size);
+    if (setIndex < 0 || setIndex >= static_cast<int>(spriteSets_.size())
+        || spriteIndex < 0 || spriteIndex >= 32 || spritePanActive_) {
+        return;
+    }
+    fromRow = std::clamp(fromRow, 0, size - 1);
+    fromColumn = std::clamp(fromColumn, 0, size - 1);
+    toRow = std::clamp(toRow, 0, size - 1);
+    toColumn = std::clamp(toColumn, 0, size - 1);
+    const bool groupedEdit = spriteEditActive_
+        && spriteEditSetIndex_ == setIndex
+        && spriteEditSpriteIndex_ == spriteIndex
+        && spriteEditSize_ == size;
+    beginSpriteEdit(setIndex, spriteIndex, size);
+
+    int x = fromColumn;
+    int y = fromRow;
+    const int deltaX = std::abs(toColumn - fromColumn);
+    const int stepX = fromColumn < toColumn ? 1 : -1;
+    const int deltaY = -std::abs(toRow - fromRow);
+    const int stepY = fromRow < toRow ? 1 : -1;
+    int error = deltaX + deltaY;
+    while (true) {
+        paintSpritePixel(setIndex, spriteIndex, size, y, x, foreground);
+        if (x == toColumn && y == toRow) break;
+        const int twiceError = error * 2;
+        if (twiceError >= deltaY) {
+            error += deltaY;
+            x += stepX;
+        }
+        if (twiceError <= deltaX) {
+            error += deltaX;
+            y += stepY;
+        }
+    }
+    if (!groupedEdit) endSpriteEdit();
+}
+
 void EditorProjectController::beginSpriteEdit(int setIndex, int spriteIndex, int size)
 {
     size = normalizedSpriteSize(size);
@@ -469,8 +517,9 @@ void EditorProjectController::centerSpritePan()
 
 void EditorProjectController::undoSpriteEdit()
 {
-    if (spritePanActive_ || spriteUndoHistory_.empty()) return;
+    if (spritePanActive_) return;
     endSpriteEdit();
+    if (spriteUndoHistory_.empty()) return;
     const SpriteHistoryEntry entry = spriteUndoHistory_.back();
     spriteUndoHistory_.pop_back();
     spritePattern(entry.setIndex, entry.spriteIndex, entry.size) = entry.before;
@@ -481,8 +530,9 @@ void EditorProjectController::undoSpriteEdit()
 
 void EditorProjectController::redoSpriteEdit()
 {
-    if (spritePanActive_ || spriteRedoHistory_.empty()) return;
+    if (spritePanActive_) return;
     endSpriteEdit();
+    if (spriteRedoHistory_.empty()) return;
     const SpriteHistoryEntry entry = spriteRedoHistory_.back();
     spriteRedoHistory_.pop_back();
     spritePattern(entry.setIndex, entry.spriteIndex, entry.size) = entry.after;
@@ -507,7 +557,7 @@ bool EditorProjectController::copyActiveSpritePattern()
         rows.push_back(values);
     }
     const QJsonObject root{
-        {QStringLiteral("format"), QStringLiteral("newconvert9918.sprite-pattern")},
+        {QStringLiteral("format"), QStringLiteral("retrovdp.sprite-pattern")},
         {QStringLiteral("version"), 1},
         {QStringLiteral("size"), activeSpriteSize_},
         {QStringLiteral("scope"), editScope_ == 1
@@ -624,7 +674,7 @@ EditorProjectController::spritePatternFromClipboard() const
     }
     const QJsonObject root = document.object();
     if (root.value(QStringLiteral("format")).toString()
-            != QStringLiteral("newconvert9918.sprite-pattern")
+            != QStringLiteral("retrovdp.sprite-pattern")
         || root.value(QStringLiteral("version")).toInt() != 1) {
         return std::nullopt;
     }

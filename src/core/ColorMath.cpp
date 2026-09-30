@@ -1,6 +1,6 @@
-#include "newconvert9918/core/ColorMath.hpp"
+#include "retrovdp/core/ColorMath.hpp"
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 
 namespace {
 
@@ -116,4 +116,4 @@ double ColorDistanceEvaluator::distanceSquared(
         left.yCrCb, toYCrCb(right), lumaEmphasis_);
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

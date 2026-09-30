@@ -1,8 +1,9 @@
-#include "newconvert9918/core/Bitmap9918Converter.hpp"
+#include "retrovdp/core/Bitmap9918Converter.hpp"
 
-#include "newconvert9918/core/ColorMath.hpp"
-#include "newconvert9918/core/Dithering.hpp"
-#include "newconvert9918/core/Validation.hpp"
+#include "retrovdp/core/ColorMath.hpp"
+#include "retrovdp/core/Dithering.hpp"
+#include "retrovdp/core/TargetProfile.hpp"
+#include "retrovdp/core/Validation.hpp"
 
 #include <algorithm>
 #include <array>
@@ -15,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 namespace {
 
 constexpr std::uint32_t bitmapWidth = 256;
@@ -600,6 +601,7 @@ ConversionResult convertBitmap9918Impl(const RgbImage& source,
         tables.push_back({TargetTableRole::Color, std::move(colors)});
     }
     TargetMemoryImage target{
+        .profile = effectiveTargetProfile(settings.targetProfile, requiredMode),
         .mode = requiredMode,
         .palette = std::nullopt,
         .tables = std::move(tables),
@@ -698,4 +700,4 @@ ConversionResult convertBitmapColorOnly9918(const RgbImage& source,
                                  progress);
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

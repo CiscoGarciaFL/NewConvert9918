@@ -1,11 +1,11 @@
-#include "newconvert9918/core/Dithering.hpp"
+#include "retrovdp/core/Dithering.hpp"
 
 #include <array>
 #include <limits>
 #include <stdexcept>
 #include <utility>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 namespace {
 
 constexpr double distributionDivisor = 16.0;
@@ -212,4 +212,4 @@ void ErrorDiffusionBuffer::distribute(std::uint32_t x,
     }
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

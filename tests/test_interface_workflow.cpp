@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QIcon>
@@ -28,6 +29,7 @@
 #include <QVariant>
 
 #include <atomic>
+#include <cmath>
 #include <functional>
 #include <iostream>
 
@@ -78,11 +80,445 @@ bool waitFor(const std::function<bool()>& predicate, int timeoutMilliseconds = 1
 
 QString goldenSource(QStringView relative)
 {
-    return QDir(QStringLiteral(NEWCONVERT9918_GOLDEN_DIR)).filePath(relative.toString());
+    return QDir(QStringLiteral(RETROVDP_GOLDEN_DIR)).filePath(relative.toString());
 }
 
 void testLiveWorkflow(TestContext& test, ImageInputController& controller)
 {
+    {
+        ImageInputController blankController;
+        blankController.newScreenImage();
+        const QImage blankScreen = QImage::fromData(QByteArray::fromBase64(
+            blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        bool allBlack = blankScreen.size() == QSize(256, 192);
+        for (int y = 0; y < blankScreen.height() && allBlack; ++y) {
+            for (int x = 0; x < blankScreen.width(); ++x) {
+                if (blankScreen.pixelColor(x, y).rgb() != QColor(Qt::black).rgb()) {
+                    allBlack = false;
+                    break;
+                }
+            }
+        }
+        test.expect(blankController.hasConversion() && !blankController.hasImage()
+                        && blankController.sourceName() == QStringLiteral("Untitled")
+                        && blankController.screenImageBackgroundColor()
+                            == QColor(Qt::black)
+                        && !blankController.screenImageEdited() && allBlack
+                        && blankController.sourceSpectrum16Colors().size() == 16
+                        && !blankController.sourceSwatchColors().isEmpty()
+                        && blankController.sourceUsedColors().contains(
+                            QVariant::fromValue(QColor(Qt::black))),
+                    "New should create an untitled chipset-valid 256x192 black Screen Image without a source file");
+        blankController.setScreenImageForegroundColor(Qt::white);
+        blankController.drawScreenImageLine(0.1, 0.1, 0.9, 0.1, 1, true);
+        test.expect(blankController.screenImageEdited()
+                        && blankController.canUndoScreenImage(),
+                    "a new blank Screen Image should immediately support drawing and undo");
+
+        ImageInputController selectionController;
+        selectionController.newScreenImage();
+        const QColor selectionColor(246, 52, 121);
+        selectionController.setScreenImageForegroundColor(selectionColor);
+        selectionController.beginScreenImageStroke(
+            10.5 / 256.0, 10.5 / 192.0, 1, false, true, true);
+        selectionController.endScreenImageStroke();
+        selectionController.setScreenImageSelection(
+            10.1 / 256.0, 10.1 / 192.0,
+            10.1 / 256.0, 10.1 / 192.0);
+        test.expect(selectionController.hasScreenImageSelection()
+                        && selectionController.screenImageSelectionX() == 10
+                        && selectionController.screenImageSelectionY() == 10
+                        && selectionController.screenImageSelectionWidth() == 1
+                        && selectionController.screenImageSelectionHeight() == 1,
+                    "Screen Image selection should retain its exact inclusive pixel bounds");
+
+        selectionController.copyScreenImage();
+        selectionController.clearScreenImageSelection();
+        const QString beforeFloatingPaste = selectionController.convertedPreview();
+        selectionController.pasteScreenImage();
+        test.expect(selectionController.screenImageFloating()
+                        && !selectionController.screenImageFloatingMove()
+                        && selectionController.screenImageFloatingWidth() == 1
+                        && selectionController.screenImageFloatingHeight() == 1
+                        && selectionController.convertedPreview() == beforeFloatingPaste,
+                    "pasting a copied selection should float at its native size without changing the canvas");
+        selectionController.placeScreenImageFloating(
+            30.5 / 256.0, 40.5 / 192.0);
+        const auto decodeSelectionPreview = [&selectionController] {
+            return QImage::fromData(QByteArray::fromBase64(
+                selectionController.convertedPreview()
+                    .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        };
+        QImage selectionPreview = decodeSelectionPreview();
+        test.expect(!selectionController.screenImageFloating()
+                        && selectionController.screenImageSelectionX() == 30
+                        && selectionController.screenImageSelectionY() == 40
+                        && selectionPreview.pixelColor(10, 10).rgb()
+                            == selectionColor.rgb()
+                        && selectionPreview.pixelColor(30, 40).rgb()
+                            == selectionColor.rgb(),
+                    "dropping a copied selection should paste it and keep the placed area selected");
+        selectionController.undoScreenImage();
+        test.expect(selectionController.convertedPreview() == beforeFloatingPaste,
+                    "placing a copied Screen Image selection should undo as one edit");
+
+        selectionController.setScreenImageSelection(
+            10.1 / 256.0, 10.1 / 192.0,
+            10.1 / 256.0, 10.1 / 192.0);
+        selectionController.beginMoveScreenImageSelection();
+        selectionController.cancelScreenImageFloating();
+        test.expect(selectionController.convertedPreview() == beforeFloatingPaste,
+                    "canceling a floating move should leave the Screen Image unchanged");
+        selectionController.beginMoveScreenImageSelection();
+        selectionController.placeScreenImageFloating(
+            20.5 / 256.0, 20.5 / 192.0);
+        selectionPreview = decodeSelectionPreview();
+        test.expect(selectionPreview.pixelColor(10, 10).rgb()
+                        == QColor(Qt::black).rgb()
+                        && selectionPreview.pixelColor(20, 20).rgb()
+                            == selectionColor.rgb(),
+                    "moving a selection should clear its source only when the placement is dropped");
+        selectionController.undoScreenImage();
+        selectionPreview = decodeSelectionPreview();
+        test.expect(selectionPreview.pixelColor(10, 10).rgb()
+                        == selectionColor.rgb()
+                        && selectionPreview.pixelColor(20, 20).rgb()
+                            == QColor(Qt::black).rgb(),
+                    "moving a Screen Image selection should undo as one edit");
+
+        ImageInputController assetController;
+        assetController.newScreenImage();
+        assetController.setScreenImageForegroundColor(selectionColor);
+        QVariantMap systemFont;
+        for (const QVariant& candidate : assetController.screenImageFonts()) {
+            if (candidate.toMap().value(QStringLiteral("kind"))
+                    == QStringLiteral("system")) {
+                systemFont = candidate.toMap();
+                break;
+            }
+        }
+        assetController.prepareScreenImageText(
+            QStringLiteral("Type"), systemFont.value(QStringLiteral("key")).toString(), 16);
+        test.expect(!systemFont.isEmpty(),
+                    "Type should discover at least one system font");
+        test.expect(assetController.screenImageFloating(),
+                    "Type should prepare system text as floating placement art");
+        test.expect(assetController.screenImageFloatingTopLeft()
+                        && assetController.screenImageFloatingWidth() > 0
+                        && assetController.screenImageFloatingHeight() > 0,
+                    "Type should render a system font as transparent top-left-anchored placement art");
+        assetController.cancelScreenImageFloating();
+
+        const QString artistFontPath = QDir(assetController.tiArtistFontsPath())
+            .filePath(QStringLiteral("INTERFACE-TEST-FONT"));
+        QFile artistFontFile(artistFontPath);
+        const bool artistFontWritten = artistFontFile.open(QIODevice::WriteOnly)
+            && artistFontFile.write(
+                "FONT:\nA\n1,1,8\n24,36,66,126,66,66,66,0\n") > 0;
+        artistFontFile.close();
+        assetController.reloadScreenImageFonts();
+        QVariantMap artistFont;
+        for (const QVariant& candidate : assetController.screenImageFonts()) {
+            if (candidate.toMap().value(QStringLiteral("key")).toString()
+                    == QStringLiteral("tia:") + artistFontPath) {
+                artistFont = candidate.toMap();
+                break;
+            }
+        }
+        assetController.prepareScreenImageText(
+            QStringLiteral("A"), artistFont.value(QStringLiteral("key")).toString(), 8);
+        test.expect(artistFontWritten && !artistFont.isEmpty()
+                        && artistFont.value(QStringLiteral("badge"))
+                            == QStringLiteral("TIA")
+                        && !artistFont.value(QStringLiteral("preview")).toString().isEmpty()
+                        && assetController.screenImageFloatingWidth() == 8
+                        && assetController.screenImageFloatingHeight() == 8,
+                    "the app font library should discover and preview TI Artist FONT DV80 data");
+        assetController.placeScreenImageFloating(32.0 / 256.0, 32.0 / 192.0);
+        QImage assetPreview = QImage::fromData(QByteArray::fromBase64(
+            assetController.convertedPreview().section(
+                QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(assetPreview.pixelColor(35, 32).rgb() == selectionColor.rgb()
+                        && assetPreview.pixelColor(32, 32).rgb()
+                            == QColor(Qt::black).rgb(),
+                    "TI Artist text should place from its top-left anchor with transparent gaps");
+        assetController.undoScreenImage();
+        QFile::remove(artistFontPath);
+        assetController.reloadScreenImageFonts();
+
+        QTemporaryDir clipArtDirectory(
+            QDir::current().filePath(QStringLiteral("clip-art-test-XXXXXX")));
+        QImage clipArtSource(2, 2, QImage::Format_RGBA8888);
+        clipArtSource.fill(Qt::white);
+        clipArtSource.setPixelColor(1, 1, Qt::black);
+        const QString clipArtPath = clipArtDirectory.filePath(QStringLiteral("mark.png"));
+        const bool clipArtWritten = clipArtSource.save(clipArtPath, "PNG");
+        assetController.loadScreenImageClipArt(QUrl::fromLocalFile(clipArtPath));
+        const QString processedClipArt = assetController.screenImageClipArtPreview(
+            4, 4, 2, true, true);
+        assetController.prepareScreenImageClipArt(4, 4, 2, true, true);
+        test.expect(clipArtDirectory.isValid() && clipArtWritten
+                        && assetController.screenImageClipArtSourceWidth() == 2
+                        && assetController.screenImageClipArtSourceHeight() == 2
+                        && !assetController.screenImageClipArtSourcePreview().isEmpty()
+                        && !processedClipArt.isEmpty()
+                        && assetController.screenImageFloating()
+                        && !assetController.screenImageFloatingTopLeft()
+                        && assetController.screenImageFloatingWidth() == 4
+                        && assetController.screenImageFloatingHeight() == 4,
+                    "Slide/ClipArt should preview resized B&W foreground/background mapping before placement");
+        assetController.placeScreenImageFloating(50.0 / 256.0, 50.0 / 192.0);
+        assetPreview = QImage::fromData(QByteArray::fromBase64(
+            assetController.convertedPreview().section(
+                QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(assetPreview.pixelColor(51, 51).rgb() == selectionColor.rgb()
+                        && assetPreview.pixelColor(48, 48).rgb()
+                            == QColor(Qt::black).rgb(),
+                    "transparent mapped ClipArt should preserve the canvas behind its background pixels");
+
+        const QColor outlineColor(237, 41, 99);
+        const QColor fillColor(23, 211, 137);
+        blankController.newScreenImage();
+        blankController.setScreenImageForegroundColor(outlineColor);
+        blankController.setScreenImageBackgroundColor(fillColor);
+        blankController.drawScreenImageShape(
+            16.5 / 256.0, 16.5 / 192.0, 47.5 / 256.0, 47.5 / 192.0,
+            5, false, true, false, true);
+        const QImage squareBrushRectangle = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(squareBrushRectangle.pixelColor(14, 14).rgb()
+                        == outlineColor.rgb(),
+                    "square brush should preserve a rectangle's sharp outer corner");
+
+        blankController.newScreenImage();
+        blankController.setScreenImageForegroundColor(outlineColor);
+        blankController.setScreenImageBackgroundColor(fillColor);
+        const double ellipseLeft = 32.5;
+        const double ellipseTop = 32.5;
+        const double ellipseRight = 95.5;
+        const double ellipseBottom = 95.5;
+        blankController.drawScreenImageShape(
+            ellipseLeft / 256.0, ellipseTop / 192.0,
+            ellipseRight / 256.0, ellipseBottom / 192.0,
+            3, true, true, true, false);
+        const QImage filledEllipse = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        const double ellipseCenterX = (ellipseLeft + ellipseRight) / 2.0;
+        const double ellipseCenterY = (ellipseTop + ellipseBottom) / 2.0;
+        const double ellipseRadiusX = (ellipseRight - ellipseLeft) / 2.0;
+        const double ellipseRadiusY = (ellipseBottom - ellipseTop) / 2.0;
+        bool ellipseInteriorCovered = !filledEllipse.isNull();
+        for (int y = 0; y < filledEllipse.height() && ellipseInteriorCovered; ++y) {
+            for (int x = 0; x < filledEllipse.width(); ++x) {
+                const double dx = (x + 0.5 - ellipseCenterX) / ellipseRadiusX;
+                const double dy = (y + 0.5 - ellipseCenterY) / ellipseRadiusY;
+                if (dx * dx + dy * dy > 1.0) continue;
+                const QRgb pixel = filledEllipse.pixelColor(x, y).rgb();
+                if (pixel != outlineColor.rgb() && pixel != fillColor.rgb()) {
+                    ellipseInteriorCovered = false;
+                    break;
+                }
+            }
+        }
+        test.expect(ellipseInteriorCovered,
+                    "filled ellipses should not leave source-colored seam pixels");
+
+        blankController.newScreenImage();
+        blankController.setScreenImageForegroundColor(outlineColor);
+        blankController.drawScreenImageShape(
+            ellipseLeft / 256.0, ellipseTop / 192.0,
+            ellipseRight / 256.0, ellipseBottom / 192.0,
+            1, true, true, false, false);
+        const QImage circleOutline = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        bool circleHasNoAngularGaps = !circleOutline.isNull();
+        constexpr double pi = 3.14159265358979323846;
+        for (int step = 0; step < 1440 && circleHasNoAngularGaps; ++step) {
+            const double angle = 2.0 * pi * step / 1440.0;
+            const int expectedX = static_cast<int>(std::floor(
+                ellipseCenterX + std::cos(angle) * ellipseRadiusX));
+            const int expectedY = static_cast<int>(std::floor(
+                ellipseCenterY + std::sin(angle) * ellipseRadiusY));
+            bool foundOutline = false;
+            for (int y = expectedY - 1; y <= expectedY + 1 && !foundOutline; ++y) {
+                for (int x = expectedX - 1; x <= expectedX + 1; ++x) {
+                    if (x >= 0 && y >= 0 && x < circleOutline.width()
+                        && y < circleOutline.height()
+                        && circleOutline.pixelColor(x, y).rgb()
+                            == outlineColor.rgb()) {
+                        foundOutline = true;
+                        break;
+                    }
+                }
+            }
+            circleHasNoAngularGaps &= foundOutline;
+        }
+        test.expect(circleHasNoAngularGaps,
+                    "hard-edge circle borders should remain continuous around the ellipse");
+
+        blankController.newScreenImage();
+        blankController.setScreenImageForegroundColor(outlineColor);
+        blankController.drawScreenImageLine(
+            17.5 / 256.0, 17.5 / 192.0, 22.5 / 256.0, 22.5 / 192.0,
+            3, true, false);
+        const QImage snappedLine = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        bool thickSnappedLineContained = !snappedLine.isNull();
+        for (int y = 14; y <= 25 && thickSnappedLineContained; ++y) {
+            for (int x = 14; x <= 25; ++x) {
+                if (x >= 16 && x <= 23 && y >= 16 && y <= 23) continue;
+                if (snappedLine.pixelColor(x, y).rgb() == outlineColor.rgb()) {
+                    thickSnappedLineContained = false;
+                    break;
+                }
+            }
+        }
+        test.expect(thickSnappedLineContained
+                        && snappedLine.pixelColor(16, 16).rgb()
+                            == outlineColor.rgb()
+                        && snappedLine.pixelColor(23, 23).rgb()
+                            == outlineColor.rgb(),
+                    "character snapping should inset a thick line so its brush stays inside the cell");
+
+        blankController.newScreenImage();
+        blankController.setScreenImageForegroundColor(outlineColor);
+        blankController.beginScreenImageStroke(
+            40.5 / 256.0, 40.5 / 192.0, 1, false, true);
+        blankController.continueScreenImageRay(80.5 / 256.0, 40.5 / 192.0);
+        blankController.continueScreenImageRay(40.5 / 256.0, 80.5 / 192.0);
+        blankController.endScreenImageStroke();
+        const QImage screenRays = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(screenRays.pixelColor(60, 40).rgb() == outlineColor.rgb()
+                        && screenRays.pixelColor(40, 60).rgb()
+                            == outlineColor.rgb()
+                        && screenRays.pixelColor(60, 60).rgb()
+                            == QColor(Qt::black).rgb(),
+                    "Screen Image Rays should keep the initial origin instead of chaining endpoints");
+        blankController.undoScreenImage();
+        const QImage undoneScreenRays = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(undoneScreenRays.pixelColor(60, 40).rgb()
+                        == QColor(Qt::black).rgb()
+                        && undoneScreenRays.pixelColor(40, 60).rgb()
+                            == QColor(Qt::black).rgb(),
+                    "a completed Rays session should create one undoable Screen Image change");
+
+        const QColor firstSwapColor(21, 189, 93);
+        const QColor secondSwapColor(231, 67, 145);
+        blankController.newScreenImage();
+        blankController.setScreenImageForegroundColor(firstSwapColor);
+        blankController.drawScreenImageLine(
+            20.5 / 256.0, 30.5 / 192.0, 40.5 / 256.0, 30.5 / 192.0,
+            1, true);
+        blankController.setScreenImageForegroundColor(secondSwapColor);
+        blankController.drawScreenImageLine(
+            60.5 / 256.0, 30.5 / 192.0, 80.5 / 256.0, 30.5 / 192.0,
+            1, true);
+        blankController.swapScreenImageColors(30.5 / 256.0, 30.5 / 192.0);
+        const QImage swappedScreen = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(swappedScreen.pixelColor(30, 30).rgb()
+                        == secondSwapColor.rgb()
+                        && swappedScreen.pixelColor(70, 30).rgb()
+                            == firstSwapColor.rgb()
+                        && swappedScreen.pixelColor(100, 30).rgb()
+                            == QColor(Qt::black).rgb()
+                        && blankController.screenImageForegroundColor()
+                            == firstSwapColor,
+                    "Color Swap should exchange both exact colors and select the picked color");
+        blankController.undoScreenImage();
+        const QImage undoneColorSwap = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(undoneColorSwap.pixelColor(30, 30).rgb()
+                        == firstSwapColor.rgb()
+                        && undoneColorSwap.pixelColor(70, 30).rgb()
+                            == secondSwapColor.rgb(),
+                    "Color Swap should undo as one Screen Image edit");
+
+        blankController.setScreenImageSelection(
+            20.0 / 256.0, 29.0 / 192.0,
+            40.0 / 256.0, 31.0 / 192.0);
+        blankController.swapScreenImageColors(70.5 / 256.0, 30.5 / 192.0);
+        const QImage selectionSwappedScreen = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(selectionSwappedScreen.pixelColor(30, 30).rgb()
+                        == secondSwapColor.rgb()
+                        && selectionSwappedScreen.pixelColor(70, 30).rgb()
+                            == secondSwapColor.rgb()
+                        && blankController.screenImageForegroundColor()
+                            == secondSwapColor,
+                    "Color Swap should sample the clicked color but change pixels only inside the active selection");
+        blankController.undoScreenImage();
+        const QImage undoneSelectionSwap = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(undoneSelectionSwap.pixelColor(30, 30).rgb()
+                        == firstSwapColor.rgb()
+                        && undoneSelectionSwap.pixelColor(70, 30).rgb()
+                            == secondSwapColor.rgb(),
+                    "a selection-limited Color Swap should undo as one Screen Image edit");
+
+        blankController.invertScreenImage();
+        const QImage selectionInvertedScreen = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        const QColor invertedFirstSwapColor(
+            255 - firstSwapColor.red(), 255 - firstSwapColor.green(),
+            255 - firstSwapColor.blue());
+        test.expect(selectionInvertedScreen.pixelColor(30, 30).rgb()
+                        == invertedFirstSwapColor.rgb()
+                        && selectionInvertedScreen.pixelColor(70, 30).rgb()
+                            == secondSwapColor.rgb(),
+                    "Invert should change only pixels inside the active selection");
+        blankController.undoScreenImage();
+        const QImage undoneSelectionInvert = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(undoneSelectionInvert.pixelColor(30, 30).rgb()
+                        == firstSwapColor.rgb()
+                        && undoneSelectionInvert.pixelColor(70, 30).rgb()
+                            == secondSwapColor.rgb(),
+                    "a selection-limited Invert should undo as one Screen Image edit");
+
+        const auto grayscale = [](QColor color) {
+            const int gray = (77 * color.red() + 150 * color.green()
+                              + 29 * color.blue() + 128) >> 8;
+            return QColor(gray, gray, gray);
+        };
+        blankController.removeScreenImageColor();
+        const QImage selectionGrayscaleScreen = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(selectionGrayscaleScreen.pixelColor(30, 30).rgb()
+                        == grayscale(firstSwapColor).rgb()
+                        && selectionGrayscaleScreen.pixelColor(70, 30).rgb()
+                            == secondSwapColor.rgb(),
+                    "Remove Color should grayscale only pixels inside the active selection");
+        blankController.undoScreenImage();
+        blankController.clearScreenImageSelection();
+        blankController.removeScreenImageColor();
+        const QImage fullGrayscaleScreen = QImage::fromData(
+            QByteArray::fromBase64(blankController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(fullGrayscaleScreen.pixelColor(30, 30).rgb()
+                        == grayscale(firstSwapColor).rgb()
+                        && fullGrayscaleScreen.pixelColor(70, 30).rgb()
+                            == grayscale(secondSwapColor).rgb(),
+                    "Remove Color should grayscale the whole Screen Image when no selection is active");
+        blankController.undoScreenImage();
+    }
+
     controller.setPerceptualRedWeight(40);
     controller.setPerceptualGreenWeight(40);
     controller.setPerceptualBlueWeight(20);
@@ -209,6 +645,55 @@ void testLiveWorkflow(TestContext& test, ImageInputController& controller)
         drawingController.redoDrawing();
         test.expect(drawingController.sourcePreview() == sourceAfterRectangle,
                     "rectangle drawing should be redoable as one change");
+        const QString sourceBeforeLine = drawingController.sourcePreview();
+        drawingController.drawSourceLine(0.1, 0.1, 0.9, 0.8, 4, true);
+        const QString sourceAfterLine = drawingController.sourcePreview();
+        test.expect(sourceAfterLine != sourceBeforeLine
+                        && drawingController.canUndoDrawing(),
+                    "line tool should use the source-image brush and commit one change");
+        drawingController.undoDrawing();
+        test.expect(drawingController.sourcePreview() == sourceBeforeLine,
+                    "source-image lines should be undoable as one change");
+        const QString sourceBeforeKLine = drawingController.sourcePreview();
+        drawingController.beginSourceStroke(0.1, 0.1, 3, false, true);
+        drawingController.continueSourceStroke(0.8, 0.1);
+        drawingController.continueSourceStroke(0.8, 0.8);
+        drawingController.endSourceStroke();
+        test.expect(drawingController.sourcePreview() != sourceBeforeKLine,
+                    "K-Line should draw connected source-image brush segments");
+        drawingController.undoDrawing();
+        test.expect(drawingController.sourcePreview() == sourceBeforeKLine,
+                    "a completed source-image K-Line should undo as one transaction");
+        const QString sourceBeforeRays = drawingController.sourcePreview();
+        drawingController.beginSourceStroke(0.25, 0.25, 3, false, true);
+        drawingController.continueSourceRay(0.75, 0.25);
+        drawingController.continueSourceRay(0.25, 0.75);
+        drawingController.endSourceStroke();
+        test.expect(drawingController.sourcePreview() != sourceBeforeRays,
+                    "Rays should draw fixed-origin source-image brush segments");
+        drawingController.undoDrawing();
+        test.expect(drawingController.sourcePreview() == sourceBeforeRays,
+                    "a completed source-image Rays session should undo as one transaction");
+        const QColor sourceSwapFirst(13, 177, 241);
+        const QColor sourceSwapSecond(247, 91, 19);
+        drawingController.setForegroundColor(sourceSwapFirst);
+        drawingController.drawSourceLine(0.1, 0.9, 0.2, 0.9, 3, true);
+        drawingController.setForegroundColor(sourceSwapSecond);
+        drawingController.drawSourceLine(0.8, 0.9, 0.9, 0.9, 3, true);
+        const QString sourceBeforeSwap = drawingController.sourcePreview();
+        drawingController.swapSourceColors(0.15, 0.9);
+        const QImage sourceAfterSwap = QImage::fromData(QByteArray::fromBase64(
+            drawingController.sourcePreview().section(
+                QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(sourceAfterSwap.pixelColor(38, 172).rgb()
+                        == sourceSwapSecond.rgb()
+                        && sourceAfterSwap.pixelColor(217, 172).rgb()
+                            == sourceSwapFirst.rgb()
+                        && drawingController.foregroundColor() == sourceSwapFirst,
+                    "Source Color Swap should exchange exact visible colors and select the picked color");
+        drawingController.undoDrawing();
+        test.expect(drawingController.sourcePreview() == sourceBeforeSwap,
+                    "Source Color Swap should undo as one drawing edit");
         drawingController.setForegroundColor(QColor(30, 210, 120));
         const QColor shapeFillColor(15, 225, 95);
         drawingController.setBackgroundColor(shapeFillColor);
@@ -312,6 +797,105 @@ void testLiveWorkflow(TestContext& test, ImageInputController& controller)
         QByteArray::fromBase64(previewPayload.toLatin1()), "PNG");
     test.expect(decodedPreview.size() == QSize(256, 192),
                 "converted preview PNG should retain the target dimensions");
+    const QString screenBeforeEdit = controller.convertedPreview();
+    const QColor screenPencilColor(241, 37, 113);
+    const QColor screenBackgroundColor(9, 43, 77);
+    controller.setScreenImageForegroundColor(screenPencilColor);
+    controller.setScreenImageBackgroundColor(screenBackgroundColor);
+    controller.beginScreenImageStroke(0.2, 0.3, 5, false, true);
+    controller.continueScreenImageStroke(0.8, 0.3);
+    controller.endScreenImageStroke();
+    const QString screenAfterStroke = controller.convertedPreview();
+    test.expect(screenAfterStroke != screenBeforeEdit
+                    && controller.canUndoScreenImage()
+                    && !controller.canRedoScreenImage(),
+                "Screen Image pencil strokes should create independent undo history");
+    controller.undoScreenImage();
+    test.expect(controller.convertedPreview() == screenBeforeEdit
+                    && controller.canRedoScreenImage(),
+                "Screen Image undo should restore the previous converted canvas");
+    controller.redoScreenImage();
+    test.expect(controller.convertedPreview() == screenAfterStroke,
+                "Screen Image redo should restore the edited converted canvas");
+    const QString screenBeforeLine = controller.convertedPreview();
+    controller.drawScreenImageLine(0.1, 0.1, 0.9, 0.8, 4, true);
+    test.expect(controller.convertedPreview() != screenBeforeLine,
+                "Screen Image line tool should use the configured brush");
+    controller.undoScreenImage();
+    test.expect(controller.convertedPreview() == screenBeforeLine,
+                "Screen Image line should be undoable as one change");
+    const QString screenBeforeKLine = controller.convertedPreview();
+    controller.beginScreenImageStroke(0.1, 0.1, 3, false, true);
+    controller.continueScreenImageStroke(0.8, 0.1);
+    controller.continueScreenImageStroke(0.8, 0.8);
+    controller.endScreenImageStroke();
+    test.expect(controller.convertedPreview() != screenBeforeKLine,
+                "Screen Image K-Line should draw connected brush segments");
+    controller.undoScreenImage();
+    test.expect(controller.convertedPreview() == screenBeforeKLine,
+                "a completed Screen Image K-Line should undo as one transaction");
+    const QString screenBeforeApplyingRules = controller.convertedPreview();
+    controller.applyScreenImageEdits();
+    const QImage chipsetAppliedScreen = QImage::fromData(QByteArray::fromBase64(
+        controller.convertedPreview().section(QLatin1Char(','), 1).toLatin1()), "PNG");
+    bool bitmapRowsRespectTwoColors = !chipsetAppliedScreen.isNull();
+    for (int y = 0; y < chipsetAppliedScreen.height(); ++y) {
+        for (int tile = 0; tile < chipsetAppliedScreen.width() / 8; ++tile) {
+            QSet<QRgb> colors;
+            for (int x = tile * 8; x < tile * 8 + 8; ++x)
+                colors.insert(chipsetAppliedScreen.pixel(x, y));
+            bitmapRowsRespectTwoColors &= colors.size() <= 2;
+        }
+    }
+    test.expect(bitmapRowsRespectTwoColors && !controller.screenImageEdited()
+                    && controller.statusMessage().contains(
+                        QStringLiteral("chipset rules"), Qt::CaseInsensitive),
+                "Apply should rebuild the complete Screen Image under the active chipset rules");
+    controller.undoScreenImage();
+    test.expect(controller.convertedPreview() == screenBeforeApplyingRules
+                    && controller.screenImageEdited(),
+                "applying chipset rules should be one undoable Screen Image edit");
+    controller.drawScreenImageShape(0.25, 0.2, 0.75, 0.8, 3,
+                                    true, false, true);
+    const QString screenAfterShape = controller.convertedPreview();
+    test.expect(screenAfterShape != screenAfterStroke,
+                "Screen Image ellipse should support soft edges and background fill");
+    controller.nudgeScreenImage(1, 0);
+    test.expect(controller.convertedPreview() != screenAfterShape,
+                "Screen Image movement should shift pixels and fill the exposed edge");
+    controller.undoScreenImage();
+    controller.mirrorScreenImage();
+    controller.mirrorScreenImage();
+    test.expect(controller.convertedPreview() == screenAfterShape,
+                "two horizontal Screen Image mirrors should restore the canvas");
+    controller.flipScreenImage();
+    controller.undoScreenImage();
+    test.expect(controller.convertedPreview() == screenAfterShape,
+                "Screen Image flip should be undoable");
+    controller.copyScreenImage();
+    controller.clearScreenImage();
+    const QString clearedScreen = controller.convertedPreview();
+    controller.pasteScreenImage();
+    test.expect(controller.convertedPreview() == screenAfterShape
+                    && controller.convertedPreview() != clearedScreen,
+                "Screen Image copy and paste should replace the canvas as one edit");
+    controller.undoScreenImage();
+    test.expect(controller.convertedPreview() == clearedScreen,
+                "pasting into Screen Image should participate in undo history");
+    controller.undoScreenImage();
+    controller.pickScreenImageColor(0.5, 0.5, true);
+    test.expect(controller.screenImageForegroundColor().isValid(),
+                "Screen Image eyedropper should update its foreground selector");
+    controller.setExportFormat(2); // RAW tables
+    QTemporaryDir editedScreenExport(
+        QDir::current().filePath(QStringLiteral("edited-screen-export-XXXXXX")));
+    controller.exportToDirectory(QUrl::fromLocalFile(editedScreenExport.path()));
+    test.expect(editedScreenExport.isValid()
+                    && QFileInfo::exists(editedScreenExport.filePath(
+                        QStringLiteral("TINY-RGBA.TIAP")))
+                    && QFileInfo::exists(editedScreenExport.filePath(
+                        QStringLiteral("TINY-RGBA.TIAC"))),
+                "edited Screen Image should rebuild valid hardware target tables for export");
     test.expect(controller.conversionDetails().contains(QStringLiteral("256×192")),
                 "conversion details should state target dimensions");
     test.expect(!controller.outputSummary().isEmpty(),
@@ -624,6 +1208,77 @@ void testEditorProjectRecipe(TestContext& test)
                 "character undo should revert a complete drawing stroke");
     historyProject.redoCharacterEdit();
 
+    EditorProjectController characterLineProject(&recipeImage);
+    characterLineProject.drawCharacterLine(0, 0, 0, 0, 7, 7, true);
+    auto lineRows = characterLineProject.characterPatternRows(0, 0);
+    bool characterDiagonal = lineRows.size() == 8;
+    for (int row = 0; row < lineRows.size(); ++row) {
+        characterDiagonal &= lineRows.at(row).toMap()
+                                 .value(QStringLiteral("pattern")).toInt()
+            == (0x80 >> row);
+    }
+    test.expect(characterDiagonal && characterLineProject.canUndoCharacter(),
+                "character line should rasterize an inclusive one-pixel diagonal");
+    characterLineProject.undoCharacterEdit();
+    lineRows = characterLineProject.characterPatternRows(0, 0);
+    bool characterLineUndone = true;
+    for (const QVariant& row : lineRows) {
+        characterLineUndone &= row.toMap()
+                                  .value(QStringLiteral("pattern")).toInt() == 0;
+    }
+    test.expect(characterLineUndone,
+                "a standalone character line should undo as one change");
+    characterLineProject.beginCharacterEdit(0, 0);
+    characterLineProject.drawCharacterLine(0, 0, 0, 0, 0, 3, true);
+    characterLineProject.redoCharacterEdit();
+    lineRows = characterLineProject.characterPatternRows(0, 0);
+    test.expect(lineRows.at(0).toMap()
+                        .value(QStringLiteral("pattern")).toInt() == 0xf0
+                    && !characterLineProject.canRedoCharacter(),
+                "redo during an active character chain should safely keep the new edit");
+    characterLineProject.undoCharacterEdit();
+    characterLineProject.beginCharacterEdit(0, 0);
+    characterLineProject.drawCharacterLine(0, 0, 0, 0, 0, 7, true);
+    characterLineProject.drawCharacterLine(0, 0, 0, 7, 7, 7, true);
+    characterLineProject.endCharacterEdit();
+    lineRows = characterLineProject.characterPatternRows(0, 0);
+    bool characterKLine = lineRows.at(0).toMap()
+                              .value(QStringLiteral("pattern")).toInt() == 0xff;
+    for (int row = 1; row < lineRows.size(); ++row) {
+        characterKLine &= lineRows.at(row).toMap()
+                              .value(QStringLiteral("pattern")).toInt() == 0x01;
+    }
+    characterLineProject.undoCharacterEdit();
+    lineRows = characterLineProject.characterPatternRows(0, 0);
+    bool characterKLineUndone = true;
+    for (const QVariant& row : lineRows) {
+        characterKLineUndone &= row.toMap()
+                                   .value(QStringLiteral("pattern")).toInt() == 0;
+    }
+    test.expect(characterKLine && characterKLineUndone,
+                "character K-Line segments should share one undo transaction");
+    characterLineProject.beginCharacterEdit(0, 0);
+    characterLineProject.drawCharacterLine(0, 0, 3, 3, 3, 7, true);
+    characterLineProject.drawCharacterLine(0, 0, 3, 3, 7, 3, true);
+    characterLineProject.endCharacterEdit();
+    lineRows = characterLineProject.characterPatternRows(0, 0);
+    bool characterRays = true;
+    for (int row = 0; row < lineRows.size(); ++row) {
+        const int expected = row == 3 ? 0x1f
+            : (row > 3 ? 0x10 : 0x00);
+        characterRays &= lineRows.at(row).toMap()
+                             .value(QStringLiteral("pattern")).toInt() == expected;
+    }
+    characterLineProject.undoCharacterEdit();
+    lineRows = characterLineProject.characterPatternRows(0, 0);
+    bool characterRaysUndone = true;
+    for (const QVariant& row : lineRows) {
+        characterRaysUndone &= row.toMap()
+                                  .value(QStringLiteral("pattern")).toInt() == 0;
+    }
+    test.expect(characterRays && characterRaysUndone,
+                "character Rays should share a fixed origin and one undo transaction");
+
     historyProject.mirrorActiveCharacterPattern();
     historyRows = historyProject.characterPatternRows(0, 0);
     test.expect(historyRows.at(0).toMap().value(QStringLiteral("pattern")).toInt()
@@ -709,7 +1364,7 @@ void testEditorProjectRecipe(TestContext& test)
     const QJsonObject clipboardObject = clipboardDocument.object();
     test.expect(copiedPattern && historyProject.canPasteCharacterPattern()
                     && clipboardObject.value(QStringLiteral("format")).toString()
-                        == QStringLiteral("newconvert9918.character-pattern")
+                        == QStringLiteral("retrovdp.character-pattern")
                     && clipboardObject.value(QStringLiteral("version")).toInt() == 1
                     && clipboardObject.value(QStringLiteral("bitmap")).toArray().size()
                         == 8
@@ -774,6 +1429,77 @@ void testEditorProjectRecipe(TestContext& test)
                     && spritePixels.at(10).toInt() == 0,
                 "sprite undo should revert an entire drawing stroke");
     spriteProject.redoSpriteEdit();
+
+    EditorProjectController spriteLineProject(&recipeImage);
+    spriteLineProject.drawSpriteLine(0, 0, 8, 0, 0, 7, 7, true);
+    auto linePixels = spriteLineProject.spritePatternPixels(0, 0, 8);
+    bool spriteDiagonal = linePixels.size() == 64;
+    for (int pixel = 0; pixel < linePixels.size(); ++pixel) {
+        const int row = pixel / 8;
+        const int column = pixel % 8;
+        spriteDiagonal &= linePixels.at(pixel).toInt()
+            == (row == column ? 1 : 0);
+    }
+    test.expect(spriteDiagonal && spriteLineProject.canUndoSprite(),
+                "sprite line should rasterize an inclusive one-pixel diagonal");
+    spriteLineProject.undoSpriteEdit();
+    linePixels = spriteLineProject.spritePatternPixels(0, 0, 8);
+    bool spriteLineUndone = true;
+    for (const QVariant& pixel : linePixels)
+        spriteLineUndone &= pixel.toInt() == 0;
+    test.expect(spriteLineUndone,
+                "a standalone sprite line should undo as one change");
+    spriteLineProject.beginSpriteEdit(0, 0, 8);
+    spriteLineProject.drawSpriteLine(0, 0, 8, 0, 0, 0, 3, true);
+    spriteLineProject.redoSpriteEdit();
+    linePixels = spriteLineProject.spritePatternPixels(0, 0, 8);
+    test.expect(linePixels.at(0).toInt() == 1
+                    && linePixels.at(1).toInt() == 1
+                    && linePixels.at(2).toInt() == 1
+                    && linePixels.at(3).toInt() == 1
+                    && !spriteLineProject.canRedoSprite(),
+                "redo during an active sprite chain should safely keep the new edit");
+    spriteLineProject.undoSpriteEdit();
+    spriteLineProject.beginSpriteEdit(0, 0, 8);
+    spriteLineProject.drawSpriteLine(0, 0, 8, 0, 0, 0, 7, true);
+    spriteLineProject.drawSpriteLine(0, 0, 8, 0, 7, 7, 7, true);
+    spriteLineProject.endSpriteEdit();
+    linePixels = spriteLineProject.spritePatternPixels(0, 0, 8);
+    bool spriteKLine = true;
+    for (int pixel = 0; pixel < linePixels.size(); ++pixel) {
+        const int row = pixel / 8;
+        const int column = pixel % 8;
+        spriteKLine &= linePixels.at(pixel).toInt()
+            == (row == 0 || column == 7 ? 1 : 0);
+    }
+    spriteLineProject.undoSpriteEdit();
+    linePixels = spriteLineProject.spritePatternPixels(0, 0, 8);
+    bool spriteKLineUndone = true;
+    for (const QVariant& pixel : linePixels)
+        spriteKLineUndone &= pixel.toInt() == 0;
+    test.expect(spriteKLine && spriteKLineUndone,
+                "sprite K-Line segments should share one undo transaction");
+    spriteLineProject.beginSpriteEdit(0, 0, 8);
+    spriteLineProject.drawSpriteLine(0, 0, 8, 3, 3, 3, 7, true);
+    spriteLineProject.drawSpriteLine(0, 0, 8, 3, 3, 7, 3, true);
+    spriteLineProject.endSpriteEdit();
+    linePixels = spriteLineProject.spritePatternPixels(0, 0, 8);
+    bool spriteRays = true;
+    for (int pixel = 0; pixel < linePixels.size(); ++pixel) {
+        const int row = pixel / 8;
+        const int column = pixel % 8;
+        const bool expected = (row == 3 && column >= 3)
+            || (column == 3 && row >= 3);
+        spriteRays &= linePixels.at(pixel).toInt() == (expected ? 1 : 0);
+    }
+    spriteLineProject.undoSpriteEdit();
+    linePixels = spriteLineProject.spritePatternPixels(0, 0, 8);
+    bool spriteRaysUndone = true;
+    for (const QVariant& pixel : linePixels)
+        spriteRaysUndone &= pixel.toInt() == 0;
+    test.expect(spriteRays && spriteRaysUndone,
+                "sprite Rays should share a fixed origin and one undo transaction");
+
     spriteProject.setEditScope(1);
     spriteProject.setActiveSpriteSize(16);
     spriteProject.setActiveSpriteColorDepth(3);
@@ -802,7 +1528,7 @@ void testEditorProjectRecipe(TestContext& test)
         spriteProject.spritePatternPixels(0, 1, 16);
     test.expect(copiedSprite && pastedSprite
                     && spriteClipboardObject.value(QStringLiteral("format")).toString()
-                        == QStringLiteral("newconvert9918.sprite-pattern")
+                        == QStringLiteral("retrovdp.sprite-pattern")
                     && spriteClipboardObject.value(QStringLiteral("size")).toInt() == 16
                     && spriteClipboardObject.value(QStringLiteral("colorDepth")).toInt() == 3
                     && pastedSpritePixels.at(0).toInt() == 6,
@@ -932,7 +1658,7 @@ void testEditorProjectRecipe(TestContext& test)
 
     QTemporaryDir directory(
         QDir::current().filePath(QStringLiteral("interface-recipe-XXXXXX")));
-    const QString recipePath = directory.filePath(QStringLiteral("roundtrip.nc9918.json"));
+    const QString recipePath = directory.filePath(QStringLiteral("roundtrip.rvdp.json"));
     const bool recipeSaved = directory.isValid()
         && project.saveRecipe(QUrl::fromLocalFile(recipePath));
     if (!recipeSaved) {
@@ -1010,27 +1736,27 @@ void testEditorProjectRecipe(TestContext& test)
 
 void testResponsiveQml(TestContext& test, ImageInputController& controller)
 {
-    const QDir qmlDirectory(QStringLiteral(NEWCONVERT9918_QML_DIR));
+    const QDir qmlDirectory(QStringLiteral(RETROVDP_QML_DIR));
     const QDir iconDirectory(qmlDirectory.filePath(QStringLiteral("../assets/icons")));
     for (const int size : {16, 24, 32, 48, 64, 128, 256, 512, 1024}) {
         const QImage icon(iconDirectory.filePath(
-            QStringLiteral("NewConvert9918-%1.png").arg(size)));
+            QStringLiteral("RetroVDPStudio-%1.png").arg(size)));
         test.expect(!icon.isNull()
                         && icon.size() == QSize(size, size)
                         && icon.pixelColor(0, 0).alpha() == 0,
                     "generated application PNG should have its declared dimensions and a transparent background");
     }
     test.expect(QFileInfo::exists(
-                    iconDirectory.filePath(QStringLiteral("NewConvert9918.ico")))
+                    iconDirectory.filePath(QStringLiteral("RetroVDPStudio.ico")))
                     && QFileInfo::exists(
-                        iconDirectory.filePath(QStringLiteral("NewConvert9918.icns"))),
+                        iconDirectory.filePath(QStringLiteral("RetroVDPStudio.icns"))),
                 "native Windows and macOS application icons should be generated");
     const QIcon applicationIcon(
-        iconDirectory.filePath(QStringLiteral("NewConvert9918-256.png")));
+        iconDirectory.filePath(QStringLiteral("RetroVDPStudio-256.png")));
     test.expect(!applicationIcon.isNull(),
                 "application icon PNG should load as a native Qt icon");
     const QImage watermarkImage(
-        iconDirectory.filePath(QStringLiteral("NewConvert9918-watermark-512.png")));
+        iconDirectory.filePath(QStringLiteral("RetroVDPStudio-watermark-512.png")));
     test.expect(!watermarkImage.isNull()
                     && watermarkImage.size() == QSize(512, 512)
                     && watermarkImage.pixelColor(0, 0).alpha() == 0,
@@ -1043,7 +1769,7 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     engine.rootContext()->setContextProperty(QStringLiteral("imageInput"), &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("appPreferences"), &appPreferences);
     engine.rootContext()->setContextProperty(QStringLiteral("editorProject"), &editorProject);
-    const QString mainQml = QDir(QStringLiteral(NEWCONVERT9918_QML_DIR))
+    const QString mainQml = QDir(QStringLiteral(RETROVDP_QML_DIR))
                                 .filePath(QStringLiteral("Main.qml"));
     engine.load(QUrl::fromLocalFile(mainQml));
     test.expect(engine.rootObjects().size() == 1,
@@ -1053,6 +1779,14 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().front());
     test.expect(window != nullptr, "Phase 6 root should be a QQuickWindow");
     if (window == nullptr) return;
+
+    QObject* newAction = window->findChild<QObject*>(QStringLiteral("newAction"));
+    QObject* newMenuItem = window->findChild<QObject*>(QStringLiteral("newMenuItem"));
+    test.expect(newAction != nullptr && newMenuItem != nullptr
+                    && newAction->property("enabled").toBool()
+                    && newAction->property("text").toString().contains(
+                        QStringLiteral("New")),
+                "File should expose an enabled New command for a blank Screen Image");
 
     QObject* preferencesAction = window->findChild<QObject*>(
         QStringLiteral("preferencesAction"));
@@ -1121,7 +1855,7 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     };
 
     test.expect(!window->icon().isNull(),
-                "application window should load the New Convert 9918 icon");
+                "application window should load the RetroVDP Studio icon");
     const auto hasConfiguredWatermark = [&](const QString& paneName) {
         QObject* pane = visiblePane(paneName);
         if (pane == nullptr) return false;
@@ -1254,6 +1988,18 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     QObject* characterEraser = characterToolbar != nullptr
         ? characterToolbar->findChild<QObject*>(
               QStringLiteral("characterPatternEraserButton"))
+        : nullptr;
+    QObject* characterLine = characterToolbar != nullptr
+        ? characterToolbar->findChild<QObject*>(
+              QStringLiteral("characterPatternLineButton"))
+        : nullptr;
+    QObject* characterKLine = characterToolbar != nullptr
+        ? characterToolbar->findChild<QObject*>(
+              QStringLiteral("characterPatternKLineButton"))
+        : nullptr;
+    QObject* characterRays = characterToolbar != nullptr
+        ? characterToolbar->findChild<QObject*>(
+              QStringLiteral("characterPatternRaysButton"))
         : nullptr;
     QObject* characterColors = characterToolbar != nullptr
         ? characterToolbar->findChild<QObject*>(
@@ -1404,6 +2150,8 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                     && !removeCharacterEditor->property("enabled").toBool()
                     && characterToolbar != nullptr
                     && characterPencil != nullptr && characterEraser != nullptr
+                    && characterLine != nullptr && characterKLine != nullptr
+                    && characterRays != nullptr
                     && characterColors != nullptr
                     && characterRotate != nullptr && characterRotate->property("enabled").toBool()
                     && characterMirror != nullptr && characterMirror->property("enabled").toBool()
@@ -1646,6 +2394,9 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     QObject* spriteEditorTray = visiblePane(
         QStringLiteral("spritePatternEditorTray"));
     QObject* spritePencil = visiblePane(QStringLiteral("spritePatternPencilButton"));
+    QObject* spriteLine = visiblePane(QStringLiteral("spritePatternLineButton"));
+    QObject* spriteKLine = visiblePane(QStringLiteral("spritePatternKLineButton"));
+    QObject* spriteRays = visiblePane(QStringLiteral("spritePatternRaysButton"));
     QObject* spriteModeButton = visiblePane(QStringLiteral("spritePlacementModeButton"));
     QObject* spriteColorControl = visiblePane(
         QStringLiteral("spritePatternColorControl"));
@@ -1666,7 +2417,9 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                             .at(0).toMap().value(QStringLiteral("loaded")).toBool()
                     && spriteSetView->property("sprite8Expanded").toBool()
                     && !spriteSetView->property("sprite16Expanded").toBool()
-                    && spritePencil != nullptr && spriteModeButton != nullptr
+                    && spritePencil != nullptr && spriteLine != nullptr
+                    && spriteKLine != nullptr && spriteRays != nullptr
+                    && spriteModeButton != nullptr
                     && spriteColorControl != nullptr
                     && spriteColorSwatch != nullptr
                     && spriteTransparencySwatch != nullptr
@@ -2116,7 +2869,7 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                 "horizontal layout should start with equal-size Source and Screen Image panes");
 
     QObject* sourcePane = visiblePane(QStringLiteral("sourcePreview"));
-    const QObject* convertedPane = visiblePane(QStringLiteral("convertedPreview"));
+    QObject* convertedPane = visiblePane(QStringLiteral("convertedPreview"));
     const QObject* updateConversionButton =
         window->findChild<QObject*>(QStringLiteral("updateConversionButton"));
     const QObject* livePreviewSwitch =
@@ -2126,7 +2879,7 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
         : nullptr;
     const QObject* statusSourceName =
         window->findChild<QObject*>(QStringLiteral("statusSourceName"));
-    test.expect(window->title() == QStringLiteral("New Convert 9918")
+    test.expect(window->title() == QStringLiteral("RetroVDP Studio")
                     && sourceDetails != nullptr
                     && !sourceDetails->property("text").toString().contains(
                         controller.sourceName())
@@ -2154,6 +2907,18 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     const QObject* eraserButton = sourcePane != nullptr
         ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewEraserButton"))
         : nullptr;
+    const QObject* lineButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewLineButton"))
+        : nullptr;
+    const QObject* kLineButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewKLineButton"))
+        : nullptr;
+    const QObject* raysButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewRaysButton"))
+        : nullptr;
+    const QObject* colorSwapButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewColorSwapButton"))
+        : nullptr;
     const QObject* ellipseButton = sourcePane != nullptr
         ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewEllipseButton"))
         : nullptr;
@@ -2162,6 +2927,9 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
         : nullptr;
     const QObject* hardEdgeButton = sourcePane != nullptr
         ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewHardEdgeButton"))
+        : nullptr;
+    const QObject* brushShapeButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewBrushShapeButton"))
         : nullptr;
     const QObject* shapeFillButton = sourcePane != nullptr
         ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewShapeFillButton"))
@@ -2207,8 +2975,110 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
         ? convertedPane->findChild<QObject*>(
               QStringLiteral("convertedPreviewAutoUpdateSwitch"))
         : nullptr;
+    const QObject* applyScreenImageEditsButton = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewApplyScreenImageEditsButton"))
+        : nullptr;
     const QObject* convertedZoom = convertedPane != nullptr
         ? convertedPane->findChild<QObject*>(QStringLiteral("convertedPreviewZoomControls"))
+        : nullptr;
+    const QObject* convertedDrawingTools = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewDrawingTools"))
+        : nullptr;
+    const QObject* convertedColorSelector = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewBackgroundColorButton"))
+        : nullptr;
+    const QObject* convertedLineButton = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewLineButton"))
+        : nullptr;
+    const QObject* convertedKLineButton = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewKLineButton"))
+        : nullptr;
+    const QObject* convertedRaysButton = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewRaysButton"))
+        : nullptr;
+    const QObject* convertedColorSwapButton = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewColorSwapButton"))
+        : nullptr;
+    const QObject* convertedInvertButton = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewInvertButton"))
+        : nullptr;
+    const QObject* convertedRemoveColorButton = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewRemoveColorButton"))
+        : nullptr;
+    const QObject* convertedCharacterSnapButton = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewCharacterSnapButton"))
+        : nullptr;
+    const QObject* convertedBrushShapeButton = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewBrushShapeButton"))
+        : nullptr;
+    const QObject* convertedMirror = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(QStringLiteral("convertedPreviewMirrorButton"))
+        : nullptr;
+    const QObject* convertedFlip = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(QStringLiteral("convertedPreviewFlipButton"))
+        : nullptr;
+    const QObject* convertedTypeTool = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewTypeToolButton"))
+        : nullptr;
+    const QObject* convertedTypeDialog = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewTypeToolDialog"))
+        : nullptr;
+    const QObject* convertedTypeFontCombo = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewTypeFontComboBox"))
+        : nullptr;
+    const QObject* convertedClipArtTool = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewClipArtToolButton"))
+        : nullptr;
+    const QObject* convertedClipArtDialog = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewClipArtDialog"))
+        : nullptr;
+    const QObject* convertedClipArtColorMode = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewClipArtColorModeComboBox"))
+        : nullptr;
+    const QObject* convertedSelection = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewSelectionButton"))
+        : nullptr;
+    const QObject* convertedMoveSelection = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewMoveSelectionButton"))
+        : nullptr;
+    const QObject* convertedSelectionOverlay = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewSelectionOverlay"))
+        : nullptr;
+    const QObject* convertedFloatingOverlay = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(
+              QStringLiteral("convertedPreviewFloatingPlacementOverlay"))
+        : nullptr;
+    const QObject* convertedCopy = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(QStringLiteral("convertedPreviewCopyButton"))
+        : nullptr;
+    const QObject* convertedPaste = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(QStringLiteral("convertedPreviewPasteButton"))
+        : nullptr;
+    const QObject* convertedGridButton = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(QStringLiteral("convertedPreviewGridButton"))
+        : nullptr;
+    QObject* convertedGridOverlay = convertedPane != nullptr
+        ? convertedPane->findChild<QObject*>(QStringLiteral("convertedPreviewGridOverlay"))
         : nullptr;
     const QObject* sourceZoomMenuButton = sourcePane != nullptr
         ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewZoomMenuButton"))
@@ -2229,16 +3099,155 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
         ? qMax(sourceZoomIn->property("renderedContentWidth").toReal(),
                sourceZoomOut->property("renderedContentWidth").toReal())
         : 0.0;
-    test.expect(ellipseButton != nullptr && ellipseButton->property("enabled").toBool()
+    test.expect(lineButton != nullptr && lineButton->property("enabled").toBool()
+                    && kLineButton != nullptr
+                    && kLineButton->property("enabled").toBool()
+                    && raysButton != nullptr
+                    && raysButton->property("enabled").toBool()
+                    && colorSwapButton != nullptr
+                    && colorSwapButton->property("enabled").toBool()
+                    && ellipseButton != nullptr && ellipseButton->property("enabled").toBool()
                     && rectangleButton != nullptr
                     && rectangleButton->property("enabled").toBool()
                     && hardEdgeButton != nullptr
                     && hardEdgeButton->property("enabled").toBool()
+                    && brushShapeButton != nullptr
+                    && brushShapeButton->property("enabled").toBool()
                     && shapeFillButton != nullptr
                     && shapeFillButton->property("enabled").toBool(),
-                "source drawing toolbar should expose shape, edge, and fill controls");
-    test.expect(convertedTools != nullptr && convertedAutoUpdate != nullptr,
-                "Converted lower toolbar should expose automatic conversion update");
+                "source drawing toolbar should expose line, K-Line, shape, brush, edge, and fill controls");
+    test.expect(convertedTools != nullptr && convertedAutoUpdate != nullptr
+                    && applyScreenImageEditsButton != nullptr,
+                "Converted lower toolbar should expose automatic source conversion and explicit chipset-rule application");
+    test.expect(convertedDrawingTools != nullptr
+                    && convertedDrawingTools->property("visible").toBool()
+                    && convertedColorSelector != nullptr
+                    && convertedColorSelector->property("enabled").toBool()
+                    && convertedLineButton != nullptr
+                    && convertedLineButton->property("enabled").toBool()
+                    && convertedKLineButton != nullptr
+                    && convertedKLineButton->property("enabled").toBool()
+                    && convertedRaysButton != nullptr
+                    && convertedRaysButton->property("enabled").toBool()
+                    && convertedColorSwapButton != nullptr
+                    && convertedColorSwapButton->property("enabled").toBool()
+                    && convertedInvertButton != nullptr
+                    && convertedInvertButton->property("enabled").toBool()
+                    && convertedRemoveColorButton != nullptr
+                    && convertedRemoveColorButton->property("enabled").toBool()
+                    && convertedCharacterSnapButton != nullptr
+                    && convertedCharacterSnapButton->property("enabled").toBool()
+                    && convertedBrushShapeButton != nullptr
+                    && convertedBrushShapeButton->property("enabled").toBool()
+                    && convertedMirror != nullptr
+                    && convertedMirror->property("enabled").toBool()
+                    && convertedFlip != nullptr
+                    && convertedSelection != nullptr
+                    && convertedSelection->property("enabled").toBool()
+                    && convertedMoveSelection != nullptr
+                    && !convertedMoveSelection->property("enabled").toBool()
+                    && convertedSelectionOverlay != nullptr
+                    && convertedFloatingOverlay != nullptr
+                    && convertedCopy != nullptr && convertedPaste != nullptr
+                    && convertedGridButton != nullptr,
+                "Screen Image should expose drawing, color, selection, move, transform, clipboard, and grid tools");
+    test.expect(convertedTypeTool != nullptr
+                    && convertedTypeTool->property("enabled").toBool(),
+                "Screen Image should expose an enabled Type tool");
+    test.expect(convertedTypeDialog != nullptr && convertedTypeFontCombo != nullptr
+                    && convertedTypeFontCombo->property("count").toInt() > 0,
+                "Type dialog should expose the populated font selector");
+    test.expect(convertedClipArtTool != nullptr
+                    && convertedClipArtTool->property("enabled").toBool(),
+                "Screen Image should expose an enabled Slide/ClipArt tool");
+    test.expect(convertedClipArtDialog != nullptr
+                    && convertedClipArtColorMode != nullptr
+                    && convertedClipArtColorMode->property("count").toInt() == 3,
+                "Slide/ClipArt dialog should expose all three color modes");
+    bool screenGridChangesWithZoom = false;
+    if (convertedPane != nullptr && convertedGridOverlay != nullptr) {
+        convertedPane->setProperty("gridVisible", true);
+        convertedPane->setProperty("fitToView", false);
+        convertedPane->setProperty("manualZoom", 4.0);
+        QCoreApplication::processEvents();
+        const bool characterGrid = convertedGridOverlay->property("visible").toBool()
+            && !convertedGridOverlay->property("pixelGrid").toBool()
+            && convertedGridOverlay->property("gridStep").toInt() == 8
+            && convertedGridOverlay->property("patternGridStep").toInt() == 8
+            && convertedGridOverlay->property("patternGridVisible").toBool()
+            && convertedGridOverlay->property("drawsOuterBorder").toBool();
+        convertedPane->setProperty("manualZoom", 5.0);
+        QCoreApplication::processEvents();
+        screenGridChangesWithZoom = characterGrid
+            && convertedGridOverlay->property("pixelGrid").toBool()
+            && convertedGridOverlay->property("gridStep").toInt() == 1
+            && convertedGridOverlay->property("patternGridVisible").toBool()
+            && convertedGridOverlay->property("patternGridStep").toInt() == 8
+            && convertedGridOverlay->property("drawsOuterBorder").toBool();
+        convertedPane->setProperty("fitToView", true);
+    }
+    test.expect(screenGridChangesWithZoom,
+                "Screen Image grid should keep bordered 8x8 pattern lines beneath the pixel grid at 500 percent");
+    bool characterBoundSnapping = false;
+    if (convertedPane != nullptr) {
+        convertedPane->setProperty("fitToView", false);
+        convertedPane->setProperty("manualZoom", 1.0);
+        convertedPane->setProperty("snapDrawingToCharacterBounds", true);
+        convertedPane->setProperty("drawingDiameter", 3);
+        convertedPane->setProperty("hardDrawingEdges", true);
+        QCoreApplication::processEvents();
+        QVariant hardStartPoint;
+        QVariant hardEndPoint;
+        const bool foundStart = QMetaObject::invokeMethod(
+            convertedPane, "drawingStartPoint", Q_RETURN_ARG(QVariant, hardStartPoint),
+            Q_ARG(QVariant, QVariant(19.0)), Q_ARG(QVariant, QVariant(21.0)),
+            Q_ARG(QVariant, QVariant(4)));
+        const bool foundEnd = QMetaObject::invokeMethod(
+            convertedPane, "drawingEndPoint", Q_RETURN_ARG(QVariant, hardEndPoint),
+            Q_ARG(QVariant, QVariant(19.0)), Q_ARG(QVariant, QVariant(21.0)),
+            Q_ARG(QVariant, QVariant(4)));
+        const QPointF hardStart = hardStartPoint.toPointF();
+        const QPointF hardEnd = hardEndPoint.toPointF();
+
+        convertedPane->setProperty("hardDrawingEdges", false);
+        QVariant softStartPoint;
+        QVariant softEndPoint;
+        const bool foundSoftStart = QMetaObject::invokeMethod(
+            convertedPane, "drawingStartPoint", Q_RETURN_ARG(QVariant, softStartPoint),
+            Q_ARG(QVariant, QVariant(19.0)), Q_ARG(QVariant, QVariant(21.0)),
+            Q_ARG(QVariant, QVariant(4)));
+        const bool foundSoftEnd = QMetaObject::invokeMethod(
+            convertedPane, "drawingEndPoint", Q_RETURN_ARG(QVariant, softEndPoint),
+            Q_ARG(QVariant, QVariant(19.0)), Q_ARG(QVariant, QVariant(21.0)),
+            Q_ARG(QVariant, QVariant(4)));
+        const QPointF softStart = softStartPoint.toPointF();
+        const QPointF softEnd = softEndPoint.toPointF();
+
+        convertedPane->setProperty("drawingDiameter", 12);
+        convertedPane->setProperty("hardDrawingEdges", true);
+        QVariant cappedDiameter;
+        const bool foundCappedDiameter = QMetaObject::invokeMethod(
+            convertedPane, "drawingDiameterForTool",
+            Q_RETURN_ARG(QVariant, cappedDiameter),
+            Q_ARG(QVariant, QVariant(4)));
+        characterBoundSnapping = foundStart && foundEnd
+            && qAbs(hardStart.x() - 17.5) < 0.01
+            && qAbs(hardStart.y() - 17.5) < 0.01
+            && qAbs(hardEnd.x() - 22.5) < 0.01
+            && qAbs(hardEnd.y() - 22.5) < 0.01
+            && foundSoftStart && foundSoftEnd
+            && qAbs(softStart.x() - 18.0) < 0.01
+            && qAbs(softStart.y() - 18.0) < 0.01
+            && qAbs(softEnd.x() - 22.0) < 0.01
+            && qAbs(softEnd.y() - 22.0) < 0.01
+            && foundCappedDiameter && cappedDiameter.toInt() == 8;
+        convertedPane->setProperty("drawingDiameter", 1);
+        convertedPane->setProperty("hardDrawingEdges", false);
+        convertedPane->setProperty("snapDrawingToCharacterBounds", false);
+        convertedPane->setProperty("fitToView", true);
+    }
+    test.expect(characterBoundSnapping,
+                "character snap should inset hard and soft brush footprints inside the selected cell");
     test.expect(convertedTools != nullptr && convertedZoom != nullptr
                     && convertedTools->parent() == convertedZoom->parent(),
                 "Converted update and zoom controls should share a toolbar row");
@@ -2276,6 +3285,28 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     }
     test.expect(constrainedShapePreview,
                 "Shift-drag shape preview should lock displayed width and height");
+    bool constrainedLinePreview = false;
+    if (strokeOverlay != nullptr) {
+        const QVariant startX{10.0};
+        const QVariant startY{12.0};
+        const QVariant endX{36.0};
+        const QVariant endY{20.0};
+        const QVariant locked{true};
+        const bool began = QMetaObject::invokeMethod(
+            strokeOverlay, "beginLine", Q_ARG(QVariant, startX),
+            Q_ARG(QVariant, startY));
+        const bool updated = QMetaObject::invokeMethod(
+            strokeOverlay, "updateLine", Q_ARG(QVariant, endX),
+            Q_ARG(QVariant, endY), Q_ARG(QVariant, locked));
+        constrainedLinePreview = began && updated
+            && qAbs(strokeOverlay->property("shapeEndY").toReal()
+                    - strokeOverlay->property("shapeStartY").toReal()) < 0.01
+            && qAbs(strokeOverlay->property("shapeEndX").toReal()
+                    - endX.toReal()) < 0.01;
+        QMetaObject::invokeMethod(strokeOverlay, "cancelShape");
+    }
+    test.expect(constrainedLinePreview,
+                "Shift-drag line preview should lock to its dominant axis");
     test.expect(sourcePane != nullptr && convertedPane != nullptr
                     && sourceTools != nullptr && drawingTools != nullptr
                     && sourceDrawingToolbarSlot != nullptr
@@ -2294,6 +3325,12 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                     && drawingDiameter != nullptr
                     && drawingDiameter->property("enabled").toBool()
                     && drawingDiameter->property("width").toReal() <= 48.0
+                    && brushShapeButton != nullptr
+                    && brushShapeButton->parent() == drawingDiameter->parent()
+                    && qAbs(drawingDiameter->property("x").toReal()
+                            - brushShapeButton->property("x").toReal()
+                            - brushShapeButton->property("width").toReal())
+                        <= 2.0
                     && drawingDiameterUp != nullptr
                     && drawingDiameterUp->property("visible").toBool()
                     && drawingDiameterDown != nullptr
@@ -2535,7 +3572,7 @@ int main(int argc, char** argv)
 {
     QGuiApplication application(argc, argv);
     application.setOrganizationName(QStringLiteral("CiscoGarciaFL-Test"));
-    application.setApplicationName(QStringLiteral("NewConvert9918-InterfaceTest"));
+    application.setApplicationName(QStringLiteral("RetroVDPStudio-InterfaceTest"));
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
     QTemporaryDir settingsDirectory;
     if (!settingsDirectory.isValid()) {

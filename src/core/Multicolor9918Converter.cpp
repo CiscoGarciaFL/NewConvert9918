@@ -1,8 +1,9 @@
-#include "newconvert9918/core/Multicolor9918Converter.hpp"
+#include "retrovdp/core/Multicolor9918Converter.hpp"
 
-#include "newconvert9918/core/ColorMath.hpp"
-#include "newconvert9918/core/Dithering.hpp"
-#include "newconvert9918/core/Validation.hpp"
+#include "retrovdp/core/ColorMath.hpp"
+#include "retrovdp/core/Dithering.hpp"
+#include "retrovdp/core/TargetProfile.hpp"
+#include "retrovdp/core/Validation.hpp"
 
 #include <algorithm>
 #include <array>
@@ -15,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 namespace {
 
 constexpr std::uint32_t imageWidth = 256;
@@ -752,6 +753,8 @@ ConversionResult convertMulticolor9918(const RgbImage& source,
     }
 
     TargetMemoryImage target{
+        .profile = effectiveTargetProfile(settings.targetProfile,
+                                          ConversionMode::Multicolor9918),
         .mode = ConversionMode::Multicolor9918,
         .palette = std::nullopt,
         .tables = {{TargetTableRole::Multicolor, encodeTable(indexed)}},
@@ -838,6 +841,8 @@ ConversionResult convertDualMulticolor9918(const RgbImage& source,
     }
 
     TargetMemoryImage target{
+        .profile = effectiveTargetProfile(settings.targetProfile,
+                                          ConversionMode::DualMulticolor9918),
         .mode = ConversionMode::DualMulticolor9918,
         .palette = std::nullopt,
         .tables = {
@@ -1072,6 +1077,8 @@ ConversionResult convertHalfMulticolor9918(const RgbImage& source,
     }
     auto [patterns, colors] = encodeHalfBitmapTables(indexed);
     TargetMemoryImage target{
+        .profile = effectiveTargetProfile(settings.targetProfile,
+                                          ConversionMode::HalfMulticolor9918),
         .mode = ConversionMode::HalfMulticolor9918,
         .palette = std::nullopt,
         .tables = {
@@ -1088,4 +1095,4 @@ ConversionResult convertHalfMulticolor9918(const RgbImage& source,
     };
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

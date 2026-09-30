@@ -2,15 +2,21 @@
 
 #include "ConversionPipeline.hpp"
 
-#include "newconvert9918/core/Dithering.hpp"
-#include "newconvert9918/core/ImageTransform.hpp"
-#include "newconvert9918/imageio/ExportWriter.hpp"
+#include "retrovdp/core/Dithering.hpp"
+#include "retrovdp/core/ImageTransform.hpp"
+#include "retrovdp/imageio/ExportWriter.hpp"
 
 #include <QBuffer>
 #include <QClipboard>
 #include <QColor>
 #include <QCoreApplication>
+#include <QDesktopServices>
+#include <QDir>
+#include <QDirIterator>
+#include <QFile>
 #include <QFileInfo>
+#include <QFontDatabase>
+#include <QFontMetrics>
 #include <QGuiApplication>
 #include <QImage>
 #include <QJsonArray>
@@ -18,8 +24,11 @@
 #include <QMetaObject>
 #include <QMimeData>
 #include <QPointer>
+#include <QPainter>
+#include <QRawFont>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QThreadPool>
 
 #include <algorithm>
@@ -33,10 +42,12 @@
 
 namespace {
 
-using namespace newconvert9918;
+using namespace retrovdp;
 
 constexpr std::size_t maximumDrawingHistoryEntries = 64;
 constexpr std::size_t maximumDrawingHistoryBytes = 128U * 1024U * 1024U;
+constexpr auto screenImageSelectionMimeType =
+    "application/x-retrovdp-screen-image-selection";
 
 void trimDrawingHistory(std::vector<std::shared_ptr<core::RgbImage>>& history)
 {
@@ -63,6 +74,230 @@ QString dataUrl(const QImage& image)
 QString dataUrl(const core::RgbImage& image)
 {
     return dataUrl(imageio::toQImage(image));
+}
+
+struct TiArtistGlyph {
+    int blocksWide{};
+    int blocksHigh{};
+    int advance{};
+    std::vector<std::uint8_t> patterns;
+};
+
+struct TiArtistFont {
+    QHash<QChar, TiArtistGlyph> glyphs;
+    int lineHeight{};
+};
+
+QStringList tiArtistRecords(const QString& path, QString* error)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (error) *error = QObject::tr("The TI Artist font could not be opened: %1")
+                                .arg(file.errorString());
+        return {};
+    }
+    if (file.size() < 0 || file.size() > 4 * 1024 * 1024) {
+        if (error) *error = QObject::tr("The TI Artist font file is too large.");
+        return {};
+    }
+    QByteArray bytes = file.readAll();
+    constexpr std::array<char, 8> tiFilesSignature{7, 'T', 'I', 'F', 'I', 'L', 'E', 'S'};
+    const bool tiFiles = bytes.size() >= 128
+        && std::equal(tiFilesSignature.begin(), tiFilesSignature.end(), bytes.begin());
+    const bool plainTextHeader = bytes.left(128).contains("FONT")
+        || bytes.left(128).contains('\n') || bytes.left(128).contains('\r');
+    const bool v9t9 = bytes.size() >= 128 && !plainTextHeader
+        && std::all_of(bytes.begin(), bytes.begin() + 10, [](char value) {
+               const auto byte = static_cast<unsigned char>(value);
+               return byte == ' ' || (byte >= 0x21U && byte <= 0x7eU);
+           });
+    if (tiFiles || v9t9) bytes = bytes.sliced(128);
+
+    QStringList records;
+    if (bytes.contains('\n') || bytes.contains('\r')) {
+        records = QString::fromLatin1(bytes).split(
+            QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
+    } else {
+        for (qsizetype sectorStart = 0; sectorStart < bytes.size(); sectorStart += 256) {
+            const qsizetype sectorEnd = std::min(sectorStart + 256, bytes.size());
+            qsizetype cursor = sectorStart;
+            while (cursor < sectorEnd) {
+                const auto length = static_cast<unsigned char>(bytes[cursor++]);
+                if (length == 0xffU || length == 0U) break;
+                if (length > 80U || cursor + length > sectorEnd) {
+                    records.clear();
+                    break;
+                }
+                records.push_back(QString::fromLatin1(bytes.constData() + cursor, length));
+                cursor += length;
+            }
+            if (records.isEmpty() && sectorStart == 0) break;
+        }
+    }
+    for (QString& record : records) record = record.trimmed();
+    records.removeAll(QString{});
+    if (records.isEmpty() && error) {
+        *error = QObject::tr("The file does not contain readable TI Artist DV80 records.");
+    }
+    return records;
+}
+
+std::optional<std::vector<int>> commaSeparatedIntegers(const QString& record,
+                                                       int expectedCount)
+{
+    const QStringList fields = record.split(QLatin1Char(','), Qt::SkipEmptyParts);
+    if (fields.size() != expectedCount) return std::nullopt;
+    std::vector<int> values;
+    values.reserve(static_cast<std::size_t>(expectedCount));
+    for (const QString& field : fields) {
+        bool ok = false;
+        const int value = field.trimmed().toInt(&ok, 0);
+        if (!ok || value < 0 || value > 255) return std::nullopt;
+        values.push_back(value);
+    }
+    return values;
+}
+
+std::optional<QChar> tiArtistCharacter(const QString& record)
+{
+    const QString value = record.trimmed();
+    if (value.compare(QStringLiteral("SPACE"), Qt::CaseInsensitive) == 0) {
+        return QChar(QLatin1Char(' '));
+    }
+    if (value.size() == 1) return value.front();
+    if (value.size() >= 3
+        && ((value.front() == QLatin1Char('"') && value.back() == QLatin1Char('"'))
+            || (value.front() == QLatin1Char('\'') && value.back() == QLatin1Char('\'')))) {
+        return value.at(1);
+    }
+    bool ok = false;
+    const int code = value.toInt(&ok, 0);
+    if (ok && code >= 0 && code <= 255) return QChar(static_cast<char16_t>(code));
+    return std::nullopt;
+}
+
+std::optional<TiArtistFont> loadTiArtistFont(const QString& path, QString* error = nullptr)
+{
+    const QStringList records = tiArtistRecords(path, error);
+    if (records.isEmpty()) return std::nullopt;
+    int cursor = 0;
+    while (cursor < records.size()
+           && records[cursor].compare(QStringLiteral("FONT:"), Qt::CaseInsensitive) != 0
+           && records[cursor].compare(QStringLiteral("FONT"), Qt::CaseInsensitive) != 0) {
+        ++cursor;
+    }
+    if (cursor == records.size()) {
+        if (error) *error = QObject::tr("The file is not a TI Artist FONT: file.");
+        return std::nullopt;
+    }
+    ++cursor;
+    TiArtistFont font;
+    while (cursor < records.size()) {
+        if (records[cursor].compare(QStringLiteral("FONT:"), Qt::CaseInsensitive) == 0
+            || records[cursor].compare(QStringLiteral("FONT"), Qt::CaseInsensitive) == 0) {
+            ++cursor;
+            continue;
+        }
+        const auto character = tiArtistCharacter(records[cursor++]);
+        if (!character || cursor >= records.size()) break;
+        const auto dimensions = commaSeparatedIntegers(records[cursor++], 3);
+        if (!dimensions || (*dimensions)[0] < 1 || (*dimensions)[1] < 1
+            || (*dimensions)[0] > 32 || (*dimensions)[1] > 24
+            || (*dimensions)[2] < 1) {
+            if (error) *error = QObject::tr("A TI Artist glyph has invalid dimensions.");
+            return std::nullopt;
+        }
+        TiArtistGlyph glyph;
+        glyph.blocksWide = (*dimensions)[0];
+        glyph.blocksHigh = (*dimensions)[1];
+        glyph.advance = (*dimensions)[2];
+        const int blockCount = glyph.blocksWide * glyph.blocksHigh;
+        glyph.patterns.reserve(static_cast<std::size_t>(blockCount) * 8U);
+        for (int block = 0; block < blockCount; ++block) {
+            if (cursor >= records.size()) {
+                if (error) *error = QObject::tr("A TI Artist glyph ends before its pattern data.");
+                return std::nullopt;
+            }
+            const auto pattern = commaSeparatedIntegers(records[cursor++], 8);
+            if (!pattern) {
+                if (error) *error = QObject::tr("A TI Artist glyph pattern is not eight bytes.");
+                return std::nullopt;
+            }
+            for (int byte : *pattern) glyph.patterns.push_back(
+                static_cast<std::uint8_t>(byte));
+        }
+        font.lineHeight = std::max(font.lineHeight, glyph.blocksHigh * 8);
+        font.glyphs.insert(*character, std::move(glyph));
+    }
+    if (font.glyphs.isEmpty() || font.lineHeight <= 0) {
+        if (error) *error = QObject::tr("The TI Artist font contains no usable glyphs.");
+        return std::nullopt;
+    }
+    return font;
+}
+
+QImage renderTiArtistText(const TiArtistFont& font,
+                          const QString& text,
+                          int pixelSize,
+                          QColor color)
+{
+    const QStringList lines = text.split(QLatin1Char('\n'));
+    const int spaceAdvance = std::max(1, font.lineHeight / 2);
+    int nativeWidth = 1;
+    for (const QString& line : lines) {
+        int lineWidth = 0;
+        for (const QChar character : line) {
+            const auto found = font.glyphs.constFind(character);
+            lineWidth += found == font.glyphs.cend() ? spaceAdvance : found->advance;
+        }
+        nativeWidth = std::max(nativeWidth, lineWidth);
+    }
+    const int nativeHeight = std::max(
+        1, static_cast<int>(lines.size()) * font.lineHeight);
+    QImage native(nativeWidth, nativeHeight, QImage::Format_RGBA8888);
+    native.fill(Qt::transparent);
+    for (int lineIndex = 0; lineIndex < lines.size(); ++lineIndex) {
+        int penX = 0;
+        for (const QChar character : lines[lineIndex]) {
+            auto found = font.glyphs.constFind(character);
+            if (found == font.glyphs.cend()) found = font.glyphs.constFind(QLatin1Char('?'));
+            if (found == font.glyphs.cend()) {
+                penX += spaceAdvance;
+                continue;
+            }
+            const TiArtistGlyph& glyph = *found;
+            for (int blockY = 0; blockY < glyph.blocksHigh; ++blockY) {
+                for (int blockX = 0; blockX < glyph.blocksWide; ++blockX) {
+                    const std::size_t blockOffset = static_cast<std::size_t>(
+                        blockY * glyph.blocksWide + blockX) * 8U;
+                    for (int row = 0; row < 8; ++row) {
+                        const std::uint8_t bits = glyph.patterns[blockOffset
+                            + static_cast<std::size_t>(row)];
+                        for (int column = 0; column < 8; ++column) {
+                            if ((bits & (0x80U >> column)) == 0) continue;
+                            const int x = penX + blockX * 8 + column;
+                            const int y = lineIndex * font.lineHeight + blockY * 8 + row;
+                            if (x >= 0 && x < native.width() && y >= 0 && y < native.height())
+                                native.setPixelColor(x, y, color);
+                        }
+                    }
+                }
+            }
+            penX += glyph.advance;
+        }
+    }
+    const double scale = static_cast<double>(std::clamp(pixelSize, 1, 192))
+        / font.lineHeight;
+    return native.scaled(std::max(1, qRound(native.width() * scale)),
+                         std::max(1, qRound(native.height() * scale)),
+                         Qt::IgnoreAspectRatio, Qt::FastTransformation);
+}
+
+std::shared_ptr<core::RgbImage> coreImage(const QImage& image)
+{
+    auto loaded = imageio::loadClipboardImage(image);
+    if (!loaded) return {};
+    return std::make_shared<core::RgbImage>(std::move(*loaded.image));
 }
 
 QString modeName(core::ConversionMode mode)
@@ -129,6 +364,19 @@ core::ConversionResult runConversion(const core::ConversionRequest& request,
             .sourceAlreadyFramed = sourceAlreadyFramed,
             .progress = std::move(progress),
         });
+}
+
+core::ConversionSettings screenImageConversionSettings(
+    core::ConversionSettings settings)
+{
+    // The Screen Image is already framed and adjusted. Reapply only the active
+    // converter's palette and chipset layout rules so repeated applications do
+    // not compound source-image corrections or dithering.
+    settings.dither = core::DitherMode::None;
+    settings.gamma = 1.0;
+    settings.maximumColorShiftPercent = 0.0;
+    settings.stretchHistogram = false;
+    return settings;
 }
 
 std::vector<core::RgbColor> decodeF18Palette(std::span<const std::uint8_t> bytes)
@@ -291,6 +539,12 @@ ImageInputController::ImageInputController(QObject* parent)
     undoCoalesceTimer_.setSingleShot(true);
     undoCoalesceTimer_.setInterval(500);
     loadSettings();
+    const QString appDataPath = QStandardPaths::writableLocation(
+        QStandardPaths::AppLocalDataLocation);
+    tiArtistLibraryPath_ = QDir(appDataPath).filePath(QStringLiteral("TI Artist"));
+    tiArtistFontsPath_ = QDir(tiArtistLibraryPath_).filePath(QStringLiteral("Fonts"));
+    QDir().mkpath(tiArtistFontsPath_);
+    reloadScreenImageFonts();
 }
 
 ImageInputController::~ImageInputController()
@@ -309,6 +563,39 @@ int ImageInputController::conversionMode() const
     return static_cast<int>(settings_.mode);
 }
 
+int ImageInputController::targetProfile() const
+{
+    return static_cast<int>(settings_.targetProfile);
+}
+
+QVariantList ImageInputController::targetProfileNames() const
+{
+    QVariantList names;
+    for (const auto& profile : core::targetProfiles()) {
+        if (profile.status != core::TargetProfileStatus::Implemented) continue;
+        names.push_back(QString::fromLatin1(profile.displayName));
+    }
+    return names;
+}
+
+QVariantList ImageInputController::availableConversionModeNames() const
+{
+    QVariantList names;
+    for (const auto mode : core::targetProfile(settings_.targetProfile).conversionModes) {
+        names.push_back(modeName(mode));
+    }
+    return names;
+}
+
+QVariantList ImageInputController::availableConversionModeValues() const
+{
+    QVariantList values;
+    for (const auto mode : core::targetProfile(settings_.targetProfile).conversionModes) {
+        values.push_back(static_cast<int>(mode));
+    }
+    return values;
+}
+
 int ImageInputController::ditherMode() const
 {
     return static_cast<int>(settings_.dither);
@@ -322,6 +609,20 @@ QColor ImageInputController::backgroundColor() const
 QColor ImageInputController::foregroundColor() const
 {
     return QColor(foregroundColor_.red, foregroundColor_.green, foregroundColor_.blue);
+}
+
+QColor ImageInputController::screenImageBackgroundColor() const
+{
+    return QColor(screenImageBackgroundColor_.red,
+                  screenImageBackgroundColor_.green,
+                  screenImageBackgroundColor_.blue);
+}
+
+QColor ImageInputController::screenImageForegroundColor() const
+{
+    return QColor(screenImageForegroundColor_.red,
+                  screenImageForegroundColor_.green,
+                  screenImageForegroundColor_.blue);
 }
 
 QVariantList ImageInputController::backgroundPaletteColors() const
@@ -340,21 +641,16 @@ QVariantList ImageInputController::workingPaletteColors() const
 
 void ImageInputController::refreshSourceColorChoices()
 {
-    sourceSpectrum16Colors_.clear();
-    sourceSpectrum32Colors_.clear();
-    sourceSpectrum64Colors_.clear();
-    sourceSwatchColors_.clear();
-    sourceUsedColors_.clear();
-    const core::RgbImage* colorSource = image_.get();
-    if (colorSource == nullptr) {
-        emit sourceColorsChanged();
-        return;
-    }
-
     sourceSpectrum16Colors_ = colorList(pcSpectrum(16));
     sourceSpectrum32Colors_ = colorList(pcSpectrum(32));
     sourceSpectrum64Colors_ = colorList(pcSpectrum(64));
     sourceSwatchColors_ = colorList(standardSourceSwatch());
+    sourceUsedColors_.clear();
+    const core::RgbImage* colorSource = image_ ? image_.get() : screenImage_.get();
+    if (colorSource == nullptr) {
+        emit sourceColorsChanged();
+        return;
+    }
 
     std::unordered_set<std::uint32_t> seenColors;
     std::vector<SourceColorChoice> uniqueColors;
@@ -379,7 +675,7 @@ void ImageInputController::refreshSourceColorChoices()
         }
     };
     collectColors(*colorSource);
-    if (drawingLayer_) collectColors(*drawingLayer_);
+    if (image_ && drawingLayer_) collectColors(*drawingLayer_);
     std::sort(uniqueColors.begin(), uniqueColors.end(), sourceColorLess);
     constexpr std::size_t maximumDisplayedColors = 4096;
     const std::size_t displayed = std::min(maximumDisplayedColors, uniqueColors.size());
@@ -425,6 +721,10 @@ void ImageInputController::accept(imageio::ImageLoadResult result, QString sourc
     sourceStrokeActive_ = false;
     drawingLayer_.reset();
     clearDrawingHistory();
+    screenImage_.reset();
+    screenImageExportResult_.reset();
+    screenImageEdited_ = false;
+    clearScreenImageHistory();
     horizontalOffset_ = 0;
     verticalOffset_ = 0;
     sourceName_ = std::move(sourceName);
@@ -464,6 +764,94 @@ void ImageInputController::openUrl(const QUrl& url)
     auto result = imageio::loadImageFile(path);
     if (result) sourcePath_ = QFileInfo(path).absoluteFilePath();
     accept(std::move(result), QFileInfo(path).fileName());
+}
+
+void ImageInputController::newScreenImage()
+{
+    auto blank = core::RgbImage::createTightlyPacked(
+        256, 192, core::PixelFormat::Rgb888);
+    if (!blank) {
+        errorMessage_ = tr("A blank Screen Image could not be created.");
+        emit statusChanged();
+        return;
+    }
+    std::fill(blank->bytes().begin(), blank->bytes().end(), std::uint8_t{0});
+
+    jobs_.cancelCurrent();
+    debounceTimer_.stop();
+    conversionPending_ = false;
+    busy_ = true;
+    statusMessage_ = tr("Creating blank Screen Image…");
+    emit conversionChanged();
+    emit statusChanged();
+
+    const core::ConversionRequest request{
+        .source = std::make_shared<core::RgbImage>(*blank),
+        .settings = screenImageConversionSettings(settings_),
+        .generation = 0,
+        .cancellation = {},
+    };
+    auto converted = runConversion(
+        request, core::ScalingFilter::None, core::ImageFillMode::Fit,
+        0, 0, core::RgbColor{}, workingPalette_, false, true, {});
+    busy_ = false;
+    if (!converted.succeeded() || !converted.preview || !converted.target) {
+        errorMessage_ = tr("The blank Screen Image could not be initialized for the active conversion mode.");
+        for (const auto& diagnostic : converted.diagnostics) {
+            if (diagnostic.severity == core::DiagnosticSeverity::Error) {
+                errorMessage_ = QString::fromStdString(diagnostic.message);
+                break;
+            }
+        }
+        statusMessage_.clear();
+        emit conversionChanged();
+        emit statusChanged();
+        return;
+    }
+
+    image_.reset();
+    framedSource_.reset();
+    sourceStrokeActive_ = false;
+    drawingLayer_.reset();
+    clearDrawingHistory();
+    sourcePath_.clear();
+    sourceName_ = tr("Untitled");
+    sourceDetails_.clear();
+    sourcePreview_.clear();
+    horizontalOffset_ = 0;
+    verticalOffset_ = 0;
+
+    clearScreenImageHistory();
+    screenImage_ = std::make_shared<core::RgbImage>(*converted.preview);
+    convertedPreview_ = dataUrl(*screenImage_);
+    converted.preview = *screenImage_;
+    result_ = std::move(converted);
+    screenImageExportResult_.reset();
+    screenImageEdited_ = false;
+    refreshSourceColorChoices();
+    const bool backgroundChanged = screenImageBackgroundColor_.red != 0
+        || screenImageBackgroundColor_.green != 0
+        || screenImageBackgroundColor_.blue != 0;
+    screenImageBackgroundColor_ = {};
+
+    const std::size_t byteCount = std::accumulate(
+        result_->target->tables.begin(), result_->target->tables.end(), std::size_t{},
+        [](std::size_t total, const core::TargetMemoryTable& table) {
+            return total + table.bytes.size();
+        });
+    conversionDetails_ = tr("%1 — 256×192 — %2 target bytes")
+                             .arg(modeName(result_->target->mode))
+                             .arg(byteCount);
+    errorMessage_.clear();
+    statusMessage_ = tr("Blank Screen Image created.");
+    updatePaletteInspection();
+    updateExportSummary();
+    emit sourceChanged();
+    emit sourceColorsChanged();
+    if (backgroundChanged) emit screenImageColorsChanged();
+    emit conversionChanged();
+    emit exportChanged();
+    emit statusChanged();
 }
 
 void ImageInputController::reloadSource()
@@ -688,10 +1076,18 @@ void ImageInputController::publishConversion(const core::ConversionRequest& requ
         }
         statusMessage_.clear();
         result_.reset();
+        screenImage_.reset();
+        screenImageExportResult_.reset();
+        screenImageEdited_ = false;
+        clearScreenImageHistory();
         convertedPreview_.clear();
         conversionDetails_.clear();
     } else {
-        convertedPreview_ = dataUrl(*result.preview);
+        screenImage_ = std::make_shared<core::RgbImage>(*result.preview);
+        screenImageExportResult_.reset();
+        screenImageEdited_ = false;
+        clearScreenImageHistory();
+        convertedPreview_ = dataUrl(*screenImage_);
         const std::size_t byteCount = std::accumulate(
             result.target->tables.begin(), result.target->tables.end(), std::size_t{},
             [](std::size_t total, const core::TargetMemoryTable& table) {
@@ -703,6 +1099,7 @@ void ImageInputController::publishConversion(const core::ConversionRequest& requ
         errorMessage_.clear();
         statusMessage_ = tr("Preview is current.");
         result_ = std::move(result);
+        result_->preview = *screenImage_;
         updatePaletteInspection();
         updateExportSummary();
     }
@@ -766,10 +1163,34 @@ formats::GeneratedFileManifest ImageInputController::exportManifest() const
     }
     const std::string baseName = exportBaseName().toStdString();
     const auto format = exportFormatForIndex(exportFormat_);
+    const core::TargetMemoryImage* exportTarget = &*result_->target;
+    if (screenImageEdited_ && screenImage_ && format != formats::ExportFormat::Png) {
+        if (!screenImageExportResult_) {
+            const auto exportSettings = screenImageConversionSettings(settings_);
+            const core::ConversionRequest request{
+                .source = std::make_shared<core::RgbImage>(*screenImage_),
+                .settings = exportSettings,
+                .generation = 0,
+                .cancellation = {},
+            };
+            screenImageExportResult_ = runConversion(
+                request, core::ScalingFilter::None, core::ImageFillMode::Fit,
+                0, 0, screenImageBackgroundColor_, workingPalette_, false, true, {});
+        }
+        if (!screenImageExportResult_->succeeded()
+            || !screenImageExportResult_->target) {
+            formats::GeneratedFileManifest manifest;
+            manifest.format = format;
+            manifest.error = formats::ExportError::MissingTarget;
+            manifest.message = "The edited Screen Image could not be rebuilt as target data.";
+            return manifest;
+        }
+        exportTarget = &*screenImageExportResult_->target;
+    }
     const formats::ExportRequest request{
         .format = format,
         .baseName = baseName,
-        .target = &*result_->target,
+        .target = exportTarget,
         .preview = &*result_->preview,
     };
     return format == formats::ExportFormat::Png ? imageio::generatePngExport(request)
@@ -935,11 +1356,66 @@ void ImageInputController::pickColor(double normalizedX, double normalizedY, boo
     }
 }
 
+void ImageInputController::swapSourceColors(double normalizedX, double normalizedY)
+{
+    if (!image_ || !framedSource_) return;
+    if (sourceStrokeActive_) endSourceStroke();
+    normalizedX = std::clamp(normalizedX, 0.0, 1.0);
+    normalizedY = std::clamp(normalizedY, 0.0, 1.0);
+    const auto pickedX = std::min<std::uint32_t>(
+        framedSource_->width() - 1,
+        static_cast<std::uint32_t>(normalizedX * framedSource_->width()));
+    const auto pickedY = std::min<std::uint32_t>(
+        framedSource_->height() - 1,
+        static_cast<std::uint32_t>(normalizedY * framedSource_->height()));
+    const std::size_t sourceChannels = core::bytesPerPixel(framedSource_->pixelFormat());
+    const auto pickedRow = framedSource_->row(pickedY);
+    const std::size_t pickedOffset = static_cast<std::size_t>(pickedX) * sourceChannels;
+    const core::RgbColor picked{pickedRow[pickedOffset], pickedRow[pickedOffset + 1U],
+                                pickedRow[pickedOffset + 2U]};
+    const core::RgbColor selected = foregroundColor_;
+    if (picked == selected) return;
+
+    jobs_.cancelCurrent();
+    debounceTimer_.stop();
+    beginDrawingTransaction();
+    if (!drawingLayer_) return;
+    sourceStrokeTouched_ = false;
+    for (std::uint32_t y = 0; y < framedSource_->height(); ++y) {
+        const auto sourceRow = framedSource_->row(y);
+        auto layerRow = drawingLayer_->row(y);
+        for (std::uint32_t x = 0; x < framedSource_->width(); ++x) {
+            const std::size_t sourceOffset = static_cast<std::size_t>(x) * sourceChannels;
+            const core::RgbColor color{sourceRow[sourceOffset],
+                                       sourceRow[sourceOffset + 1U],
+                                       sourceRow[sourceOffset + 2U]};
+            const core::RgbColor replacement = color == selected ? picked
+                : (color == picked ? selected : color);
+            if (replacement == color) continue;
+            const std::size_t layerOffset = static_cast<std::size_t>(x) * 4U;
+            layerRow[layerOffset] = replacement.red;
+            layerRow[layerOffset + 1U] = replacement.green;
+            layerRow[layerOffset + 2U] = replacement.blue;
+            layerRow[layerOffset + 3U] = 255U;
+            sourceStrokeTouched_ = true;
+        }
+    }
+    commitDrawingTransaction(sourceStrokeTouched_);
+    sourceStrokeTouched_ = false;
+    foregroundColor_ = picked;
+    saveSettings();
+    emit settingsChanged();
+    refreshSourcePreview();
+    refreshSourceColorChoices();
+    scheduleConversion();
+}
+
 void ImageInputController::beginSourceStroke(double normalizedX,
                                              double normalizedY,
                                              int diameter,
                                              bool eraser,
-                                             bool hardEdges)
+                                             bool hardEdges,
+                                             bool squareBrush)
 {
     if (!image_) return;
     if (sourceStrokeActive_) endSourceStroke();
@@ -953,6 +1429,7 @@ void ImageInputController::beginSourceStroke(double normalizedX,
     sourceStrokeDiameter_ = std::clamp(diameter, 1, 64);
     sourceStrokeEraser_ = eraser;
     sourceStrokeHardEdges_ = hardEdges;
+    sourceStrokeSquareBrush_ = squareBrush;
     drawSourceStrokeSegment(sourceStrokeX_, sourceStrokeY_, sourceStrokeX_, sourceStrokeY_);
 }
 
@@ -964,6 +1441,14 @@ void ImageInputController::continueSourceStroke(double normalizedX, double norma
     drawSourceStrokeSegment(sourceStrokeX_, sourceStrokeY_, normalizedX, normalizedY);
     sourceStrokeX_ = normalizedX;
     sourceStrokeY_ = normalizedY;
+}
+
+void ImageInputController::continueSourceRay(double normalizedX, double normalizedY)
+{
+    if (!sourceStrokeActive_ || !image_) return;
+    normalizedX = std::clamp(normalizedX, 0.0, 1.0);
+    normalizedY = std::clamp(normalizedY, 0.0, 1.0);
+    drawSourceStrokeSegment(sourceStrokeX_, sourceStrokeY_, normalizedX, normalizedY);
 }
 
 void ImageInputController::endSourceStroke()
@@ -984,7 +1469,8 @@ void ImageInputController::drawSourceShape(double fromNormalizedX,
                                            int diameter,
                                            bool ellipse,
                                            bool hardEdges,
-                                           bool fillBackground)
+                                           bool fillBackground,
+                                           bool squareBrush)
 {
     if (!image_) return;
     if (sourceStrokeActive_) endSourceStroke();
@@ -995,20 +1481,34 @@ void ImageInputController::drawSourceShape(double fromNormalizedX,
     sourceStrokeDiameter_ = std::clamp(diameter, 1, 64);
     sourceStrokeEraser_ = false;
     sourceStrokeHardEdges_ = hardEdges;
+    sourceStrokeSquareBrush_ = squareBrush;
     fromNormalizedX = std::clamp(fromNormalizedX, 0.0, 1.0);
     fromNormalizedY = std::clamp(fromNormalizedY, 0.0, 1.0);
     toNormalizedX = std::clamp(toNormalizedX, 0.0, 1.0);
     toNormalizedY = std::clamp(toNormalizedY, 0.0, 1.0);
+
+    if (fillBackground) {
+        // Paint the complete interior before the outline.  Contracting a separately
+        // painted fill can leave a one-pixel seam where pixel-centre rounding differs
+        // from the stroke rasterizer; the outline safely covers this full fill.
+        fillSourceShape(fromNormalizedX, fromNormalizedY,
+                        toNormalizedX, toNormalizedY, ellipse, 0.0);
+    }
 
     if (ellipse) {
         const double centerX = (fromNormalizedX + toNormalizedX) / 2.0;
         const double centerY = (fromNormalizedY + toNormalizedY) / 2.0;
         const double radiusX = std::abs(toNormalizedX - fromNormalizedX) / 2.0;
         const double radiusY = std::abs(toNormalizedY - fromNormalizedY) / 2.0;
-        const double previewRadius = std::max(radiusX * 256.0, radiusY * 192.0);
-        const int segmentCount = std::clamp(
-            static_cast<int>(std::ceil(previewRadius * 1.6)), 16, 256);
+        const double pixelRadiusX = radiusX * 256.0;
+        const double pixelRadiusY = radiusY * 192.0;
         constexpr double pi = 3.14159265358979323846;
+        const double perimeter = pi * (3.0 * (pixelRadiusX + pixelRadiusY)
+            - std::sqrt(std::max(0.0,
+                (3.0 * pixelRadiusX + pixelRadiusY)
+                    * (pixelRadiusX + 3.0 * pixelRadiusY))));
+        const int segmentCount = std::clamp(
+            static_cast<int>(std::ceil(perimeter * 2.0)), 32, 4096);
         double previousX = centerX + radiusX;
         double previousY = centerY;
         for (int segment = 1; segment <= segmentCount; ++segment) {
@@ -1030,13 +1530,35 @@ void ImageInputController::drawSourceShape(double fromNormalizedX,
                                 fromNormalizedX, fromNormalizedY);
     }
 
-    if (fillBackground) {
-        const double inset = std::max(
-            0.0, sourceStrokeDiameter_ / 2.0 - (sourceStrokeHardEdges_ ? 0.0 : 1.0));
-        fillSourceShape(fromNormalizedX, fromNormalizedY,
-                        toNormalizedX, toNormalizedY, ellipse, inset);
-    }
+    commitDrawingTransaction(sourceStrokeTouched_);
+    sourceStrokeTouched_ = false;
+    refreshSourcePreview();
+    refreshSourceColorChoices();
+    scheduleConversion();
+}
 
+void ImageInputController::drawSourceLine(double fromNormalizedX,
+                                          double fromNormalizedY,
+                                          double toNormalizedX,
+                                          double toNormalizedY,
+                                          int diameter,
+                                          bool hardEdges,
+                                          bool squareBrush)
+{
+    if (!image_) return;
+    if (sourceStrokeActive_) endSourceStroke();
+    jobs_.cancelCurrent();
+    debounceTimer_.stop();
+    beginDrawingTransaction();
+    sourceStrokeTouched_ = false;
+    sourceStrokeDiameter_ = std::clamp(diameter, 1, 64);
+    sourceStrokeEraser_ = false;
+    sourceStrokeHardEdges_ = hardEdges;
+    sourceStrokeSquareBrush_ = squareBrush;
+    drawSourceStrokeSegment(std::clamp(fromNormalizedX, 0.0, 1.0),
+                            std::clamp(fromNormalizedY, 0.0, 1.0),
+                            std::clamp(toNormalizedX, 0.0, 1.0),
+                            std::clamp(toNormalizedY, 0.0, 1.0));
     commitDrawingTransaction(sourceStrokeTouched_);
     sourceStrokeTouched_ = false;
     refreshSourcePreview();
@@ -1226,7 +1748,9 @@ void ImageInputController::drawSourceStrokeSegment(double fromNormalizedX,
     const auto coordinate = [this](double normalized, double extent) {
         const double value = std::clamp(normalized, 0.0, 1.0) * extent;
         if (!sourceStrokeHardEdges_) return value;
-        return std::min(extent - 0.5, std::floor(value) + 0.5);
+        const double pixelOffset = sourceStrokeDiameter_ % 2 == 0 ? 0.0 : 0.5;
+        return std::clamp(std::floor(value) + pixelOffset,
+                          pixelOffset, extent - 1.0 + pixelOffset);
     };
     const double fromX = coordinate(fromNormalizedX, previewWidth);
     const double fromY = coordinate(fromNormalizedY, previewHeight);
@@ -1239,6 +1763,42 @@ void ImageInputController::drawSourceStrokeSegment(double fromNormalizedX,
     const double deltaX = toX - fromX;
     const double deltaY = toY - fromY;
     const double lengthSquared = deltaX * deltaX + deltaY * deltaY;
+    const auto brushDistance = [&](double pixelX, double pixelY) {
+        if (!sourceStrokeSquareBrush_) {
+            double nearestAmount = 0.0;
+            if (lengthSquared > 0.0) {
+                nearestAmount = std::clamp(
+                    ((pixelX - fromX) * deltaX + (pixelY - fromY) * deltaY)
+                        / lengthSquared,
+                    0.0, 1.0);
+            }
+            return std::hypot(pixelX - (fromX + nearestAmount * deltaX),
+                              pixelY - (fromY + nearestAmount * deltaY));
+        }
+
+        // The square brush is the line segment swept by an axis-aligned square.
+        // The minimum Chebyshev distance occurs at an endpoint, a coordinate
+        // crossing, or where the two absolute coordinate distances are equal.
+        const double offsetX = pixelX - fromX;
+        const double offsetY = pixelY - fromY;
+        double distance = std::min(std::max(std::abs(offsetX), std::abs(offsetY)),
+                                   std::max(std::abs(pixelX - toX),
+                                            std::abs(pixelY - toY)));
+        const auto consider = [&](double amount) {
+            amount = std::clamp(amount, 0.0, 1.0);
+            distance = std::min(distance,
+                std::max(std::abs(offsetX - amount * deltaX),
+                         std::abs(offsetY - amount * deltaY)));
+        };
+        if (deltaX != 0.0) consider(offsetX / deltaX);
+        if (deltaY != 0.0) consider(offsetY / deltaY);
+        for (const double sign : {-1.0, 1.0}) {
+            const double denominator = deltaX - sign * deltaY;
+            if (denominator != 0.0)
+                consider((offsetX - sign * offsetY) / denominator);
+        }
+        return distance;
+    };
     const int minimumX = static_cast<int>(std::floor(std::min(fromX, toX) - extent));
     const int maximumX = static_cast<int>(std::ceil(std::max(fromX, toX) + extent));
     const int minimumY = static_cast<int>(std::floor(std::min(fromY, toY) - extent));
@@ -1246,17 +1806,7 @@ void ImageInputController::drawSourceStrokeSegment(double fromNormalizedX,
     bool coveredPixel = false;
     for (int y = minimumY; y <= maximumY; ++y) {
         for (int x = minimumX; x <= maximumX; ++x) {
-            double nearestAmount = 0.0;
-            if (lengthSquared > 0.0) {
-                nearestAmount = std::clamp(
-                    ((x + 0.5 - fromX) * deltaX + (y + 0.5 - fromY) * deltaY)
-                        / lengthSquared,
-                    0.0, 1.0);
-            }
-            const double nearestX = fromX + nearestAmount * deltaX;
-            const double nearestY = fromY + nearestAmount * deltaY;
-            const double distance = std::hypot(x + 0.5 - nearestX,
-                                               y + 0.5 - nearestY);
+            const double distance = brushDistance(x + 0.5, y + 0.5);
             const double coverage = sourceStrokeHardEdges_
                 ? (distance <= brushRadius ? 1.0 : 0.0)
                 : std::clamp(brushRadius + 1.0 - distance, 0.0, 1.0);
@@ -1270,6 +1820,1252 @@ void ImageInputController::drawSourceStrokeSegment(double fromNormalizedX,
                           static_cast<int>(std::floor(fromY)),
                           paintColor, 1.0);
     }
+}
+
+void ImageInputController::pickScreenImageColor(double normalizedX,
+                                                double normalizedY,
+                                                bool foreground)
+{
+    if (!screenImage_) return;
+    normalizedX = std::clamp(normalizedX, 0.0, 1.0);
+    normalizedY = std::clamp(normalizedY, 0.0, 1.0);
+    const auto x = std::min<std::uint32_t>(
+        screenImage_->width() - 1,
+        static_cast<std::uint32_t>(normalizedX * screenImage_->width()));
+    const auto y = std::min<std::uint32_t>(
+        screenImage_->height() - 1,
+        static_cast<std::uint32_t>(normalizedY * screenImage_->height()));
+    const auto row = screenImage_->row(y);
+    const std::size_t offset = static_cast<std::size_t>(x)
+        * core::bytesPerPixel(screenImage_->pixelFormat());
+    const QColor color(row[offset], row[offset + 1], row[offset + 2]);
+    if (foreground) setScreenImageForegroundColor(color);
+    else setScreenImageBackgroundColor(color);
+}
+
+void ImageInputController::swapScreenImageColors(double normalizedX,
+                                                 double normalizedY)
+{
+    if (!screenImage_) return;
+    if (screenImageStrokeActive_) endScreenImageStroke();
+    normalizedX = std::clamp(normalizedX, 0.0, 1.0);
+    normalizedY = std::clamp(normalizedY, 0.0, 1.0);
+    const auto pickedX = std::min<std::uint32_t>(
+        screenImage_->width() - 1,
+        static_cast<std::uint32_t>(normalizedX * screenImage_->width()));
+    const auto pickedY = std::min<std::uint32_t>(
+        screenImage_->height() - 1,
+        static_cast<std::uint32_t>(normalizedY * screenImage_->height()));
+    const std::size_t channels = core::bytesPerPixel(screenImage_->pixelFormat());
+    const auto pickedRow = screenImage_->row(pickedY);
+    const std::size_t pickedOffset = static_cast<std::size_t>(pickedX) * channels;
+    const core::RgbColor picked{pickedRow[pickedOffset], pickedRow[pickedOffset + 1U],
+                                pickedRow[pickedOffset + 2U]};
+    const core::RgbColor selected = screenImageForegroundColor_;
+    if (picked == selected) return;
+
+    beginScreenImageTransaction();
+    bool changed = false;
+    const int firstX = hasScreenImageSelection() ? screenImageSelectionX_ : 0;
+    const int firstY = hasScreenImageSelection() ? screenImageSelectionY_ : 0;
+    const int lastX = hasScreenImageSelection()
+        ? screenImageSelectionX_ + screenImageSelectionWidth_
+        : static_cast<int>(screenImage_->width());
+    const int lastY = hasScreenImageSelection()
+        ? screenImageSelectionY_ + screenImageSelectionHeight_
+        : static_cast<int>(screenImage_->height());
+    for (int y = firstY; y < lastY; ++y) {
+        auto row = screenImage_->row(static_cast<std::uint32_t>(y));
+        for (int x = firstX; x < lastX; ++x) {
+            const std::size_t offset = static_cast<std::size_t>(x) * channels;
+            const core::RgbColor color{row[offset], row[offset + 1U], row[offset + 2U]};
+            const core::RgbColor replacement = color == selected ? picked
+                : (color == picked ? selected : color);
+            if (replacement == color) continue;
+            row[offset] = replacement.red;
+            row[offset + 1U] = replacement.green;
+            row[offset + 2U] = replacement.blue;
+            changed = true;
+        }
+    }
+    commitScreenImageTransaction(changed);
+    screenImageForegroundColor_ = picked;
+    emit screenImageColorsChanged();
+    if (changed) refreshScreenImage();
+}
+
+void ImageInputController::beginScreenImageStroke(double normalizedX,
+                                                  double normalizedY,
+                                                  int diameter,
+                                                  bool eraser,
+                                                  bool hardEdges,
+                                                  bool squareBrush)
+{
+    if (!screenImage_) return;
+    if (screenImageStrokeActive_) endScreenImageStroke();
+    beginScreenImageTransaction();
+    screenImageStrokeActive_ = true;
+    screenImageStrokeTouched_ = false;
+    screenImageStrokeX_ = std::clamp(normalizedX, 0.0, 1.0);
+    screenImageStrokeY_ = std::clamp(normalizedY, 0.0, 1.0);
+    screenImageStrokeDiameter_ = std::clamp(diameter, 1, 64);
+    screenImageStrokeEraser_ = eraser;
+    screenImageStrokeHardEdges_ = hardEdges;
+    screenImageStrokeSquareBrush_ = squareBrush;
+    drawScreenImageStrokeSegment(screenImageStrokeX_, screenImageStrokeY_,
+                                 screenImageStrokeX_, screenImageStrokeY_);
+}
+
+void ImageInputController::continueScreenImageStroke(double normalizedX,
+                                                     double normalizedY)
+{
+    if (!screenImageStrokeActive_ || !screenImage_) return;
+    normalizedX = std::clamp(normalizedX, 0.0, 1.0);
+    normalizedY = std::clamp(normalizedY, 0.0, 1.0);
+    drawScreenImageStrokeSegment(screenImageStrokeX_, screenImageStrokeY_,
+                                 normalizedX, normalizedY);
+    screenImageStrokeX_ = normalizedX;
+    screenImageStrokeY_ = normalizedY;
+}
+
+void ImageInputController::continueScreenImageRay(double normalizedX,
+                                                  double normalizedY)
+{
+    if (!screenImageStrokeActive_ || !screenImage_) return;
+    normalizedX = std::clamp(normalizedX, 0.0, 1.0);
+    normalizedY = std::clamp(normalizedY, 0.0, 1.0);
+    drawScreenImageStrokeSegment(screenImageStrokeX_, screenImageStrokeY_,
+                                 normalizedX, normalizedY);
+}
+
+void ImageInputController::endScreenImageStroke()
+{
+    if (!screenImageStrokeActive_) return;
+    screenImageStrokeActive_ = false;
+    commitScreenImageTransaction(screenImageStrokeTouched_);
+    screenImageStrokeTouched_ = false;
+    refreshScreenImage();
+}
+
+void ImageInputController::drawScreenImageShape(double fromNormalizedX,
+                                                double fromNormalizedY,
+                                                double toNormalizedX,
+                                                double toNormalizedY,
+                                                int diameter,
+                                                bool ellipse,
+                                                bool hardEdges,
+                                                bool fillBackground,
+                                                bool squareBrush)
+{
+    if (!screenImage_) return;
+    if (screenImageStrokeActive_) endScreenImageStroke();
+    beginScreenImageTransaction();
+    screenImageStrokeTouched_ = false;
+    screenImageStrokeDiameter_ = std::clamp(diameter, 1, 64);
+    screenImageStrokeEraser_ = false;
+    screenImageStrokeHardEdges_ = hardEdges;
+    screenImageStrokeSquareBrush_ = squareBrush;
+    fromNormalizedX = std::clamp(fromNormalizedX, 0.0, 1.0);
+    fromNormalizedY = std::clamp(fromNormalizedY, 0.0, 1.0);
+    toNormalizedX = std::clamp(toNormalizedX, 0.0, 1.0);
+    toNormalizedY = std::clamp(toNormalizedY, 0.0, 1.0);
+
+    if (fillBackground) {
+        fillScreenImageShape(fromNormalizedX, fromNormalizedY,
+                             toNormalizedX, toNormalizedY, ellipse, 0.0);
+    }
+
+    if (ellipse) {
+        const double centerX = (fromNormalizedX + toNormalizedX) / 2.0;
+        const double centerY = (fromNormalizedY + toNormalizedY) / 2.0;
+        const double radiusX = std::abs(toNormalizedX - fromNormalizedX) / 2.0;
+        const double radiusY = std::abs(toNormalizedY - fromNormalizedY) / 2.0;
+        const double pixelRadiusX = radiusX * screenImage_->width();
+        const double pixelRadiusY = radiusY * screenImage_->height();
+        constexpr double pi = 3.14159265358979323846;
+        const double perimeter = pi * (3.0 * (pixelRadiusX + pixelRadiusY)
+            - std::sqrt(std::max(0.0,
+                (3.0 * pixelRadiusX + pixelRadiusY)
+                    * (pixelRadiusX + 3.0 * pixelRadiusY))));
+        const int segmentCount = std::clamp(
+            static_cast<int>(std::ceil(perimeter * 2.0)), 32, 4096);
+        double previousX = centerX + radiusX;
+        double previousY = centerY;
+        for (int segment = 1; segment <= segmentCount; ++segment) {
+            const double angle = 2.0 * pi * segment / segmentCount;
+            const double nextX = centerX + std::cos(angle) * radiusX;
+            const double nextY = centerY + std::sin(angle) * radiusY;
+            drawScreenImageStrokeSegment(previousX, previousY, nextX, nextY);
+            previousX = nextX;
+            previousY = nextY;
+        }
+    } else {
+        drawScreenImageStrokeSegment(fromNormalizedX, fromNormalizedY,
+                                     toNormalizedX, fromNormalizedY);
+        drawScreenImageStrokeSegment(toNormalizedX, fromNormalizedY,
+                                     toNormalizedX, toNormalizedY);
+        drawScreenImageStrokeSegment(toNormalizedX, toNormalizedY,
+                                     fromNormalizedX, toNormalizedY);
+        drawScreenImageStrokeSegment(fromNormalizedX, toNormalizedY,
+                                     fromNormalizedX, fromNormalizedY);
+    }
+
+    commitScreenImageTransaction(screenImageStrokeTouched_);
+    screenImageStrokeTouched_ = false;
+    refreshScreenImage();
+}
+
+void ImageInputController::drawScreenImageLine(double fromNormalizedX,
+                                               double fromNormalizedY,
+                                               double toNormalizedX,
+                                               double toNormalizedY,
+                                               int diameter,
+                                               bool hardEdges,
+                                               bool squareBrush)
+{
+    if (!screenImage_) return;
+    if (screenImageStrokeActive_) endScreenImageStroke();
+    beginScreenImageTransaction();
+    screenImageStrokeTouched_ = false;
+    screenImageStrokeDiameter_ = std::clamp(diameter, 1, 64);
+    screenImageStrokeEraser_ = false;
+    screenImageStrokeHardEdges_ = hardEdges;
+    screenImageStrokeSquareBrush_ = squareBrush;
+    drawScreenImageStrokeSegment(std::clamp(fromNormalizedX, 0.0, 1.0),
+                                 std::clamp(fromNormalizedY, 0.0, 1.0),
+                                 std::clamp(toNormalizedX, 0.0, 1.0),
+                                 std::clamp(toNormalizedY, 0.0, 1.0));
+    commitScreenImageTransaction(screenImageStrokeTouched_);
+    screenImageStrokeTouched_ = false;
+    refreshScreenImage();
+}
+
+void ImageInputController::beginScreenImageTransaction()
+{
+    if (!screenImage_) return;
+    screenImageBefore_ = screenImage_;
+    screenImage_ = std::make_shared<core::RgbImage>(*screenImage_);
+}
+
+void ImageInputController::commitScreenImageTransaction(bool changed)
+{
+    if (!screenImageBefore_) return;
+    if (changed) {
+        screenImageUndoStack_.push_back(std::move(screenImageBefore_));
+        trimDrawingHistory(screenImageUndoStack_);
+        screenImageRedoStack_.clear();
+        emit screenImageHistoryChanged();
+    } else {
+        screenImage_ = std::move(screenImageBefore_);
+    }
+}
+
+void ImageInputController::clearScreenImageHistory()
+{
+    const bool hadHistory = !screenImageUndoStack_.empty()
+        || !screenImageRedoStack_.empty();
+    screenImageBefore_.reset();
+    screenImageStrokeActive_ = false;
+    screenImageStrokeTouched_ = false;
+    screenImageUndoStack_.clear();
+    screenImageRedoStack_.clear();
+    resetScreenImageSelectionState();
+    if (hadHistory) emit screenImageHistoryChanged();
+}
+
+void ImageInputController::resetScreenImageSelectionState()
+{
+    const bool hadSelection = hasScreenImageSelection();
+    const bool hadFloating = screenImageFloating();
+    screenImageSelectionX_ = 0;
+    screenImageSelectionY_ = 0;
+    screenImageSelectionWidth_ = 0;
+    screenImageSelectionHeight_ = 0;
+    screenImageFloatingImage_.reset();
+    screenImageFloatingPreview_.clear();
+    screenImageFloatingMove_ = false;
+    screenImageFloatingTopLeft_ = false;
+    screenImageFloatingSourceX_ = 0;
+    screenImageFloatingSourceY_ = 0;
+    if (hadSelection) emit screenImageSelectionChanged();
+    if (hadFloating) emit screenImageFloatingChanged();
+}
+
+std::shared_ptr<core::RgbImage> ImageInputController::copyScreenImageRegion(
+    int x, int y, int width, int height) const
+{
+    if (!screenImage_ || width <= 0 || height <= 0 || x < 0 || y < 0
+        || x + width > static_cast<int>(screenImage_->width())
+        || y + height > static_cast<int>(screenImage_->height())) {
+        return {};
+    }
+    auto region = core::RgbImage::createTightlyPacked(
+        static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height),
+        screenImage_->pixelFormat());
+    if (!region) return {};
+    const std::size_t channels = core::bytesPerPixel(screenImage_->pixelFormat());
+    const std::size_t rowBytes = static_cast<std::size_t>(width) * channels;
+    for (int rowIndex = 0; rowIndex < height; ++rowIndex) {
+        const auto sourceRow = screenImage_->row(
+            static_cast<std::uint32_t>(y + rowIndex));
+        auto destinationRow = region->row(static_cast<std::uint32_t>(rowIndex));
+        std::copy_n(sourceRow.begin() + static_cast<std::ptrdiff_t>(x) * channels,
+                    rowBytes, destinationRow.begin());
+    }
+    return std::make_shared<core::RgbImage>(std::move(*region));
+}
+
+void ImageInputController::beginScreenImageFloating(
+    std::shared_ptr<core::RgbImage> image, bool movingSelection, bool topLeftAnchor)
+{
+    if (!image) return;
+    screenImageFloatingImage_ = std::move(image);
+    screenImageFloatingPreview_ = dataUrl(*screenImageFloatingImage_);
+    screenImageFloatingMove_ = movingSelection;
+    screenImageFloatingTopLeft_ = topLeftAnchor;
+    if (movingSelection) {
+        screenImageFloatingSourceX_ = screenImageSelectionX_;
+        screenImageFloatingSourceY_ = screenImageSelectionY_;
+    } else {
+        screenImageFloatingSourceX_ = 0;
+        screenImageFloatingSourceY_ = 0;
+    }
+    errorMessage_.clear();
+    statusMessage_ = movingSelection
+        ? tr("Move selection ready. Click the Screen Image to place it; Escape cancels.")
+        : tr("Pasted selection ready. Click the Screen Image to place it; Escape cancels.");
+    emit screenImageFloatingChanged();
+    emit statusChanged();
+}
+
+void ImageInputController::refreshScreenImage()
+{
+    if (!screenImage_) return;
+    convertedPreview_ = dataUrl(*screenImage_);
+    if (result_) result_->preview = *screenImage_;
+    if (!image_) refreshSourceColorChoices();
+    screenImageEdited_ = true;
+    screenImageExportResult_.reset();
+    statusMessage_ = tr("Screen Image edited.");
+    outputSummary_ = tr("Screen Image edited — target data will be rebuilt when exported.");
+    emit conversionChanged();
+    emit exportChanged();
+    emit statusChanged();
+}
+
+void ImageInputController::paintScreenImagePixel(int x,
+                                                 int y,
+                                                 core::RgbColor color,
+                                                 double coverage)
+{
+    if (!screenImage_ || x < 0 || y < 0
+        || x >= static_cast<int>(screenImage_->width())
+        || y >= static_cast<int>(screenImage_->height())) {
+        return;
+    }
+    coverage = std::clamp(coverage, 0.0, 1.0);
+    if (coverage <= 0.0) return;
+    auto row = screenImage_->row(static_cast<std::uint32_t>(y));
+    const std::size_t channels = core::bytesPerPixel(screenImage_->pixelFormat());
+    const std::size_t offset = static_cast<std::size_t>(x) * channels;
+    const std::array target{color.red, color.green, color.blue};
+    bool changed = false;
+    for (std::size_t channel = 0; channel < target.size(); ++channel) {
+        const auto value = coverage >= 1.0
+            ? target[channel]
+            : static_cast<std::uint8_t>(std::clamp(
+                  static_cast<int>(std::lround(target[channel] * coverage
+                      + row[offset + channel] * (1.0 - coverage))), 0, 255));
+        changed |= row[offset + channel] != value;
+        row[offset + channel] = value;
+    }
+    if (channels == 4U) {
+        changed |= row[offset + 3U] != 255U;
+        row[offset + 3U] = 255U;
+    }
+    screenImageStrokeTouched_ |= changed;
+}
+
+void ImageInputController::fillScreenImageShape(double fromNormalizedX,
+                                                double fromNormalizedY,
+                                                double toNormalizedX,
+                                                double toNormalizedY,
+                                                bool ellipse,
+                                                double inset)
+{
+    if (!screenImage_) return;
+    const double previewWidth = screenImage_->width();
+    const double previewHeight = screenImage_->height();
+    const double fromX = fromNormalizedX * previewWidth;
+    const double fromY = fromNormalizedY * previewHeight;
+    const double toX = toNormalizedX * previewWidth;
+    const double toY = toNormalizedY * previewHeight;
+    const double left = std::min(fromX, toX);
+    const double right = std::max(fromX, toX);
+    const double top = std::min(fromY, toY);
+    const double bottom = std::max(fromY, toY);
+
+    if (ellipse) {
+        const double centerX = (left + right) / 2.0;
+        const double centerY = (top + bottom) / 2.0;
+        const double radiusX = (right - left) / 2.0 - inset;
+        const double radiusY = (bottom - top) / 2.0 - inset;
+        if (radiusX <= 0.0 || radiusY <= 0.0) return;
+        for (int y = static_cast<int>(std::floor(centerY - radiusY));
+             y <= static_cast<int>(std::ceil(centerY + radiusY)); ++y) {
+            const double normalizedDistance = (y + 0.5 - centerY) / radiusY;
+            if (std::abs(normalizedDistance) > 1.0) continue;
+            const double halfWidth = radiusX * std::sqrt(std::max(
+                0.0, 1.0 - normalizedDistance * normalizedDistance));
+            for (int x = static_cast<int>(std::floor(centerX - halfWidth));
+                 x <= static_cast<int>(std::ceil(centerX + halfWidth)); ++x) {
+                if (x + 0.5 >= centerX - halfWidth
+                    && x + 0.5 <= centerX + halfWidth) {
+                    paintScreenImagePixel(x, y, screenImageBackgroundColor_, 1.0);
+                }
+            }
+        }
+        return;
+    }
+
+    const double innerLeft = left + inset;
+    const double innerRight = right - inset;
+    const int firstY = static_cast<int>(std::floor(top + inset));
+    const int lastY = static_cast<int>(std::ceil(bottom - inset));
+    if (innerLeft > innerRight || firstY > lastY) return;
+    for (int y = firstY; y <= lastY; ++y) {
+        if (y + 0.5 < top + inset || y + 0.5 > bottom - inset) continue;
+        for (int x = static_cast<int>(std::floor(innerLeft));
+             x <= static_cast<int>(std::ceil(innerRight)); ++x) {
+            if (x + 0.5 >= innerLeft && x + 0.5 <= innerRight) {
+                paintScreenImagePixel(x, y, screenImageBackgroundColor_, 1.0);
+            }
+        }
+    }
+}
+
+void ImageInputController::drawScreenImageStrokeSegment(double fromNormalizedX,
+                                                        double fromNormalizedY,
+                                                        double toNormalizedX,
+                                                        double toNormalizedY)
+{
+    if (!screenImage_) return;
+    const double previewWidth = screenImage_->width();
+    const double previewHeight = screenImage_->height();
+    const auto coordinate = [this](double normalized, double extent) {
+        const double value = std::clamp(normalized, 0.0, 1.0) * extent;
+        if (!screenImageStrokeHardEdges_) return value;
+        const double pixelOffset = screenImageStrokeDiameter_ % 2 == 0 ? 0.0 : 0.5;
+        return std::clamp(std::floor(value) + pixelOffset,
+                          pixelOffset, extent - 1.0 + pixelOffset);
+    };
+    const double fromX = coordinate(fromNormalizedX, previewWidth);
+    const double fromY = coordinate(fromNormalizedY, previewHeight);
+    const double toX = coordinate(toNormalizedX, previewWidth);
+    const double toY = coordinate(toNormalizedY, previewHeight);
+    const double brushRadius = screenImageStrokeDiameter_ / 2.0;
+    const double feather = screenImageStrokeHardEdges_ ? 0.0 : 1.0;
+    const double extent = brushRadius + feather;
+    const auto paintColor = screenImageStrokeEraser_
+        ? screenImageBackgroundColor_ : screenImageForegroundColor_;
+    const double deltaX = toX - fromX;
+    const double deltaY = toY - fromY;
+    const double lengthSquared = deltaX * deltaX + deltaY * deltaY;
+    const auto brushDistance = [&](double pixelX, double pixelY) {
+        if (!screenImageStrokeSquareBrush_) {
+            double nearestAmount = 0.0;
+            if (lengthSquared > 0.0) {
+                nearestAmount = std::clamp(
+                    ((pixelX - fromX) * deltaX + (pixelY - fromY) * deltaY)
+                        / lengthSquared,
+                    0.0, 1.0);
+            }
+            return std::hypot(pixelX - (fromX + nearestAmount * deltaX),
+                              pixelY - (fromY + nearestAmount * deltaY));
+        }
+
+        const double offsetX = pixelX - fromX;
+        const double offsetY = pixelY - fromY;
+        double distance = std::min(std::max(std::abs(offsetX), std::abs(offsetY)),
+                                   std::max(std::abs(pixelX - toX),
+                                            std::abs(pixelY - toY)));
+        const auto consider = [&](double amount) {
+            amount = std::clamp(amount, 0.0, 1.0);
+            distance = std::min(distance,
+                std::max(std::abs(offsetX - amount * deltaX),
+                         std::abs(offsetY - amount * deltaY)));
+        };
+        if (deltaX != 0.0) consider(offsetX / deltaX);
+        if (deltaY != 0.0) consider(offsetY / deltaY);
+        for (const double sign : {-1.0, 1.0}) {
+            const double denominator = deltaX - sign * deltaY;
+            if (denominator != 0.0)
+                consider((offsetX - sign * offsetY) / denominator);
+        }
+        return distance;
+    };
+    bool coveredPixel = false;
+    for (int y = static_cast<int>(std::floor(std::min(fromY, toY) - extent));
+         y <= static_cast<int>(std::ceil(std::max(fromY, toY) + extent)); ++y) {
+        for (int x = static_cast<int>(std::floor(std::min(fromX, toX) - extent));
+             x <= static_cast<int>(std::ceil(std::max(fromX, toX) + extent)); ++x) {
+            const double distance = brushDistance(x + 0.5, y + 0.5);
+            const double coverage = screenImageStrokeHardEdges_
+                ? (distance <= brushRadius ? 1.0 : 0.0)
+                : std::clamp(brushRadius + 1.0 - distance, 0.0, 1.0);
+            if (coverage <= 0.0) continue;
+            coveredPixel = true;
+            paintScreenImagePixel(x, y, paintColor, coverage);
+        }
+    }
+    if (!coveredPixel) {
+        paintScreenImagePixel(static_cast<int>(std::floor(fromX)),
+                              static_cast<int>(std::floor(fromY)),
+                              paintColor, 1.0);
+    }
+}
+
+void ImageInputController::nudgeScreenImage(int horizontal, int vertical)
+{
+    if (!screenImage_ || (horizontal == 0 && vertical == 0)) return;
+    beginScreenImageTransaction();
+    const core::RgbImage source = *screenImageBefore_;
+    const std::size_t channels = core::bytesPerPixel(screenImage_->pixelFormat());
+    const std::array fill{screenImageBackgroundColor_.red,
+                          screenImageBackgroundColor_.green,
+                          screenImageBackgroundColor_.blue};
+    for (std::uint32_t y = 0; y < screenImage_->height(); ++y) {
+        auto destinationRow = screenImage_->row(y);
+        for (std::uint32_t x = 0; x < screenImage_->width(); ++x) {
+            const int sourceX = static_cast<int>(x) - horizontal;
+            const int sourceY = static_cast<int>(y) - vertical;
+            const std::size_t destinationOffset = static_cast<std::size_t>(x) * channels;
+            if (sourceX >= 0 && sourceY >= 0
+                && sourceX < static_cast<int>(source.width())
+                && sourceY < static_cast<int>(source.height())) {
+                const auto sourceRow = source.row(static_cast<std::uint32_t>(sourceY));
+                const std::size_t sourceOffset = static_cast<std::size_t>(sourceX) * channels;
+                std::copy_n(sourceRow.begin() + static_cast<std::ptrdiff_t>(sourceOffset),
+                            channels, destinationRow.begin()
+                                + static_cast<std::ptrdiff_t>(destinationOffset));
+            } else {
+                std::copy(fill.begin(), fill.end(), destinationRow.begin()
+                    + static_cast<std::ptrdiff_t>(destinationOffset));
+                if (channels == 4U) destinationRow[destinationOffset + 3U] = 255;
+            }
+        }
+    }
+    commitScreenImageTransaction(true);
+    refreshScreenImage();
+}
+
+void ImageInputController::mirrorScreenImage()
+{
+    if (!screenImage_) return;
+    beginScreenImageTransaction();
+    const std::size_t channels = core::bytesPerPixel(screenImage_->pixelFormat());
+    for (std::uint32_t y = 0; y < screenImage_->height(); ++y) {
+        auto row = screenImage_->row(y);
+        for (std::uint32_t x = 0; x < screenImage_->width() / 2U; ++x) {
+            const std::uint32_t opposite = screenImage_->width() - 1U - x;
+            for (std::size_t channel = 0; channel < channels; ++channel) {
+                std::swap(row[static_cast<std::size_t>(x) * channels + channel],
+                          row[static_cast<std::size_t>(opposite) * channels + channel]);
+            }
+        }
+    }
+    commitScreenImageTransaction(true);
+    refreshScreenImage();
+}
+
+void ImageInputController::flipScreenImage()
+{
+    if (!screenImage_) return;
+    beginScreenImageTransaction();
+    for (std::uint32_t y = 0; y < screenImage_->height() / 2U; ++y) {
+        auto top = screenImage_->row(y);
+        auto bottom = screenImage_->row(screenImage_->height() - 1U - y);
+        std::swap_ranges(top.begin(), top.end(), bottom.begin());
+    }
+    commitScreenImageTransaction(true);
+    refreshScreenImage();
+}
+
+void ImageInputController::invertScreenImage()
+{
+    if (!screenImage_) return;
+    if (screenImageStrokeActive_) endScreenImageStroke();
+    beginScreenImageTransaction();
+    const std::size_t channels = core::bytesPerPixel(screenImage_->pixelFormat());
+    const int firstX = hasScreenImageSelection() ? screenImageSelectionX_ : 0;
+    const int firstY = hasScreenImageSelection() ? screenImageSelectionY_ : 0;
+    const int lastX = hasScreenImageSelection()
+        ? screenImageSelectionX_ + screenImageSelectionWidth_
+        : static_cast<int>(screenImage_->width());
+    const int lastY = hasScreenImageSelection()
+        ? screenImageSelectionY_ + screenImageSelectionHeight_
+        : static_cast<int>(screenImage_->height());
+    for (int y = firstY; y < lastY; ++y) {
+        auto row = screenImage_->row(static_cast<std::uint32_t>(y));
+        for (int x = firstX; x < lastX; ++x) {
+            const std::size_t offset = static_cast<std::size_t>(x) * channels;
+            row[offset] = static_cast<std::uint8_t>(255U - row[offset]);
+            row[offset + 1U] = static_cast<std::uint8_t>(255U - row[offset + 1U]);
+            row[offset + 2U] = static_cast<std::uint8_t>(255U - row[offset + 2U]);
+        }
+    }
+    commitScreenImageTransaction(true);
+    refreshScreenImage();
+}
+
+void ImageInputController::removeScreenImageColor()
+{
+    if (!screenImage_) return;
+    if (screenImageStrokeActive_) endScreenImageStroke();
+    beginScreenImageTransaction();
+    bool changed = false;
+    const std::size_t channels = core::bytesPerPixel(screenImage_->pixelFormat());
+    const int firstX = hasScreenImageSelection() ? screenImageSelectionX_ : 0;
+    const int firstY = hasScreenImageSelection() ? screenImageSelectionY_ : 0;
+    const int lastX = hasScreenImageSelection()
+        ? screenImageSelectionX_ + screenImageSelectionWidth_
+        : static_cast<int>(screenImage_->width());
+    const int lastY = hasScreenImageSelection()
+        ? screenImageSelectionY_ + screenImageSelectionHeight_
+        : static_cast<int>(screenImage_->height());
+    for (int y = firstY; y < lastY; ++y) {
+        auto row = screenImage_->row(static_cast<std::uint32_t>(y));
+        for (int x = firstX; x < lastX; ++x) {
+            const std::size_t offset = static_cast<std::size_t>(x) * channels;
+            const auto gray = static_cast<std::uint8_t>((
+                77U * row[offset] + 150U * row[offset + 1U]
+                + 29U * row[offset + 2U] + 128U) >> 8U);
+            changed = changed || row[offset] != gray
+                || row[offset + 1U] != gray || row[offset + 2U] != gray;
+            row[offset] = gray;
+            row[offset + 1U] = gray;
+            row[offset + 2U] = gray;
+        }
+    }
+    commitScreenImageTransaction(changed);
+    if (changed) refreshScreenImage();
+}
+
+void ImageInputController::clearScreenImage()
+{
+    if (!screenImage_) return;
+    beginScreenImageTransaction();
+    const std::size_t channels = core::bytesPerPixel(screenImage_->pixelFormat());
+    for (std::uint32_t y = 0; y < screenImage_->height(); ++y) {
+        auto row = screenImage_->row(y);
+        for (std::uint32_t x = 0; x < screenImage_->width(); ++x) {
+            const std::size_t offset = static_cast<std::size_t>(x) * channels;
+            row[offset] = screenImageBackgroundColor_.red;
+            row[offset + 1U] = screenImageBackgroundColor_.green;
+            row[offset + 2U] = screenImageBackgroundColor_.blue;
+            if (channels == 4U) row[offset + 3U] = 255;
+        }
+    }
+    commitScreenImageTransaction(true);
+    refreshScreenImage();
+}
+
+void ImageInputController::setScreenImageSelection(double fromNormalizedX,
+                                                   double fromNormalizedY,
+                                                   double toNormalizedX,
+                                                   double toNormalizedY)
+{
+    if (!screenImage_) return;
+    cancelScreenImageFloating();
+    const int canvasWidth = static_cast<int>(screenImage_->width());
+    const int canvasHeight = static_cast<int>(screenImage_->height());
+    const auto pixelX = [canvasWidth](double normalized) {
+        return std::clamp(static_cast<int>(std::floor(
+                              std::clamp(normalized, 0.0, 1.0) * canvasWidth)),
+                          0, canvasWidth - 1);
+    };
+    const auto pixelY = [canvasHeight](double normalized) {
+        return std::clamp(static_cast<int>(std::floor(
+                              std::clamp(normalized, 0.0, 1.0) * canvasHeight)),
+                          0, canvasHeight - 1);
+    };
+    const int firstX = pixelX(fromNormalizedX);
+    const int firstY = pixelY(fromNormalizedY);
+    const int secondX = pixelX(toNormalizedX);
+    const int secondY = pixelY(toNormalizedY);
+    screenImageSelectionX_ = std::min(firstX, secondX);
+    screenImageSelectionY_ = std::min(firstY, secondY);
+    screenImageSelectionWidth_ = std::abs(secondX - firstX) + 1;
+    screenImageSelectionHeight_ = std::abs(secondY - firstY) + 1;
+    statusMessage_ = tr("Selected %1×%2 pixels.")
+                         .arg(screenImageSelectionWidth_)
+                         .arg(screenImageSelectionHeight_);
+    emit screenImageSelectionChanged();
+    emit statusChanged();
+}
+
+void ImageInputController::clearScreenImageSelection()
+{
+    const bool hadSelection = hasScreenImageSelection();
+    cancelScreenImageFloating();
+    screenImageSelectionX_ = 0;
+    screenImageSelectionY_ = 0;
+    screenImageSelectionWidth_ = 0;
+    screenImageSelectionHeight_ = 0;
+    if (hadSelection) emit screenImageSelectionChanged();
+}
+
+void ImageInputController::beginMoveScreenImageSelection()
+{
+    if (!screenImage_ || !hasScreenImageSelection()) {
+        errorMessage_ = tr("Select an area of the Screen Image before moving it.");
+        emit statusChanged();
+        return;
+    }
+    auto region = copyScreenImageRegion(
+        screenImageSelectionX_, screenImageSelectionY_,
+        screenImageSelectionWidth_, screenImageSelectionHeight_);
+    if (!region) {
+        errorMessage_ = tr("The selected Screen Image area could not be moved.");
+        emit statusChanged();
+        return;
+    }
+    beginScreenImageFloating(std::move(region), true);
+}
+
+void ImageInputController::placeScreenImageFloating(double normalizedCenterX,
+                                                    double normalizedCenterY)
+{
+    if (!screenImage_ || !screenImageFloatingImage_) return;
+    const int canvasWidth = static_cast<int>(screenImage_->width());
+    const int canvasHeight = static_cast<int>(screenImage_->height());
+    const int floatingWidth = static_cast<int>(screenImageFloatingImage_->width());
+    const int floatingHeight = static_cast<int>(screenImageFloatingImage_->height());
+    const double anchorX = std::clamp(normalizedCenterX, 0.0, 1.0) * canvasWidth;
+    const double anchorY = std::clamp(normalizedCenterY, 0.0, 1.0) * canvasHeight;
+    const int destinationX = std::clamp(
+        qRound(anchorX - (screenImageFloatingTopLeft_ ? 0.0 : floatingWidth / 2.0)),
+        0, std::max(0, canvasWidth - floatingWidth));
+    const int destinationY = std::clamp(
+        qRound(anchorY - (screenImageFloatingTopLeft_ ? 0.0 : floatingHeight / 2.0)),
+        0, std::max(0, canvasHeight - floatingHeight));
+
+    if (screenImageFloatingMove_
+        && destinationX == screenImageFloatingSourceX_
+        && destinationY == screenImageFloatingSourceY_) {
+        cancelScreenImageFloating();
+        return;
+    }
+
+    const auto floatingImage = screenImageFloatingImage_;
+    const bool movingSelection = screenImageFloatingMove_;
+    beginScreenImageTransaction();
+    const std::size_t destinationChannels =
+        core::bytesPerPixel(screenImage_->pixelFormat());
+    if (movingSelection) {
+        for (int y = 0; y < floatingHeight; ++y) {
+            auto destinationRow = screenImage_->row(
+                static_cast<std::uint32_t>(screenImageFloatingSourceY_ + y));
+            for (int x = 0; x < floatingWidth; ++x) {
+                const std::size_t offset = static_cast<std::size_t>(
+                    screenImageFloatingSourceX_ + x) * destinationChannels;
+                destinationRow[offset] = screenImageBackgroundColor_.red;
+                destinationRow[offset + 1U] = screenImageBackgroundColor_.green;
+                destinationRow[offset + 2U] = screenImageBackgroundColor_.blue;
+                if (destinationChannels == 4U) destinationRow[offset + 3U] = 255;
+            }
+        }
+    }
+
+    const std::size_t sourceChannels =
+        core::bytesPerPixel(floatingImage->pixelFormat());
+    for (int y = 0; y < floatingHeight; ++y) {
+        const auto sourceRow = floatingImage->row(static_cast<std::uint32_t>(y));
+        auto destinationRow = screenImage_->row(
+            static_cast<std::uint32_t>(destinationY + y));
+        for (int x = 0; x < floatingWidth; ++x) {
+            const std::size_t sourceOffset = static_cast<std::size_t>(x) * sourceChannels;
+            const std::size_t destinationOffset = static_cast<std::size_t>(
+                destinationX + x) * destinationChannels;
+            const int alpha = sourceChannels == 4U ? sourceRow[sourceOffset + 3U] : 255;
+            if (alpha == 0) continue;
+            for (std::size_t channel = 0; channel < 3U; ++channel) {
+                destinationRow[destinationOffset + channel] = alpha == 255
+                    ? sourceRow[sourceOffset + channel]
+                    : static_cast<std::uint8_t>((
+                          sourceRow[sourceOffset + channel] * alpha
+                          + destinationRow[destinationOffset + channel] * (255 - alpha)
+                          + 127) / 255);
+            }
+            if (destinationChannels == 4U) {
+                destinationRow[destinationOffset + 3U] = 255;
+            }
+        }
+    }
+    commitScreenImageTransaction(true);
+
+    screenImageSelectionX_ = destinationX;
+    screenImageSelectionY_ = destinationY;
+    screenImageSelectionWidth_ = floatingWidth;
+    screenImageSelectionHeight_ = floatingHeight;
+    screenImageFloatingImage_.reset();
+    screenImageFloatingPreview_.clear();
+    screenImageFloatingMove_ = false;
+    screenImageFloatingTopLeft_ = false;
+    screenImageFloatingSourceX_ = 0;
+    screenImageFloatingSourceY_ = 0;
+    emit screenImageFloatingChanged();
+    emit screenImageSelectionChanged();
+    refreshScreenImage();
+}
+
+void ImageInputController::cancelScreenImageFloating()
+{
+    if (!screenImageFloatingImage_) return;
+    screenImageFloatingImage_.reset();
+    screenImageFloatingPreview_.clear();
+    screenImageFloatingMove_ = false;
+    screenImageFloatingTopLeft_ = false;
+    screenImageFloatingSourceX_ = 0;
+    screenImageFloatingSourceY_ = 0;
+    statusMessage_ = tr("Screen Image placement canceled.");
+    emit screenImageFloatingChanged();
+    emit statusChanged();
+}
+
+void ImageInputController::reloadScreenImageFonts()
+{
+    QVariantList fonts;
+    QStringList families = QFontDatabase::families();
+    if (families.isEmpty()) families.push_back(QFont().family());
+    families.removeDuplicates();
+    families.sort(Qt::CaseInsensitive);
+    for (const QString& family : families) {
+        const QRawFont rawFont = QRawFont::fromFont(QFont(family));
+        const QString badge = !rawFont.fontTable("CFF ").isEmpty()
+                || !rawFont.fontTable("CFF2").isEmpty()
+            ? QStringLiteral("OT")
+            : (!rawFont.fontTable("glyf").isEmpty()
+                   ? QStringLiteral("TT") : QStringLiteral("SYS"));
+        fonts.push_back(QVariantMap{
+            {QStringLiteral("name"), family},
+            {QStringLiteral("family"), family},
+            {QStringLiteral("key"), QStringLiteral("system:") + family},
+            {QStringLiteral("kind"), QStringLiteral("system")},
+            {QStringLiteral("badge"), badge},
+            {QStringLiteral("preview"), QString{}},
+        });
+    }
+
+    QDirIterator iterator(tiArtistFontsPath_, QDir::Files, QDirIterator::Subdirectories);
+    QVariantList artistFonts;
+    while (iterator.hasNext()) {
+        const QString path = iterator.next();
+        QString fontError;
+        const auto font = loadTiArtistFont(path, &fontError);
+        if (!font) continue;
+        const QString name = QFileInfo(path).completeBaseName();
+        QString sample = name;
+        QImage sampleImage = renderTiArtistText(*font, sample, 18, Qt::white);
+        bool hasInk = false;
+        for (int y = 0; y < sampleImage.height() && !hasInk; ++y) {
+            for (int x = 0; x < sampleImage.width(); ++x) {
+                if (sampleImage.pixelColor(x, y).alpha() != 0) {
+                    hasInk = true;
+                    break;
+                }
+            }
+        }
+        if (!hasInk) {
+            sample.clear();
+            QList<QChar> characters = font->glyphs.keys();
+            std::sort(characters.begin(), characters.end());
+            for (const QChar character : characters) {
+                if (!character.isPrint()) continue;
+                sample += character;
+                if (sample.size() == 12) break;
+            }
+            sampleImage = renderTiArtistText(*font, sample, 18, Qt::white);
+        }
+        artistFonts.push_back(QVariantMap{
+            {QStringLiteral("name"), name},
+            {QStringLiteral("family"), QString{}},
+            {QStringLiteral("key"), QStringLiteral("tia:") + path},
+            {QStringLiteral("kind"), QStringLiteral("tiartist")},
+            {QStringLiteral("badge"), QStringLiteral("TIA")},
+            {QStringLiteral("preview"), dataUrl(sampleImage)},
+        });
+    }
+    std::sort(artistFonts.begin(), artistFonts.end(), [](const QVariant& left,
+                                                         const QVariant& right) {
+        return QString::localeAwareCompare(
+                   left.toMap().value(QStringLiteral("name")).toString(),
+                   right.toMap().value(QStringLiteral("name")).toString()) < 0;
+    });
+    for (const QVariant& font : artistFonts) fonts.push_back(font);
+    screenImageFonts_ = std::move(fonts);
+    emit screenImageFontsChanged();
+}
+
+void ImageInputController::openTiArtistFontsFolder()
+{
+    QDir().mkpath(tiArtistFontsPath_);
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(tiArtistFontsPath_))) {
+        errorMessage_ = tr("The TI Artist Fonts folder could not be opened.");
+        emit statusChanged();
+    }
+}
+
+std::shared_ptr<core::RgbImage> ImageInputController::renderScreenImageText(
+    const QString& text, const QString& fontKey, int pixelSize, QString* error) const
+{
+    if (text.isEmpty()) {
+        if (error) *error = tr("Enter text before placing it on the Screen Image.");
+        return {};
+    }
+    pixelSize = std::clamp(pixelSize, 1, 192);
+    QImage rendered;
+    if (fontKey.startsWith(QStringLiteral("tia:"))) {
+        QString fontError;
+        const auto font = loadTiArtistFont(fontKey.sliced(4), &fontError);
+        if (!font) {
+            if (error) *error = fontError;
+            return {};
+        }
+        rendered = renderTiArtistText(
+            *font, text, pixelSize, screenImageForegroundColor());
+    } else {
+        const QString family = fontKey.startsWith(QStringLiteral("system:"))
+            ? fontKey.sliced(7) : fontKey;
+        QFont font(family);
+        font.setPixelSize(pixelSize);
+        const QFontMetrics metrics(font);
+        const QStringList lines = text.split(QLatin1Char('\n'));
+        int width = 1;
+        for (const QString& line : lines)
+            width = std::max(width, metrics.horizontalAdvance(line));
+        const int height = std::max(
+            1, static_cast<int>(lines.size()) * metrics.lineSpacing());
+        rendered = QImage(width, height, QImage::Format_RGBA8888);
+        rendered.fill(Qt::transparent);
+        QPainter painter(&rendered);
+        painter.setRenderHint(QPainter::TextAntialiasing, true);
+        painter.setFont(font);
+        painter.setPen(screenImageForegroundColor());
+        for (int lineIndex = 0; lineIndex < lines.size(); ++lineIndex) {
+            painter.drawText(0, lineIndex * metrics.lineSpacing() + metrics.ascent(),
+                             lines[lineIndex]);
+        }
+    }
+    if (rendered.isNull() || rendered.width() > 256 || rendered.height() > 192) {
+        if (error) {
+            *error = tr("The rendered text is larger than the 256×192 Screen Image. "
+                        "Reduce the font size or shorten the text.");
+        }
+        return {};
+    }
+    auto image = coreImage(rendered);
+    if (!image && error) *error = tr("The text could not be rendered as pixels.");
+    return image;
+}
+
+void ImageInputController::prepareScreenImageText(const QString& text,
+                                                  const QString& fontKey,
+                                                  int pixelSize)
+{
+    if (!screenImage_) return;
+    QString renderError;
+    auto rendered = renderScreenImageText(text, fontKey, pixelSize, &renderError);
+    if (!rendered) {
+        errorMessage_ = renderError;
+        emit statusChanged();
+        return;
+    }
+    beginScreenImageFloating(std::move(rendered), false, true);
+    statusMessage_ = tr("Text ready. Click its starting point on the Screen Image; Escape cancels.");
+    emit statusChanged();
+}
+
+void ImageInputController::loadScreenImageClipArt(const QUrl& url)
+{
+    if (!url.isLocalFile()) {
+        errorMessage_ = tr("Only local Slide/ClipArt files can be opened.");
+        emit statusChanged();
+        return;
+    }
+    auto loaded = imageio::loadImageFile(url.toLocalFile());
+    if (!loaded) {
+        errorMessage_ = loaded.error;
+        emit statusChanged();
+        return;
+    }
+    screenImageClipArtSourceImage_ = std::make_shared<core::RgbImage>(
+        std::move(*loaded.image));
+    screenImageClipArtSourcePreview_ = dataUrl(*screenImageClipArtSourceImage_);
+    screenImageClipArtSourceName_ = QFileInfo(url.toLocalFile()).fileName();
+    errorMessage_.clear();
+    statusMessage_ = tr("Slide/ClipArt loaded. Choose its placement options.");
+    emit screenImageClipArtChanged();
+    emit statusChanged();
+}
+
+std::shared_ptr<core::RgbImage> ImageInputController::renderScreenImageClipArt(
+    int width, int height, int colorMode, bool transparentBackground,
+    bool useSelectedColors, QString* error) const
+{
+    if (!screenImageClipArtSourceImage_) {
+        if (error) *error = tr("Choose a Slide/ClipArt image first.");
+        return {};
+    }
+    width = std::clamp(width, 1, 256);
+    height = std::clamp(height, 1, 192);
+    colorMode = std::clamp(colorMode, 0, 2);
+    QImage image = imageio::toQImage(*screenImageClipArtSourceImage_)
+                       .convertToFormat(QImage::Format_RGBA8888)
+                       .scaled(width, height, Qt::IgnoreAspectRatio,
+                               colorMode == 0 ? Qt::SmoothTransformation
+                                              : Qt::FastTransformation);
+    if (image.isNull()) {
+        if (error) *error = tr("The Slide/ClipArt image could not be resized.");
+        return {};
+    }
+    const QColor keyColor = image.pixelColor(0, 0);
+    const QColor foreground = screenImageForegroundColor();
+    const QColor background = screenImageBackgroundColor();
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor source = image.pixelColor(x, y);
+            const int luma = std::clamp(qRound(
+                source.red() * 0.299 + source.green() * 0.587 + source.blue() * 0.114),
+                0, 255);
+            QColor result = source;
+            int alpha = source.alpha();
+            if (colorMode == 1) {
+                if (useSelectedColors) {
+                    if (transparentBackground) {
+                        result = foreground;
+                        alpha = alpha * (255 - luma) / 255;
+                    } else {
+                        result = QColor(
+                            (foreground.red() * (255 - luma) + background.red() * luma) / 255,
+                            (foreground.green() * (255 - luma) + background.green() * luma) / 255,
+                            (foreground.blue() * (255 - luma) + background.blue() * luma) / 255);
+                    }
+                } else if (transparentBackground) {
+                    result = Qt::black;
+                    alpha = alpha * (255 - luma) / 255;
+                } else {
+                    result = QColor(luma, luma, luma);
+                }
+            } else if (colorMode == 2 || useSelectedColors) {
+                const bool foregroundPixel = luma < 128;
+                result = useSelectedColors
+                    ? (foregroundPixel ? foreground : background)
+                    : (foregroundPixel ? QColor(Qt::black) : QColor(Qt::white));
+                if (transparentBackground && !foregroundPixel) alpha = 0;
+            } else if (transparentBackground) {
+                const int difference = std::abs(source.red() - keyColor.red())
+                    + std::abs(source.green() - keyColor.green())
+                    + std::abs(source.blue() - keyColor.blue());
+                if (difference <= 12) alpha = 0;
+            }
+            result.setAlpha(alpha);
+            image.setPixelColor(x, y, result);
+        }
+    }
+    auto rendered = coreImage(image);
+    if (!rendered && error) *error = tr("The Slide/ClipArt preview could not be prepared.");
+    return rendered;
+}
+
+QString ImageInputController::screenImageClipArtPreview(
+    int width, int height, int colorMode, bool transparentBackground,
+    bool useSelectedColors) const
+{
+    const auto preview = renderScreenImageClipArt(
+        width, height, colorMode, transparentBackground, useSelectedColors);
+    return preview ? dataUrl(*preview) : QString{};
+}
+
+void ImageInputController::prepareScreenImageClipArt(
+    int width, int height, int colorMode, bool transparentBackground,
+    bool useSelectedColors)
+{
+    if (!screenImage_) return;
+    QString renderError;
+    auto rendered = renderScreenImageClipArt(
+        width, height, colorMode, transparentBackground, useSelectedColors,
+        &renderError);
+    if (!rendered) {
+        errorMessage_ = renderError;
+        emit statusChanged();
+        return;
+    }
+    beginScreenImageFloating(std::move(rendered), false);
+    statusMessage_ = tr("Slide/ClipArt ready. Click the Screen Image to place it; Escape cancels.");
+    emit statusChanged();
+}
+
+void ImageInputController::copyScreenImage()
+{
+    if (!screenImage_) return;
+    auto* clipboard = QGuiApplication::clipboard();
+    if (clipboard == nullptr) return;
+    if (hasScreenImageSelection()) {
+        const auto region = copyScreenImageRegion(
+            screenImageSelectionX_, screenImageSelectionY_,
+            screenImageSelectionWidth_, screenImageSelectionHeight_);
+        if (!region) return;
+        auto* mimeData = new QMimeData;
+        mimeData->setImageData(imageio::toQImage(*region));
+        mimeData->setData(screenImageSelectionMimeType, QByteArrayLiteral("1"));
+        clipboard->setMimeData(mimeData);
+        statusMessage_ = tr("Screen Image selection copied to the clipboard.");
+    } else {
+        clipboard->setImage(imageio::toQImage(*screenImage_));
+        statusMessage_ = tr("Screen Image copied to the clipboard.");
+    }
+    errorMessage_.clear();
+    emit statusChanged();
+}
+
+void ImageInputController::pasteScreenImage()
+{
+    if (!screenImage_) return;
+    const QClipboard* clipboard = QGuiApplication::clipboard();
+    if (clipboard == nullptr || clipboard->mimeData() == nullptr
+        || !clipboard->mimeData()->hasImage()) {
+        errorMessage_ = tr("The clipboard does not contain an image.");
+        emit statusChanged();
+        return;
+    }
+    const bool selectionClipboard = clipboard->mimeData()->hasFormat(
+        screenImageSelectionMimeType);
+    auto loaded = imageio::loadClipboardImage(clipboard->image());
+    if (!loaded) {
+        errorMessage_ = loaded.error;
+        emit statusChanged();
+        return;
+    }
+    if (selectionClipboard) {
+        beginScreenImageFloating(
+            std::make_shared<core::RgbImage>(std::move(*loaded.image)), false);
+        return;
+    }
+    const core::ImageTransformOptions options{
+        .targetWidth = screenImage_->width(),
+        .targetHeight = screenImage_->height(),
+        .filter = core::ScalingFilter::Bilinear,
+        .fillMode = core::ImageFillMode::Fit,
+        .backgroundRed = screenImageBackgroundColor_.red,
+        .backgroundGreen = screenImageBackgroundColor_.green,
+        .backgroundBlue = screenImageBackgroundColor_.blue,
+    };
+    auto transformed = core::transformImage(*loaded.image, options);
+    if (!transformed) {
+        errorMessage_ = tr("The clipboard image could not be fitted to the Screen Image.");
+        emit statusChanged();
+        return;
+    }
+    beginScreenImageTransaction();
+    screenImage_ = std::make_shared<core::RgbImage>(std::move(*transformed.image));
+    commitScreenImageTransaction(true);
+    clearScreenImageSelection();
+    errorMessage_.clear();
+    refreshScreenImage();
+}
+
+void ImageInputController::undoScreenImage()
+{
+    cancelScreenImageFloating();
+    if (screenImageStrokeActive_) endScreenImageStroke();
+    if (!screenImage_ || screenImageUndoStack_.empty()) return;
+    screenImageRedoStack_.push_back(screenImage_);
+    trimDrawingHistory(screenImageRedoStack_);
+    screenImage_ = std::move(screenImageUndoStack_.back());
+    screenImageUndoStack_.pop_back();
+    screenImageBefore_.reset();
+    refreshScreenImage();
+    emit screenImageHistoryChanged();
+}
+
+void ImageInputController::redoScreenImage()
+{
+    cancelScreenImageFloating();
+    if (screenImageStrokeActive_) endScreenImageStroke();
+    if (!screenImage_ || screenImageRedoStack_.empty()) return;
+    screenImageUndoStack_.push_back(screenImage_);
+    trimDrawingHistory(screenImageUndoStack_);
+    screenImage_ = std::move(screenImageRedoStack_.back());
+    screenImageRedoStack_.pop_back();
+    screenImageBefore_.reset();
+    refreshScreenImage();
+    emit screenImageHistoryChanged();
+}
+
+void ImageInputController::applyScreenImageEdits()
+{
+    cancelScreenImageFloating();
+    if (screenImageStrokeActive_) endScreenImageStroke();
+    if (!screenImage_ || !screenImageEdited_ || busy_) return;
+
+    const core::ConversionRequest request{
+        .source = std::make_shared<core::RgbImage>(*screenImage_),
+        .settings = screenImageConversionSettings(settings_),
+        .generation = 0,
+        .cancellation = {},
+    };
+    busy_ = true;
+    statusMessage_ = tr("Applying chipset rules to Screen Image…");
+    emit conversionChanged();
+    emit statusChanged();
+
+    auto converted = runConversion(
+        request, core::ScalingFilter::None, core::ImageFillMode::Fit,
+        0, 0, screenImageBackgroundColor_, workingPalette_, false, true, {});
+    busy_ = false;
+    if (!converted.succeeded() || !converted.preview || !converted.target) {
+        errorMessage_ = tr("The Screen Image could not be constrained to the chipset rules.");
+        for (const auto& diagnostic : converted.diagnostics) {
+            if (diagnostic.severity == core::DiagnosticSeverity::Error) {
+                errorMessage_ = QString::fromStdString(diagnostic.message);
+                break;
+            }
+        }
+        statusMessage_.clear();
+        emit conversionChanged();
+        emit statusChanged();
+        return;
+    }
+
+    screenImageUndoStack_.push_back(screenImage_);
+    trimDrawingHistory(screenImageUndoStack_);
+    screenImageRedoStack_.clear();
+    screenImageBefore_.reset();
+    screenImage_ = std::make_shared<core::RgbImage>(*converted.preview);
+    convertedPreview_ = dataUrl(*screenImage_);
+    converted.preview = *screenImage_;
+    result_ = std::move(converted);
+    screenImageExportResult_.reset();
+    screenImageEdited_ = false;
+    if (!image_) refreshSourceColorChoices();
+
+    const std::size_t byteCount = std::accumulate(
+        result_->target->tables.begin(), result_->target->tables.end(), std::size_t{},
+        [](std::size_t total, const core::TargetMemoryTable& table) {
+            return total + table.bytes.size();
+        });
+    conversionDetails_ = tr("%1 — 256×192 — %2 target bytes")
+                             .arg(modeName(result_->target->mode))
+                             .arg(byteCount);
+    errorMessage_.clear();
+    statusMessage_ = tr("Screen Image drawing applied with chipset rules.");
+    updatePaletteInspection();
+    updateExportSummary();
+    emit screenImageHistoryChanged();
+    emit conversionChanged();
+    emit exportChanged();
+    emit statusChanged();
 }
 
 ImageInputController::SettingsSnapshot ImageInputController::snapshot() const
@@ -1378,6 +3174,10 @@ QJsonObject ImageInputController::recipeSettings() const
     QJsonArray palette;
     for (const auto& color : workingPalette_) palette.push_back(colorName(color));
     return {
+        {QStringLiteral("targetProfile"),
+         QString::fromLatin1(core::targetProfile(settings_.targetProfile).stableId.data(),
+                             static_cast<qsizetype>(core::targetProfile(
+                                 settings_.targetProfile).stableId.size()))},
         {QStringLiteral("mode"), conversionMode()},
         {QStringLiteral("dither"), ditherMode()},
         {QStringLiteral("scalingFilter"), scalingFilter()},
@@ -1426,6 +3226,14 @@ bool ImageInputController::applyRecipeSettings(const QJsonObject& object, QStrin
     SettingsSnapshot value = snapshot();
     value.settings.mode = static_cast<core::ConversionMode>(
         std::clamp(object.value(QStringLiteral("mode")).toInt(conversionMode()), 0, 8));
+    const std::string requestedProfile = object.value(QStringLiteral("targetProfile"))
+        .toString().toStdString();
+    value.settings.targetProfile = requestedProfile.empty()
+        ? core::primaryTargetProfile(value.settings.mode)
+        : core::targetProfileId(requestedProfile).value_or(
+              core::primaryTargetProfile(value.settings.mode));
+    value.settings.targetProfile = core::effectiveTargetProfile(
+        value.settings.targetProfile, value.settings.mode);
     value.settings.dither = static_cast<core::DitherMode>(
         std::clamp(object.value(QStringLiteral("dither")).toInt(ditherMode()), 0, 7));
     value.scalingFilter = static_cast<core::ScalingFilter>(
@@ -1559,6 +3367,14 @@ void ImageInputController::loadSettings()
     persisted.beginGroup(QStringLiteral("conversion"));
     settings_.mode = static_cast<core::ConversionMode>(
         std::clamp(persisted.value(QStringLiteral("mode"), 0).toInt(), 0, 8));
+    const std::string persistedProfile = persisted.value(
+        QStringLiteral("targetProfile")).toString().toStdString();
+    settings_.targetProfile = persistedProfile.empty()
+        ? core::primaryTargetProfile(settings_.mode)
+        : core::targetProfileId(persistedProfile).value_or(
+              core::primaryTargetProfile(settings_.mode));
+    settings_.targetProfile = core::effectiveTargetProfile(
+        settings_.targetProfile, settings_.mode);
     settings_.dither = static_cast<core::DitherMode>(
         std::clamp(persisted.value(QStringLiteral("dither"), 2).toInt(), 0, 7));
     const auto defaultDithering = core::ditherConfiguration(settings_.dither);
@@ -1668,6 +3484,11 @@ void ImageInputController::saveSettings() const
 {
     QSettings persisted;
     persisted.beginGroup(QStringLiteral("conversion"));
+    const auto& profile = core::targetProfile(settings_.targetProfile);
+    persisted.setValue(
+        QStringLiteral("targetProfile"),
+        QString::fromLatin1(profile.stableId.data(),
+                            static_cast<qsizetype>(profile.stableId.size())));
     persisted.setValue(QStringLiteral("mode"), conversionMode());
     persisted.setValue(QStringLiteral("dither"), ditherMode());
     persisted.setValue(QStringLiteral("scalingFilter"), scalingFilter());
@@ -1710,12 +3531,34 @@ void ImageInputController::saveSettings() const
     persisted.sync();
 }
 
+void ImageInputController::setTargetProfile(int value)
+{
+    value = std::clamp(value, 0,
+                       static_cast<int>(core::TargetProfileId::V9938));
+    const auto requested = static_cast<core::TargetProfileId>(value);
+    const auto& profile = core::targetProfile(requested);
+    if (profile.status != core::TargetProfileStatus::Implemented
+        || requested == settings_.targetProfile) {
+        return;
+    }
+    recordUndo();
+    settings_.targetProfile = requested;
+    if (!core::supportsConversionMode(requested, settings_.mode)) {
+        settings_.mode = core::defaultConversionMode(requested);
+    }
+    settingsWereChanged();
+}
+
 void ImageInputController::setConversionMode(int value)
 {
     value = std::clamp(value, 0, 8);
-    if (value == conversionMode()) return;
+    const auto mode = static_cast<core::ConversionMode>(value);
+    const auto effectiveProfile = core::effectiveTargetProfile(
+        settings_.targetProfile, mode);
+    if (value == conversionMode() && effectiveProfile == settings_.targetProfile) return;
     recordUndo();
-    settings_.mode = static_cast<core::ConversionMode>(value);
+    settings_.mode = mode;
+    settings_.targetProfile = effectiveProfile;
     settingsWereChanged();
 }
 
@@ -2054,6 +3897,28 @@ void ImageInputController::setForegroundColor(const QColor& value)
     foregroundColor_ = selected;
     saveSettings();
     emit settingsChanged();
+}
+
+void ImageInputController::setScreenImageBackgroundColor(const QColor& value)
+{
+    if (!value.isValid()) return;
+    const core::RgbColor selected{static_cast<std::uint8_t>(value.red()),
+                                  static_cast<std::uint8_t>(value.green()),
+                                  static_cast<std::uint8_t>(value.blue())};
+    if (selected == screenImageBackgroundColor_) return;
+    screenImageBackgroundColor_ = selected;
+    emit screenImageColorsChanged();
+}
+
+void ImageInputController::setScreenImageForegroundColor(const QColor& value)
+{
+    if (!value.isValid()) return;
+    const core::RgbColor selected{static_cast<std::uint8_t>(value.red()),
+                                  static_cast<std::uint8_t>(value.green()),
+                                  static_cast<std::uint8_t>(value.blue())};
+    if (selected == screenImageForegroundColor_) return;
+    screenImageForegroundColor_ = selected;
+    emit screenImageColorsChanged();
 }
 
 void ImageInputController::setWorkingPaletteColor(int index, const QColor& color)

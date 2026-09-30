@@ -15,6 +15,7 @@
 #include <QSaveFile>
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace {
 
@@ -666,6 +667,50 @@ void EditorProjectController::paintCharacterPixel(int setIndex,
     if (standaloneEdit) endCharacterEdit();
 }
 
+void EditorProjectController::drawCharacterLine(int setIndex,
+                                                int patternIndex,
+                                                int fromRow,
+                                                int fromColumn,
+                                                int toRow,
+                                                int toColumn,
+                                                bool foreground)
+{
+    if (setIndex < 0 || setIndex >= static_cast<int>(characterSets_.size())
+        || patternIndex < 0 || patternIndex >= 256 || characterPanActive_) {
+        return;
+    }
+    fromRow = std::clamp(fromRow, 0, 7);
+    fromColumn = std::clamp(fromColumn, 0, 7);
+    toRow = std::clamp(toRow, 0, 7);
+    toColumn = std::clamp(toColumn, 0, 7);
+    const bool groupedEdit = characterEditActive_
+        && characterEditSetIndex_ == setIndex
+        && characterEditPatternIndex_ == patternIndex;
+    beginCharacterEdit(setIndex, patternIndex);
+
+    int x = fromColumn;
+    int y = fromRow;
+    const int deltaX = std::abs(toColumn - fromColumn);
+    const int stepX = fromColumn < toColumn ? 1 : -1;
+    const int deltaY = -std::abs(toRow - fromRow);
+    const int stepY = fromRow < toRow ? 1 : -1;
+    int error = deltaX + deltaY;
+    while (true) {
+        paintCharacterPixel(setIndex, patternIndex, y, x, foreground);
+        if (x == toColumn && y == toRow) break;
+        const int twiceError = error * 2;
+        if (twiceError >= deltaY) {
+            error += deltaY;
+            x += stepX;
+        }
+        if (twiceError <= deltaX) {
+            error += deltaX;
+            y += stepY;
+        }
+    }
+    if (!groupedEdit) endCharacterEdit();
+}
+
 void EditorProjectController::beginCharacterEdit(int setIndex, int patternIndex)
 {
     if (setIndex < 0 || setIndex >= static_cast<int>(characterSets_.size())
@@ -799,8 +844,9 @@ void EditorProjectController::centerCharacterPan()
 
 void EditorProjectController::undoCharacterEdit()
 {
-    if (characterPanActive_ || characterUndoHistory_.empty()) return;
+    if (characterPanActive_) return;
     endCharacterEdit();
+    if (characterUndoHistory_.empty()) return;
     const CharacterHistoryEntry entry = characterUndoHistory_.back();
     characterUndoHistory_.pop_back();
     characterSets_[static_cast<std::size_t>(entry.setIndex)]
@@ -812,8 +858,9 @@ void EditorProjectController::undoCharacterEdit()
 
 void EditorProjectController::redoCharacterEdit()
 {
-    if (characterPanActive_ || characterRedoHistory_.empty()) return;
+    if (characterPanActive_) return;
     endCharacterEdit();
+    if (characterRedoHistory_.empty()) return;
     const CharacterHistoryEntry entry = characterRedoHistory_.back();
     characterRedoHistory_.pop_back();
     characterSets_[static_cast<std::size_t>(entry.setIndex)]
@@ -848,7 +895,7 @@ bool EditorProjectController::copyActiveCharacterPattern()
                              .toUpper());
     }
     const QJsonObject root{
-        {QStringLiteral("format"), QStringLiteral("newconvert9918.character-pattern")},
+        {QStringLiteral("format"), QStringLiteral("retrovdp.character-pattern")},
         {QStringLiteral("version"), 1},
         {QStringLiteral("size"),
          QJsonObject{{QStringLiteral("width"), 8},
@@ -988,7 +1035,7 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
         setStatus({}, QStringLiteral("Choose a local recipe file."));
         return false;
     }
-    if (QFileInfo(path).suffix().isEmpty()) path += QStringLiteral(".nc9918.json");
+    if (QFileInfo(path).suffix().isEmpty()) path += QStringLiteral(".rvdp.json");
 
     QJsonArray characterSets;
     for (const auto& set : characterSets_) {
@@ -1088,7 +1135,7 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
     }
 
     const QJsonObject root{
-        {QStringLiteral("kind"), QStringLiteral("newconvert9918-recipe")},
+        {QStringLiteral("kind"), QStringLiteral("retrovdp-studio-recipe")},
         {QStringLiteral("schemaVersion"), 1},
         {QStringLiteral("workspace"), workspaceName(workspaceMode_)},
         {QStringLiteral("source"),
@@ -1174,8 +1221,9 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
     spriteEditActive_ = false;
     spriteUndoHistory_.clear();
     spriteRedoHistory_.clear();
-    if (root.value(QStringLiteral("kind")).toString()
-            != QStringLiteral("newconvert9918-recipe")
+    const QString recipeKind = root.value(QStringLiteral("kind")).toString();
+    if ((recipeKind != QStringLiteral("retrovdp-studio-recipe")
+         && recipeKind != QStringLiteral("newconvert9918-recipe"))
         || root.value(QStringLiteral("schemaVersion")).toInt() != 1) {
         setStatus({}, QStringLiteral("This recipe type or schema version is not supported."));
         return false;
@@ -1435,7 +1483,7 @@ EditorProjectController::characterPatternFromClipboard() const
     }
     const QJsonObject root = document.object();
     if (root.value(QStringLiteral("format")).toString()
-            != QStringLiteral("newconvert9918.character-pattern")
+            != QStringLiteral("retrovdp.character-pattern")
         || root.value(QStringLiteral("version")).toInt() != 1) {
         return std::nullopt;
     }

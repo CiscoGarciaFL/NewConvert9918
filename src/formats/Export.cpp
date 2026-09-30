@@ -1,4 +1,4 @@
-#include "newconvert9918/formats/Export.hpp"
+#include "retrovdp/formats/Export.hpp"
 
 #include <algorithm>
 #include <array>
@@ -8,7 +8,7 @@
 #include <optional>
 #include <string_view>
 
-namespace newconvert9918::formats {
+namespace retrovdp::formats {
 namespace {
 
 using core::ConversionMode;
@@ -612,4 +612,4 @@ GeneratedFileManifest generateExport(const ExportRequest& request)
     return failure(request.format, ExportError::EncodingFailed, "Unknown export format.");
 }
 
-} // namespace newconvert9918::formats
+} // namespace retrovdp::formats

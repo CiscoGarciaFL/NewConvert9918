@@ -1,7 +1,7 @@
 # Original Convert9918 defects and compatibility policy
 
 This document separates defects in the pinned Convert9918 1.9.1 reference from
-behavior that New Convert 9918 intends to reproduce. A defect is listed as
+behavior that RetroVDP Studio intends to reproduce. A defect is listed as
 confirmed only when the source and an executable observation agree, or when
 the original interface labels the behavior as broken.
 
@@ -19,14 +19,14 @@ placed the TIFILES outputs at `reference/ORIGINAL-1.9.TIAP` and
 The source performs this operation with `outfile.ReverseFind('.')` before it
 constructs the final filename.
 
-New Convert 9918 must interpret extensions only on the final path component.
+RetroVDP Studio must interpret extensions only on the final path component.
 This is an intentional safety fix, not behavior to reproduce. The reference
 capture uses `original-1_9_1` so the original executable can save correctly.
 
 ### ColecoVision RLE cartridge output is marked broken
 
 The original save dialog names this choice `ColecoVision RLE Cart (Broken)`.
-Until a compatible consumer and byte-layout test prove otherwise, New Convert
+Until a compatible consumer and byte-layout test prove otherwise, RetroVDP Studio
 9918 must not present this format as a reliable export. If implemented for
 forensic compatibility, it must remain explicitly marked experimental.
 

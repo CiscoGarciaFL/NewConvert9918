@@ -1,5 +1,5 @@
-#include "newconvert9918/core/ImageDecoding.hpp"
-#include "newconvert9918/imageio/ImageLoader.hpp"
+#include "retrovdp/core/ImageDecoding.hpp"
+#include "retrovdp/imageio/ImageLoader.hpp"
 
 #include <QBuffer>
 #include <QColorSpace>
@@ -19,7 +19,7 @@
 
 namespace {
 
-using namespace newconvert9918;
+using namespace retrovdp;
 
 struct TestContext {
     int failures{};

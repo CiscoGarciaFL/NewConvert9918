@@ -11,7 +11,7 @@ ApplicationWindow {
     minimumWidth: 720
     minimumHeight: 560
     visible: true
-    title: qsTr("New Convert 9918")
+    title: qsTr("RetroVDP Studio")
     // Normally tracks the window; kept as a separate property so embedded
     // hosts and automated layout checks can supply their available width.
     property real layoutWidth: width
@@ -86,7 +86,7 @@ ApplicationWindow {
 
     FileDialog {
         id: openDialog
-        title: qsTr("Open source image")
+        title: qsTr("Open as Source")
         nameFilters: [
             qsTr("Images (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp *.pcx)"),
             qsTr("Retro images (*.tiap *.tiac *.tiam *_P *_C *_M *.sc2 *.pc *.pp *.hgr *.hgrh)"),
@@ -127,7 +127,7 @@ ApplicationWindow {
 
     Dialog {
         id: aboutDialog
-        title: qsTr("About New Convert 9918")
+        title: qsTr("About RetroVDP Studio")
         modal: true
         standardButtons: Dialog.Close
         width: Math.min(window.width - 48, 620)
@@ -136,25 +136,25 @@ ApplicationWindow {
             width: parent.width
             spacing: 12
             Label {
-                text: qsTr("New Convert 9918")
+                text: qsTr("RetroVDP Studio")
                 font.pixelSize: 24
                 font.weight: Font.DemiBold
             }
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: qsTr("A cross-platform image converter for TMS9918A and F18A graphics.")
+                text: qsTr("A cross-platform graphics workspace for classic video display processors.")
             }
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: qsTr("Convert9918 was designed and created by Mike Brent (Tursi) of HarmlessLion.com. New cross-platform architecture, interface, user experience, and features by Cisco Garcia / CiscoGarciaFL.")
+                text: qsTr("RetroVDP Studio is inspired by Convert9918, created by Mike Brent (Tursi) of HarmlessLion.com. RetroVDP Studio architecture, interface, and features by Cisco Garcia / CiscoGarciaFL.")
             }
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
                 textFormat: Text.RichText
-                text: qsTr("<a href='https://github.com/tursilion/convert9918'>Original Convert9918 project</a><br><a href='https://github.com/CiscoGarciaFL/NewConvert9918'>New Convert 9918 project</a><br><a href='http://harmlesslion.com'>HarmlessLion.com</a>")
+                text: qsTr("<a href='https://github.com/tursilion/convert9918'>Original Convert9918 project</a><br><a href='https://github.com/CiscoGarciaFL/retrovdp-studio'>RetroVDP Studio project</a><br><a href='http://harmlesslion.com'>HarmlessLion.com</a>")
                 onLinkActivated: link => Qt.openUrlExternally(link)
                 Accessible.name: qsTr("Project and attribution links")
             }
@@ -168,7 +168,18 @@ ApplicationWindow {
     }
 
     Action {
+        id: newAction
+        objectName: "newAction"
+        text: qsTr("&New")
+        shortcut: StandardKey.New
+        onTriggered: {
+            window.workspaceMode = 0
+            imageInput.newScreenImage()
+        }
+    }
+    Action {
         id: openAction
+        objectName: "openAction"
         text: qsTr("&Open…")
         shortcut: "Ctrl+O"
         onTriggered: openDialog.open()
@@ -177,7 +188,12 @@ ApplicationWindow {
         id: pasteAction
         text: qsTr("&Paste")
         shortcut: "Ctrl+V"
-        onTriggered: imageInput.pasteClipboard()
+        onTriggered: {
+            if (window.workspaceMode === 0 && imageInput.hasConversion)
+                imageInput.pasteScreenImage()
+            else
+                imageInput.pasteClipboard()
+        }
     }
 
     PreferencesDialog {
@@ -189,7 +205,7 @@ ApplicationWindow {
         id: loadRecipeDialog
         title: qsTr("Load conversion recipe")
         fileMode: FileDialog.OpenFile
-        nameFilters: [qsTr("New Convert 9918 recipes (*.nc9918.json *.json)"),
+        nameFilters: [qsTr("RetroVDP Studio recipes (*.rvdp.json *.json)"),
                       qsTr("All files (*)")]
         onAccepted: editorProject.loadRecipe(selectedFile)
     }
@@ -198,8 +214,8 @@ ApplicationWindow {
         id: saveRecipeDialog
         title: qsTr("Save conversion recipe")
         fileMode: FileDialog.SaveFile
-        defaultSuffix: "nc9918.json"
-        nameFilters: [qsTr("New Convert 9918 recipes (*.nc9918.json)"),
+        defaultSuffix: "rvdp.json"
+        nameFilters: [qsTr("RetroVDP Studio recipes (*.rvdp.json)"),
                       qsTr("JSON files (*.json)")]
         onAccepted: editorProject.saveRecipe(selectedFile)
     }
@@ -228,16 +244,19 @@ ApplicationWindow {
     }
     Action {
         id: aboutAction
-        text: qsTr("&About New Convert 9918")
+        text: qsTr("&About RetroVDP Studio")
         shortcut: "F1"
         onTriggered: aboutDialog.open()
     }
 
     Shortcut {
         sequence: "Ctrl+Z"
-        enabled: imageInput.canUndoDrawing || imageInput.canUndo
+        enabled: imageInput.canUndoScreenImage
+                 || imageInput.canUndoDrawing || imageInput.canUndo
         onActivated: {
-            if (imageInput.canUndoDrawing)
+            if (window.workspaceMode === 0 && imageInput.canUndoScreenImage)
+                imageInput.undoScreenImage()
+            else if (imageInput.canUndoDrawing)
                 imageInput.undoDrawing()
             else
                 imageInput.undoSettings()
@@ -266,8 +285,18 @@ ApplicationWindow {
     }
     Shortcut {
         sequence: "Ctrl+Y"
-        enabled: imageInput.canRedoDrawing
-        onActivated: imageInput.redoDrawing()
+        enabled: imageInput.canRedoScreenImage || imageInput.canRedoDrawing
+        onActivated: {
+            if (window.workspaceMode === 0 && imageInput.canRedoScreenImage)
+                imageInput.redoScreenImage()
+            else
+                imageInput.redoDrawing()
+        }
+    }
+    Shortcut {
+        sequence: "Ctrl+C"
+        enabled: window.workspaceMode === 0 && imageInput.hasConversion
+        onActivated: imageInput.copyScreenImage()
     }
     Shortcut { sequence: "Ctrl+0"; onActivated: imageInput.resetSettings() }
 
@@ -276,6 +305,10 @@ ApplicationWindow {
 
         Menu {
             title: qsTr("&File")
+            MenuItem {
+                objectName: "newMenuItem"
+                action: newAction
+            }
             MenuItem { action: openAction }
             MenuItem {
                 objectName: "reloadMenuItem"

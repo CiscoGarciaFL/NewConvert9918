@@ -16,5 +16,5 @@ tests/golden/reference/**/ti-xb-rle/* -text -diff
 # Linux packaging scripts and launchers must retain Unix line endings even
 # when the repository is edited from Windows.
 *.sh text eol=lf
-packaging/linux/newconvert9918-gui text eol=lf
-packaging/linux/newconvert9918-cli text eol=lf
+packaging/linux/retrovdp-studio-gui text eol=lf
+packaging/linux/retrovdp-cli text eol=lf

@@ -1,4 +1,4 @@
-#include "newconvert9918/core/ImageAdjustments.hpp"
+#include "retrovdp/core/ImageAdjustments.hpp"
 
 #include <algorithm>
 #include <array>
@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 namespace {
 
 constexpr std::size_t histogramBinCount = 256;
@@ -137,4 +137,4 @@ ImageAdjustmentResult adjustImage(const RgbImage& source,
     return result;
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

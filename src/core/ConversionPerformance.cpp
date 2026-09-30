@@ -1,10 +1,10 @@
-#include "newconvert9918/core/ConversionPerformance.hpp"
+#include "retrovdp/core/ConversionPerformance.hpp"
 
-#include "newconvert9918/core/ColorMath.hpp"
-#include "newconvert9918/core/Dithering.hpp"
-#include "newconvert9918/core/TargetData.hpp"
+#include "retrovdp/core/ColorMath.hpp"
+#include "retrovdp/core/Dithering.hpp"
+#include "retrovdp/core/TargetData.hpp"
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 
 ConversionMemoryEstimate estimateConversionMemory(const ConversionSettings& settings)
 {
@@ -33,4 +33,4 @@ ConversionMemoryEstimate estimateConversionMemory(const ConversionSettings& sett
     return estimate;
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

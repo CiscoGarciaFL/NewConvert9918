@@ -1,10 +1,10 @@
 #include "ConversionPipeline.hpp"
 
-#include "newconvert9918/core/Bitmap9918Converter.hpp"
-#include "newconvert9918/core/F18AConverter.hpp"
-#include "newconvert9918/core/ImageAdjustments.hpp"
-#include "newconvert9918/core/Multicolor9918Converter.hpp"
-#include "newconvert9918/core/PaletteSelection.hpp"
+#include "retrovdp/core/Bitmap9918Converter.hpp"
+#include "retrovdp/core/F18AConverter.hpp"
+#include "retrovdp/core/ImageAdjustments.hpp"
+#include "retrovdp/core/Multicolor9918Converter.hpp"
+#include "retrovdp/core/PaletteSelection.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -12,7 +12,7 @@
 #include <string>
 #include <utility>
 
-namespace newconvert9918::appsupport {
+namespace retrovdp::appsupport {
 namespace {
 
 core::ConversionResult failedResult(std::string code, std::string message)
@@ -166,4 +166,4 @@ core::ConversionResult runConversion(const core::ConversionRequest& request,
     return failedResult("preview-unsupported-mode", "The conversion mode is unsupported.");
 }
 
-} // namespace newconvert9918::appsupport
+} // namespace retrovdp::appsupport

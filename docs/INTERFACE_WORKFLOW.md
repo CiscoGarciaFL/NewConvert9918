@@ -3,14 +3,19 @@
 Phase 6 connects the Qt Quick interface to the portable conversion and export
 libraries. The primary path is deliberately linear:
 
-1. Open, drop, paste, or pass an image on the command line.
+1. Create a blank Screen Image, or open, drop, paste, or pass an image on the command line.
 2. Choose fit/crop positioning and a scaling filter.
 3. Choose a target mode or apply a named starting preset.
 4. Adjust common settings, then expand Advanced only when needed.
 5. Inspect the live Screen Image preview, palette, and generated-file summary.
 6. Choose File → Export and a destination folder.
 
-File → Reload (`Ctrl+R`) reopens the current file-backed source while
+File → New (`Ctrl+N`) creates an untitled, chipset-valid 256×192 Screen Image
+filled with black and selects Screen Image mode. It does not require a Source
+image, and its drawing, undo/redo, Apply, and export tools are immediately
+available. Spectrum and Standard color palettes remain available without a
+Source, while Used by image initially contains black and follows the edited
+Screen Image. File → Reload (`Ctrl+R`) reopens the current file-backed source while
 retaining the active conversion settings. It is disabled until a source file
 has been loaded and remains disabled for clipboard-only images.
 
@@ -43,6 +48,92 @@ split, and View → Vertical uses an adjustable top-and-bottom split. Horizontal
 is the default. Both split arrangements start with equal pane sizes and retain
 an adjustable separator.
 
+Screen Image is also an editable 256×192 canvas. It shares the foreground and
+background selector, eyedropper, pencil, eraser, Color Swap, line, connected K-Line, Rays,
+ellipse, rectangle, hard/soft edge, optional background fill, brush-size,
+Shift-constrained horizontal/vertical lines, and Shift-constrained circle/square
+workflow with Source. K-Line starts each segment at the previous endpoint;
+Rays keeps the first point fixed and draws every subsequent segment outward
+from that origin. Escape completes either session as one undoable edit. Its independent undo/redo
+history also covers one-pixel movement, horizontal mirror, vertical flip,
+clear, image clipboard paste, and applying chipset rules;
+copy places the current canvas on the system clipboard. A grid toggle shows the
+bordered 32×24 character-cell grid below 500% zoom. At 500% and above it retains
+those pattern boundaries and the outer screen border while adding the finer
+hardware-pixel grid inside each 8×8 cell. A newly completed conversion replaces the editable Screen
+Image canvas and starts a fresh Screen Image history. Apply reconverts the
+complete edited canvas under the active conversion mode so existing pixels and
+new artwork compete under the same chipset constraints. Source adjustments and
+dithering are disabled for this second pass to prevent cumulative processing.
+PNG export preserves the displayed canvas directly; unapplied edits are still
+rebuilt into valid target tables during hardware export.
+
+The rectangular Selection tool marks an exact pixel area on the Screen Image.
+Copy uses that area when one is active and otherwise keeps the whole-canvas
+clipboard behavior. Pasting a copied selection creates a native-size floating
+preview and placement outline that follows the pointer until the next click;
+Escape cancels it without changing the canvas. Move uses the same placement
+mode, leaves the source pixels intact while positioning, and clears them with
+the active background color only when the move is dropped. Each completed
+paste or move is one undoable edit, and the dropped area remains selected for
+another copy or move. Escape clears an ordinary non-floating selection.
+
+The Type tool opens a text, font, and pixel-size dialog. Its font list renders
+system-family names in their own face with a `TT`, `OT`, or `SYS` format badge
+and renders discovered TI Artist fonts as bitmap samples with a `TIA` badge. The app creates an
+app-specific `TI Artist/Fonts` library beneath the operating system's local
+application-data location; Open Folder reveals it and Refresh rescans it.
+TI Artist `FONT:` files may be plain text exports or DIS/VAR 80 data wrapped in
+TIFILES/V9T9 headers. Rendered text is transparent outside its glyphs and
+uses the active Screen Image foreground color for both system and TI Artist
+fonts before entering floating placement. Its pointer is the upper-left text origin; when
+character snap is active that origin follows the upper-left corner of each
+8×8 cell.
+
+The Slide/ClipArt tool opens a modal import and preview dialog. It accepts the
+same raster and retro-art inputs as image loading, constrains the chosen width
+and height to the 256×192 canvas, optionally retains the source aspect ratio,
+and previews Original color, Monochrome, or Black and white processing.
+Foreground/background remapping and transparent-background processing are
+independent options. Place creates an alpha-aware floating image so transparent
+and antialiased pixels preserve or blend with the canvas until the click that
+commits the artwork as one undoable edit.
+
+Color Swap is an exact two-color exchange. With the tool selected, clicking an
+image color exchanges that color with the active foreground color. If a Screen
+Image selection is active, only matching pixels inside its bounds change;
+without a selection, the exchange still covers the complete image. The clicked
+color becomes the new foreground, the tool remains selected for repeated swaps,
+and each click creates one undoable image edit. Colors that do not exactly match
+either side remain unchanged.
+
+Invert and Remove Color are immediate Screen Image color tools. Invert replaces
+each RGB channel with its complementary value. Remove Color converts pixels to
+luminance-preserving grayscale. When a selection is active either tool changes
+only pixels inside that rectangle; without a selection it changes the whole
+Screen Image. Each operation is a single undoable edit.
+
+Screen Image also provides an optional character-bound snap toggle for geometric
+drawing. With snapping enabled, a shape or line begins at the upper-left corner
+of its initial 8×8 character-cell bound and its moving endpoint follows the
+bottom-right bound of the cell under the pointer, with the stroke centerline
+inset to contain the brush. The first cell therefore establishes an immediate
+8×8 bound. Shift can still keep a snapped line on the
+starting pixel row or column, and K-Line and Rays apply the same endpoint
+snapping to each segment. Pencil and eraser strokes remain pixel-precise.
+
+The brush-shape toggle switches every drawing tool between round and square
+brush geometry. Square mode gives pencil, line, K-Line, Rays, ellipse, and rectangle
+strokes square caps; in particular, rectangle borders keep sharp outer corners.
+Filled ellipses and rectangles paint their full interior first and then overlay
+the foreground border, preventing one-pixel seams between fill and outline.
+Ellipse borders use sub-pixel outline segments so hard-edge circles stay
+continuous. Character-bound anchors are inset by the active brush radius (and
+by the blended fringe for soft edges), keeping the complete border inside the
+selected character cells instead of centering a thick brush on their outermost
+pixels. Snapped geometric brushes are limited to the largest diameter that can
+fit one 8×8 cell: 8 pixels for hard edges and 7 pixels for soft edges.
+
 Mode selects one of three mutually exclusive destination workspaces: Screen
 Image, Character Editor, or Sprite Editor. Screen Image contains the existing
 full-image conversion preview. Character and Sprite provide hardware-aware
@@ -68,7 +159,10 @@ that inherits from it, and a non-mutating 9918A/F18A/Compare preview selector.
 Character Editor starts with three selectable 256-pattern sets. Above the slot
 grid, its adaptive Graphics II editor tray hosts one or more 8x8 editors, shows
 row pattern/color bytes, and uses the pane's upper toolbar for pencil, eraser,
-and indexed TMS9918A or F18A foreground/background colors. One editor is always
+Shift-constrained line, connected K-Line, fixed-origin Rays, and indexed TMS9918A or F18A
+foreground/background colors. K-Line continues from the previous endpoint,
+while Rays continues from the initial origin; Escape groups either session into
+one undo entry. One editor is always
 present. Its inverted pattern label marks the active destination, new editors
 start empty, and selecting a pattern slot loads it into that active editor.
 Bottom-right plus/minus controls add and remove editors; each label also opens
@@ -108,14 +202,14 @@ returns the virtual origin to center, and contributes one history entry for the
 entire positioning session. Drawing strokes are likewise grouped into single
 undo entries.
 Character Copy and Paste also live in the upper toolbar and exchange an
-indented, versioned `newconvert9918.character-pattern` JSON object through the
+indented, versioned `retrovdp.character-pattern` JSON object through the
 system clipboard. The JSON exposes eight hexadecimal bitmap bytes and eight
 hexadecimal row-color bytes for inspection or scripting. Paste validates the
 payload and replaces the active pattern as one undoable edit.
 Sprite Editor uses repeatable sets containing two simultaneous definition banks:
 32 8x8 patterns and 32 16x16 patterns. One active pixel editor sits above the
-stacked thumbnail banks and uses the same pencil, eraser, color, rotate, mirror,
-flip, Blank, JSON Copy/Paste, grouped undo/redo, and virtual-grid Pan workflow as
+stacked thumbnail banks and uses the same pencil, eraser, line, K-Line, Rays, color,
+rotate, mirror, flip, Blank, JSON Copy/Paste, grouped undo/redo, and virtual-grid Pan workflow as
 Character Editor. In shared-baseline scope, selecting a bank also selects the
 single global TMS9918A sprite size and pixels are transparent/opaque with one
 instance color. F18A scope retains the baseline until a sprite is changed, then
@@ -129,7 +223,7 @@ the TMS9918A global setting or the F18A per-sprite setting. Placement mode enabl
 destination zoom and grows its tray with the scaled screen. File → Load Recipe
 and Save Recipe persist both banks, baseline and F18A pixel data, override state,
 size/color-depth attributes, coordinates, tool selections, and current
-conversion settings in the versioned `*.nc9918.json` format shared with the CLI.
+conversion settings in the versioned `*.rvdp.json` format shared with the CLI.
 
 Pane and settings-group outlines follow the active Qt palette: dark outlines
 in light mode and light outlines in dark mode. This keeps the section framing
@@ -215,6 +309,7 @@ an explicit Replace choice.
 
 | Shortcut | Action |
 | --- | --- |
+| `Ctrl+N` | Create a blank black Screen Image |
 | `Ctrl+O` | Open an image |
 | `Ctrl+V` | Paste an image |
 | `Ctrl+E` | Export the current result |
@@ -226,7 +321,7 @@ an explicit Replace choice.
 Interactive controls participate in tab navigation and provide accessible
 names where their visible label is not sufficient. The Fusion control style
 provides consistent contrast across the supported desktops. File contains
-Open, Paste, Export, and a separated Exit command, while Help contains About.
+New, Open, Paste, Export, and a separated Exit command, while Help contains About.
 View selects the preview arrangement, hides or shows the Side Panel, and
 places that panel either
 adjacent to the workspace or in a non-modal overlay above it. The overlay has

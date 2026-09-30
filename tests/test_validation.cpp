@@ -1,17 +1,18 @@
-#include "newconvert9918/core/Bitmap9918Converter.hpp"
-#include "newconvert9918/core/ColorMath.hpp"
-#include "newconvert9918/core/ConversionTypes.hpp"
-#include "newconvert9918/core/ConversionJobController.hpp"
-#include "newconvert9918/core/ConversionPerformance.hpp"
-#include "newconvert9918/core/Dithering.hpp"
-#include "newconvert9918/core/F18AConverter.hpp"
-#include "newconvert9918/core/ImageAdjustments.hpp"
-#include "newconvert9918/core/ImageTransform.hpp"
-#include "newconvert9918/core/Multicolor9918Converter.hpp"
-#include "newconvert9918/core/PaletteSelection.hpp"
-#include "newconvert9918/core/RgbImage.hpp"
-#include "newconvert9918/core/TargetData.hpp"
-#include "newconvert9918/core/Validation.hpp"
+#include "retrovdp/core/Bitmap9918Converter.hpp"
+#include "retrovdp/core/ColorMath.hpp"
+#include "retrovdp/core/ConversionTypes.hpp"
+#include "retrovdp/core/ConversionJobController.hpp"
+#include "retrovdp/core/ConversionPerformance.hpp"
+#include "retrovdp/core/Dithering.hpp"
+#include "retrovdp/core/F18AConverter.hpp"
+#include "retrovdp/core/ImageAdjustments.hpp"
+#include "retrovdp/core/ImageTransform.hpp"
+#include "retrovdp/core/Multicolor9918Converter.hpp"
+#include "retrovdp/core/PaletteSelection.hpp"
+#include "retrovdp/core/RgbImage.hpp"
+#include "retrovdp/core/TargetData.hpp"
+#include "retrovdp/core/TargetProfile.hpp"
+#include "retrovdp/core/Validation.hpp"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -33,78 +34,81 @@
 #include <memory>
 #include <string_view>
 
-using newconvert9918::core::ConversionSettings;
-using newconvert9918::core::CancellationSource;
-using newconvert9918::core::ConversionDiagnostic;
-using newconvert9918::core::ConversionMode;
-using newconvert9918::core::ConversionRequest;
-using newconvert9918::core::ConversionResult;
-using newconvert9918::core::ConversionStatus;
-using newconvert9918::core::ConversionJobController;
-using newconvert9918::core::ConversionMemoryEstimate;
-using newconvert9918::core::DiagnosticSeverity;
-using newconvert9918::core::DitherMode;
-using newconvert9918::core::ErrorAccumulationMode;
-using newconvert9918::core::ErrorDiffusionBuffer;
-using newconvert9918::core::ErrorDiffusionBufferError;
-using newconvert9918::core::ErrorDistributionKernel;
-using newconvert9918::core::ImageLayout;
-using newconvert9918::core::ImageLayoutError;
-using newconvert9918::core::ImageSizeLimits;
-using newconvert9918::core::ImageFillMode;
-using newconvert9918::core::ImageAdjustmentError;
-using newconvert9918::core::ImageTransformError;
-using newconvert9918::core::ImageTransformOptions;
-using newconvert9918::core::MedianCutColorDepth;
-using newconvert9918::core::PerceptualRgbWeights;
-using newconvert9918::core::Palette;
-using newconvert9918::core::PaletteError;
-using newconvert9918::core::PaletteSelectionError;
-using newconvert9918::core::PaletteSelectionMode;
-using newconvert9918::core::PixelFormat;
-using newconvert9918::core::OrderedDitherMapSize;
-using newconvert9918::core::PopularityWeighting;
-using newconvert9918::core::RgbColor;
-using newconvert9918::core::RgbSample;
-using newconvert9918::core::RgbImage;
-using newconvert9918::core::ScalingFilter;
-using newconvert9918::core::TargetMemoryImage;
-using newconvert9918::core::TargetMemoryTable;
-using newconvert9918::core::TargetTableError;
-using newconvert9918::core::TargetTableRole;
-using newconvert9918::core::bytesPerPixel;
-using newconvert9918::core::adjustImage;
-using newconvert9918::core::applyOrderedDither;
-using newconvert9918::core::colorDistanceSquared;
-using newconvert9918::core::convertBlackAndWhiteBitmap9918;
-using newconvert9918::core::convertBitmapColorOnly9918;
-using newconvert9918::core::convertBitmap9918;
-using newconvert9918::core::convertDualMulticolor9918;
-using newconvert9918::core::convertPalettedBitmapF18A;
-using newconvert9918::core::convertScanlinePaletteBitmapF18A;
-using newconvert9918::core::estimateConversionMemory;
-using newconvert9918::core::convertGreyscaleBitmap9918;
-using newconvert9918::core::convertHalfMulticolor9918;
-using newconvert9918::core::convertMulticolor9918;
-using newconvert9918::core::defaultBitmap9918Palette;
-using newconvert9918::core::ditherConfiguration;
-using newconvert9918::core::expectedTargetTables;
-using newconvert9918::core::greyscaleBitmap9918Palette;
-using newconvert9918::core::orderedDitherThreshold;
-using newconvert9918::core::planImageTransform;
-using newconvert9918::core::perceptualRgbDistanceSquared;
-using newconvert9918::core::toYCrCb;
-using newconvert9918::core::selectMedianCutPalette;
-using newconvert9918::core::selectPopularPalette;
-using newconvert9918::core::transformImage;
-using newconvert9918::core::validate;
-using newconvert9918::core::validateImageLayout;
-using newconvert9918::core::validateTargetTables;
-using newconvert9918::core::yCrCbDistanceSquared;
+using retrovdp::core::ConversionSettings;
+using retrovdp::core::CancellationSource;
+using retrovdp::core::ConversionDiagnostic;
+using retrovdp::core::ConversionMode;
+using retrovdp::core::ConversionRequest;
+using retrovdp::core::ConversionResult;
+using retrovdp::core::ConversionStatus;
+using retrovdp::core::ConversionJobController;
+using retrovdp::core::ConversionMemoryEstimate;
+using retrovdp::core::DiagnosticSeverity;
+using retrovdp::core::TargetCapability;
+using retrovdp::core::TargetProfileId;
+using retrovdp::core::TargetProfileStatus;
+using retrovdp::core::DitherMode;
+using retrovdp::core::ErrorAccumulationMode;
+using retrovdp::core::ErrorDiffusionBuffer;
+using retrovdp::core::ErrorDiffusionBufferError;
+using retrovdp::core::ErrorDistributionKernel;
+using retrovdp::core::ImageLayout;
+using retrovdp::core::ImageLayoutError;
+using retrovdp::core::ImageSizeLimits;
+using retrovdp::core::ImageFillMode;
+using retrovdp::core::ImageAdjustmentError;
+using retrovdp::core::ImageTransformError;
+using retrovdp::core::ImageTransformOptions;
+using retrovdp::core::MedianCutColorDepth;
+using retrovdp::core::PerceptualRgbWeights;
+using retrovdp::core::Palette;
+using retrovdp::core::PaletteError;
+using retrovdp::core::PaletteSelectionError;
+using retrovdp::core::PaletteSelectionMode;
+using retrovdp::core::PixelFormat;
+using retrovdp::core::OrderedDitherMapSize;
+using retrovdp::core::PopularityWeighting;
+using retrovdp::core::RgbColor;
+using retrovdp::core::RgbSample;
+using retrovdp::core::RgbImage;
+using retrovdp::core::ScalingFilter;
+using retrovdp::core::TargetMemoryImage;
+using retrovdp::core::TargetMemoryTable;
+using retrovdp::core::TargetTableError;
+using retrovdp::core::TargetTableRole;
+using retrovdp::core::bytesPerPixel;
+using retrovdp::core::adjustImage;
+using retrovdp::core::applyOrderedDither;
+using retrovdp::core::colorDistanceSquared;
+using retrovdp::core::convertBlackAndWhiteBitmap9918;
+using retrovdp::core::convertBitmapColorOnly9918;
+using retrovdp::core::convertBitmap9918;
+using retrovdp::core::convertDualMulticolor9918;
+using retrovdp::core::convertPalettedBitmapF18A;
+using retrovdp::core::convertScanlinePaletteBitmapF18A;
+using retrovdp::core::estimateConversionMemory;
+using retrovdp::core::convertGreyscaleBitmap9918;
+using retrovdp::core::convertHalfMulticolor9918;
+using retrovdp::core::convertMulticolor9918;
+using retrovdp::core::defaultBitmap9918Palette;
+using retrovdp::core::ditherConfiguration;
+using retrovdp::core::expectedTargetTables;
+using retrovdp::core::greyscaleBitmap9918Palette;
+using retrovdp::core::orderedDitherThreshold;
+using retrovdp::core::planImageTransform;
+using retrovdp::core::perceptualRgbDistanceSquared;
+using retrovdp::core::toYCrCb;
+using retrovdp::core::selectMedianCutPalette;
+using retrovdp::core::selectPopularPalette;
+using retrovdp::core::transformImage;
+using retrovdp::core::validate;
+using retrovdp::core::validateImageLayout;
+using retrovdp::core::validateTargetTables;
+using retrovdp::core::yCrCbDistanceSquared;
 
 namespace {
 
-const QString corpusDirectory = QStringLiteral(NEWCONVERT9918_GOLDEN_DIR);
+const QString corpusDirectory = QStringLiteral(RETROVDP_GOLDEN_DIR);
 
 class TestContext final {
 public:
@@ -1520,6 +1524,42 @@ void testConversionMemoryEstimate(TestContext &test)
                 "scanline F18A memory accounting should include all row palettes");
 }
 
+void testTargetProfiles(TestContext &test)
+{
+    const auto profiles = retrovdp::core::targetProfiles();
+    test.expect(profiles.size() == 3,
+                "the registry should publish implemented and planned VDP profiles");
+
+    const auto& tms9918 = retrovdp::core::targetProfile(TargetProfileId::Tms9918A);
+    const auto& f18a = retrovdp::core::targetProfile(TargetProfileId::F18A);
+    const auto& v9938 = retrovdp::core::targetProfile(TargetProfileId::V9938);
+    test.expect(tms9918.stableId == "tms9918a"
+                    && tms9918.status == TargetProfileStatus::Implemented
+                    && retrovdp::core::hasCapability(
+                        tms9918.capabilities, TargetCapability::CharacterPatterns),
+                "the TMS9918A profile should expose its stable identity and capabilities");
+    test.expect(f18a.stableId == "f18a"
+                    && retrovdp::core::supportsConversionMode(
+                        TargetProfileId::F18A, ConversionMode::Bitmap9918)
+                    && retrovdp::core::supportsConversionMode(
+                        TargetProfileId::F18A, ConversionMode::PalettedBitmapF18A),
+                "the F18A profile should support compatible base and enhanced modes");
+    test.expect(v9938.stableId == "v9938"
+                    && v9938.status == TargetProfileStatus::Planned
+                    && v9938.conversionModes.empty(),
+                "the V9938 profile should be discoverable without claiming implementation");
+    test.expect(!retrovdp::core::supportsConversionMode(
+                    TargetProfileId::Tms9918A, ConversionMode::PalettedBitmapF18A),
+                "target profiles should reject modes outside their capabilities");
+    test.expect(retrovdp::core::targetProfileId("f18a") == TargetProfileId::F18A
+                    && !retrovdp::core::targetProfileId("unknown").has_value(),
+                "stable target identifiers should round-trip and reject unknown values");
+    test.expect(retrovdp::core::effectiveTargetProfile(
+                    TargetProfileId::V9938, ConversionMode::Bitmap9918)
+                    == TargetProfileId::Tms9918A,
+                "planned profiles should fall back to the mode's implemented primary target");
+}
+
 void testTargetData(TestContext &test)
 {
     PaletteError paletteError = PaletteError::TooManyColors;
@@ -2144,6 +2184,7 @@ int main(int argc, char *argv[])
     testConversionJobController(test);
     testConverterCancellation(test);
     testConversionMemoryEstimate(test);
+    testTargetProfiles(test);
     testTargetData(test);
     testImageTransform(test);
     const QJsonObject manifest = loadCorpusManifest();

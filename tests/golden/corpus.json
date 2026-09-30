@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "license": "Project LICENSE; all fixtures were created specifically for New Convert 9918.",
+  "license": "Project LICENSE; all fixtures were created specifically for RetroVDP Studio.",
   "source_images": [
     {
       "path": "tests/golden/source/photo-landscape.png",
-      "origin": "OpenAI image generation for New Convert 9918",
+      "origin": "OpenAI image generation for RetroVDP Studio",
       "purpose": [
         "photographic",
         "broad-color-range",
@@ -20,7 +20,7 @@
     },
     {
       "path": "tests/golden/source/pixel-art-portrait.png",
-      "origin": "OpenAI image generation for New Convert 9918",
+      "origin": "OpenAI image generation for RetroVDP Studio",
       "purpose": [
         "pixel-art",
         "hard-edges",
@@ -35,7 +35,7 @@
     },
     {
       "path": "tests/golden/source/flat-cartoon-square.png",
-      "origin": "OpenAI image generation for New Convert 9918",
+      "origin": "OpenAI image generation for RetroVDP Studio",
       "purpose": [
         "cartoon",
         "flat-regions",

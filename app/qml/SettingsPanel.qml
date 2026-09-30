@@ -165,22 +165,27 @@ ScrollView {
 
                 ColumnLayout {
                     anchors.fill: parent
+                    Label { text: qsTr("Target VDP") }
+                    ComboBox {
+                        objectName: "targetProfileCombo"
+                        Layout.fillWidth: true
+                        model: imageInput.targetProfileNames
+                        currentIndex: imageInput.targetProfile
+                        onActivated: imageInput.targetProfile = currentIndex
+                        Accessible.name: qsTr("Target video display processor")
+                        activeFocusOnTab: true
+                    }
+
                     Label { text: qsTr("Target mode") }
                     ComboBox {
+                        objectName: "targetModeCombo"
                         Layout.fillWidth: true
-                        model: [
-                            qsTr("Bitmap 9918A"),
-                            qsTr("Greyscale Bitmap 9918A"),
-                            qsTr("B&W Bitmap 9918A"),
-                            qsTr("Multicolor 9918"),
-                            qsTr("Dual Multicolor 9918"),
-                            qsTr("Half Multicolor 9918A"),
-                            qsTr("Bitmap Color Only 9918A"),
-                            qsTr("Paletted Bitmap F18A"),
-                            qsTr("Scanline Palette Bitmap F18A")
-                        ]
-                        currentIndex: imageInput.conversionMode
-                        onActivated: imageInput.conversionMode = currentIndex
+                        model: imageInput.availableConversionModeNames
+                        currentIndex: Math.max(0,
+                            imageInput.availableConversionModeValues.indexOf(
+                                imageInput.conversionMode))
+                        onActivated: imageInput.conversionMode =
+                            imageInput.availableConversionModeValues[currentIndex]
                         Accessible.name: qsTr("Target conversion mode")
                         activeFocusOnTab: true
                     }

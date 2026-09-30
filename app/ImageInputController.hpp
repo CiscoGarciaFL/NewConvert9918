@@ -1,9 +1,10 @@
 #pragma once
 
-#include "newconvert9918/core/ConversionJobController.hpp"
-#include "newconvert9918/core/ImageTransform.hpp"
-#include "newconvert9918/formats/Export.hpp"
-#include "newconvert9918/imageio/ImageLoader.hpp"
+#include "retrovdp/core/ConversionJobController.hpp"
+#include "retrovdp/core/ImageTransform.hpp"
+#include "retrovdp/core/TargetProfile.hpp"
+#include "retrovdp/formats/Export.hpp"
+#include "retrovdp/imageio/ImageLoader.hpp"
 
 #include <QObject>
 #include <QColor>
@@ -39,6 +40,41 @@ class ImageInputController final : public QObject {
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY settingsChanged)
     Q_PROPERTY(bool canUndoDrawing READ canUndoDrawing NOTIFY drawingHistoryChanged)
     Q_PROPERTY(bool canRedoDrawing READ canRedoDrawing NOTIFY drawingHistoryChanged)
+    Q_PROPERTY(bool canUndoScreenImage READ canUndoScreenImage NOTIFY screenImageHistoryChanged)
+    Q_PROPERTY(bool canRedoScreenImage READ canRedoScreenImage NOTIFY screenImageHistoryChanged)
+    Q_PROPERTY(bool screenImageEdited READ screenImageEdited NOTIFY conversionChanged)
+    Q_PROPERTY(bool hasScreenImageSelection READ hasScreenImageSelection NOTIFY
+                   screenImageSelectionChanged)
+    Q_PROPERTY(int screenImageSelectionX READ screenImageSelectionX NOTIFY
+                   screenImageSelectionChanged)
+    Q_PROPERTY(int screenImageSelectionY READ screenImageSelectionY NOTIFY
+                   screenImageSelectionChanged)
+    Q_PROPERTY(int screenImageSelectionWidth READ screenImageSelectionWidth NOTIFY
+                   screenImageSelectionChanged)
+    Q_PROPERTY(int screenImageSelectionHeight READ screenImageSelectionHeight NOTIFY
+                   screenImageSelectionChanged)
+    Q_PROPERTY(bool screenImageFloating READ screenImageFloating NOTIFY screenImageFloatingChanged)
+    Q_PROPERTY(bool screenImageFloatingMove READ screenImageFloatingMove NOTIFY
+                   screenImageFloatingChanged)
+    Q_PROPERTY(int screenImageFloatingWidth READ screenImageFloatingWidth NOTIFY
+                   screenImageFloatingChanged)
+    Q_PROPERTY(int screenImageFloatingHeight READ screenImageFloatingHeight NOTIFY
+                   screenImageFloatingChanged)
+    Q_PROPERTY(QString screenImageFloatingPreview READ screenImageFloatingPreview NOTIFY
+                   screenImageFloatingChanged)
+    Q_PROPERTY(bool screenImageFloatingTopLeft READ screenImageFloatingTopLeft NOTIFY
+                   screenImageFloatingChanged)
+    Q_PROPERTY(QVariantList screenImageFonts READ screenImageFonts NOTIFY screenImageFontsChanged)
+    Q_PROPERTY(QString tiArtistLibraryPath READ tiArtistLibraryPath CONSTANT)
+    Q_PROPERTY(QString tiArtistFontsPath READ tiArtistFontsPath CONSTANT)
+    Q_PROPERTY(QString screenImageClipArtSourcePreview READ screenImageClipArtSourcePreview NOTIFY
+                   screenImageClipArtChanged)
+    Q_PROPERTY(QString screenImageClipArtSourceName READ screenImageClipArtSourceName NOTIFY
+                   screenImageClipArtChanged)
+    Q_PROPERTY(int screenImageClipArtSourceWidth READ screenImageClipArtSourceWidth NOTIFY
+                   screenImageClipArtChanged)
+    Q_PROPERTY(int screenImageClipArtSourceHeight READ screenImageClipArtSourceHeight NOTIFY
+                   screenImageClipArtChanged)
     Q_PROPERTY(bool scanlinePaletteAvailable READ scanlinePaletteAvailable NOTIFY conversionChanged)
     Q_PROPERTY(bool autoUpdate READ autoUpdate WRITE setAutoUpdate NOTIFY settingsChanged)
     Q_PROPERTY(bool livePreview READ livePreview WRITE setLivePreview NOTIFY settingsChanged)
@@ -46,6 +82,10 @@ class ImageInputController final : public QObject {
                    settingsChanged)
     Q_PROPERTY(QColor foregroundColor READ foregroundColor WRITE setForegroundColor NOTIFY
                    settingsChanged)
+    Q_PROPERTY(QColor screenImageBackgroundColor READ screenImageBackgroundColor WRITE
+                   setScreenImageBackgroundColor NOTIFY screenImageColorsChanged)
+    Q_PROPERTY(QColor screenImageForegroundColor READ screenImageForegroundColor WRITE
+                   setScreenImageForegroundColor NOTIFY screenImageColorsChanged)
     Q_PROPERTY(QVariantList backgroundPaletteColors READ backgroundPaletteColors NOTIFY
                    settingsChanged)
     Q_PROPERTY(QVariantList workingPaletteColors READ workingPaletteColors NOTIFY settingsChanged)
@@ -58,6 +98,12 @@ class ImageInputController final : public QObject {
     Q_PROPERTY(QVariantList sourceSwatchColors READ sourceSwatchColors NOTIFY sourceColorsChanged)
     Q_PROPERTY(QVariantList sourceUsedColors READ sourceUsedColors NOTIFY sourceColorsChanged)
 
+    Q_PROPERTY(int targetProfile READ targetProfile WRITE setTargetProfile NOTIFY settingsChanged)
+    Q_PROPERTY(QVariantList targetProfileNames READ targetProfileNames CONSTANT)
+    Q_PROPERTY(QVariantList availableConversionModeNames READ availableConversionModeNames NOTIFY
+                   settingsChanged)
+    Q_PROPERTY(QVariantList availableConversionModeValues READ availableConversionModeValues NOTIFY
+                   settingsChanged)
     Q_PROPERTY(int conversionMode READ conversionMode WRITE setConversionMode NOTIFY settingsChanged)
     Q_PROPERTY(int ditherMode READ ditherMode WRITE setDitherMode NOTIFY settingsChanged)
     Q_PROPERTY(int scalingFilter READ scalingFilter WRITE setScalingFilter NOTIFY settingsChanged)
@@ -132,11 +178,68 @@ public:
     [[nodiscard]] bool canUndo() const { return !undoStack_.empty(); }
     [[nodiscard]] bool canUndoDrawing() const { return !drawingUndoStack_.empty(); }
     [[nodiscard]] bool canRedoDrawing() const { return !drawingRedoStack_.empty(); }
+    [[nodiscard]] bool canUndoScreenImage() const { return !screenImageUndoStack_.empty(); }
+    [[nodiscard]] bool canRedoScreenImage() const { return !screenImageRedoStack_.empty(); }
+    [[nodiscard]] bool screenImageEdited() const { return screenImageEdited_; }
+    [[nodiscard]] bool hasScreenImageSelection() const
+    {
+        return screenImageSelectionWidth_ > 0 && screenImageSelectionHeight_ > 0;
+    }
+    [[nodiscard]] int screenImageSelectionX() const { return screenImageSelectionX_; }
+    [[nodiscard]] int screenImageSelectionY() const { return screenImageSelectionY_; }
+    [[nodiscard]] int screenImageSelectionWidth() const { return screenImageSelectionWidth_; }
+    [[nodiscard]] int screenImageSelectionHeight() const { return screenImageSelectionHeight_; }
+    [[nodiscard]] bool screenImageFloating() const
+    {
+        return static_cast<bool>(screenImageFloatingImage_);
+    }
+    [[nodiscard]] bool screenImageFloatingMove() const { return screenImageFloatingMove_; }
+    [[nodiscard]] int screenImageFloatingWidth() const
+    {
+        return screenImageFloatingImage_
+            ? static_cast<int>(screenImageFloatingImage_->width()) : 0;
+    }
+    [[nodiscard]] int screenImageFloatingHeight() const
+    {
+        return screenImageFloatingImage_
+            ? static_cast<int>(screenImageFloatingImage_->height()) : 0;
+    }
+    [[nodiscard]] QString screenImageFloatingPreview() const
+    {
+        return screenImageFloatingPreview_;
+    }
+    [[nodiscard]] bool screenImageFloatingTopLeft() const
+    {
+        return screenImageFloatingTopLeft_;
+    }
+    [[nodiscard]] QVariantList screenImageFonts() const { return screenImageFonts_; }
+    [[nodiscard]] QString tiArtistLibraryPath() const { return tiArtistLibraryPath_; }
+    [[nodiscard]] QString tiArtistFontsPath() const { return tiArtistFontsPath_; }
+    [[nodiscard]] QString screenImageClipArtSourcePreview() const
+    {
+        return screenImageClipArtSourcePreview_;
+    }
+    [[nodiscard]] QString screenImageClipArtSourceName() const
+    {
+        return screenImageClipArtSourceName_;
+    }
+    [[nodiscard]] int screenImageClipArtSourceWidth() const
+    {
+        return screenImageClipArtSourceImage_
+            ? static_cast<int>(screenImageClipArtSourceImage_->width()) : 0;
+    }
+    [[nodiscard]] int screenImageClipArtSourceHeight() const
+    {
+        return screenImageClipArtSourceImage_
+            ? static_cast<int>(screenImageClipArtSourceImage_->height()) : 0;
+    }
     [[nodiscard]] bool scanlinePaletteAvailable() const { return !palettePreview_.isEmpty(); }
     [[nodiscard]] bool autoUpdate() const { return autoUpdate_; }
     [[nodiscard]] bool livePreview() const { return livePreview_; }
     [[nodiscard]] QColor backgroundColor() const;
     [[nodiscard]] QColor foregroundColor() const;
+    [[nodiscard]] QColor screenImageBackgroundColor() const;
+    [[nodiscard]] QColor screenImageForegroundColor() const;
     [[nodiscard]] QVariantList backgroundPaletteColors() const;
     [[nodiscard]] QVariantList workingPaletteColors() const;
     [[nodiscard]] QVariantList sourceSpectrum16Colors() const { return sourceSpectrum16Colors_; }
@@ -145,6 +248,10 @@ public:
     [[nodiscard]] QVariantList sourceSwatchColors() const { return sourceSwatchColors_; }
     [[nodiscard]] QVariantList sourceUsedColors() const { return sourceUsedColors_; }
 
+    [[nodiscard]] int targetProfile() const;
+    [[nodiscard]] QVariantList targetProfileNames() const;
+    [[nodiscard]] QVariantList availableConversionModeNames() const;
+    [[nodiscard]] QVariantList availableConversionModeValues() const;
     [[nodiscard]] int conversionMode() const;
     [[nodiscard]] int ditherMode() const;
     [[nodiscard]] int scalingFilter() const { return static_cast<int>(scalingFilter_); }
@@ -199,6 +306,7 @@ public:
     [[nodiscard]] int verticalOffset() const { return verticalOffset_; }
 
     Q_INVOKABLE void openUrl(const QUrl& url);
+    Q_INVOKABLE void newScreenImage();
     Q_INVOKABLE void reloadSource();
     Q_INVOKABLE void pasteClipboard();
     Q_INVOKABLE void applyPreset(int presetIndex);
@@ -212,12 +320,15 @@ public:
     Q_INVOKABLE void centerSource();
     Q_INVOKABLE void pickBackgroundColor(double normalizedX, double normalizedY);
     Q_INVOKABLE void pickColor(double normalizedX, double normalizedY, bool foreground);
+    Q_INVOKABLE void swapSourceColors(double normalizedX, double normalizedY);
     Q_INVOKABLE void beginSourceStroke(double normalizedX,
                                        double normalizedY,
                                        int diameter,
                                        bool eraser,
-                                       bool hardEdges = false);
+                                       bool hardEdges = false,
+                                       bool squareBrush = false);
     Q_INVOKABLE void continueSourceStroke(double normalizedX, double normalizedY);
+    Q_INVOKABLE void continueSourceRay(double normalizedX, double normalizedY);
     Q_INVOKABLE void endSourceStroke();
     Q_INVOKABLE void drawSourceShape(double fromNormalizedX,
                                      double fromNormalizedY,
@@ -226,9 +337,85 @@ public:
                                      int diameter,
                                      bool ellipse,
                                      bool hardEdges = false,
-                                     bool fillBackground = false);
+                                     bool fillBackground = false,
+                                     bool squareBrush = false);
+    Q_INVOKABLE void drawSourceLine(double fromNormalizedX,
+                                    double fromNormalizedY,
+                                    double toNormalizedX,
+                                    double toNormalizedY,
+                                    int diameter,
+                                    bool hardEdges = false,
+                                    bool squareBrush = false);
     Q_INVOKABLE void undoDrawing();
     Q_INVOKABLE void redoDrawing();
+    Q_INVOKABLE void pickScreenImageColor(double normalizedX,
+                                          double normalizedY,
+                                          bool foreground);
+    Q_INVOKABLE void swapScreenImageColors(double normalizedX,
+                                           double normalizedY);
+    Q_INVOKABLE void beginScreenImageStroke(double normalizedX,
+                                            double normalizedY,
+                                            int diameter,
+                                            bool eraser,
+                                            bool hardEdges = false,
+                                            bool squareBrush = false);
+    Q_INVOKABLE void continueScreenImageStroke(double normalizedX,
+                                               double normalizedY);
+    Q_INVOKABLE void continueScreenImageRay(double normalizedX,
+                                            double normalizedY);
+    Q_INVOKABLE void endScreenImageStroke();
+    Q_INVOKABLE void drawScreenImageShape(double fromNormalizedX,
+                                          double fromNormalizedY,
+                                          double toNormalizedX,
+                                          double toNormalizedY,
+                                          int diameter,
+                                          bool ellipse,
+                                          bool hardEdges = false,
+                                          bool fillBackground = false,
+                                          bool squareBrush = false);
+    Q_INVOKABLE void drawScreenImageLine(double fromNormalizedX,
+                                         double fromNormalizedY,
+                                         double toNormalizedX,
+                                         double toNormalizedY,
+                                         int diameter,
+                                         bool hardEdges = false,
+                                         bool squareBrush = false);
+    Q_INVOKABLE void nudgeScreenImage(int horizontal, int vertical);
+    Q_INVOKABLE void mirrorScreenImage();
+    Q_INVOKABLE void flipScreenImage();
+    Q_INVOKABLE void invertScreenImage();
+    Q_INVOKABLE void removeScreenImageColor();
+    Q_INVOKABLE void clearScreenImage();
+    Q_INVOKABLE void setScreenImageSelection(double fromNormalizedX,
+                                              double fromNormalizedY,
+                                              double toNormalizedX,
+                                              double toNormalizedY);
+    Q_INVOKABLE void clearScreenImageSelection();
+    Q_INVOKABLE void beginMoveScreenImageSelection();
+    Q_INVOKABLE void placeScreenImageFloating(double normalizedCenterX,
+                                              double normalizedCenterY);
+    Q_INVOKABLE void cancelScreenImageFloating();
+    Q_INVOKABLE void reloadScreenImageFonts();
+    Q_INVOKABLE void openTiArtistFontsFolder();
+    Q_INVOKABLE void prepareScreenImageText(const QString& text,
+                                            const QString& fontKey,
+                                            int pixelSize);
+    Q_INVOKABLE void loadScreenImageClipArt(const QUrl& url);
+    Q_INVOKABLE QString screenImageClipArtPreview(int width,
+                                                  int height,
+                                                  int colorMode,
+                                                  bool transparentBackground,
+                                                  bool useSelectedColors) const;
+    Q_INVOKABLE void prepareScreenImageClipArt(int width,
+                                               int height,
+                                               int colorMode,
+                                               bool transparentBackground,
+                                               bool useSelectedColors);
+    Q_INVOKABLE void copyScreenImage();
+    Q_INVOKABLE void pasteScreenImage();
+    Q_INVOKABLE void undoScreenImage();
+    Q_INVOKABLE void redoScreenImage();
+    Q_INVOKABLE void applyScreenImageEdits();
     Q_INVOKABLE void restorePerceptualWeights();
     Q_INVOKABLE void setWorkingPaletteColor(int index, const QColor& color);
     Q_INVOKABLE void resetWorkingPalette();
@@ -236,6 +423,7 @@ public:
     [[nodiscard]] QJsonObject recipeSettings() const;
     bool applyRecipeSettings(const QJsonObject& object, QString* error = nullptr);
 
+    void setTargetProfile(int value);
     void setConversionMode(int value);
     void setDitherMode(int value);
     void setScalingFilter(int value);
@@ -271,6 +459,8 @@ public:
     void setLivePreview(bool value);
     void setBackgroundColor(const QColor& value);
     void setForegroundColor(const QColor& value);
+    void setScreenImageBackgroundColor(const QColor& value);
+    void setScreenImageForegroundColor(const QColor& value);
 
 signals:
     void sourceChanged();
@@ -278,28 +468,34 @@ signals:
     void conversionChanged();
     void settingsChanged();
     void drawingHistoryChanged();
+    void screenImageHistoryChanged();
+    void screenImageColorsChanged();
+    void screenImageSelectionChanged();
+    void screenImageFloatingChanged();
+    void screenImageFontsChanged();
+    void screenImageClipArtChanged();
     void statusChanged();
     void exportChanged();
 
 private:
     struct SettingsSnapshot {
-        newconvert9918::core::ConversionSettings settings;
-        newconvert9918::core::ScalingFilter scalingFilter;
-        newconvert9918::core::ImageFillMode fillMode;
+        retrovdp::core::ConversionSettings settings;
+        retrovdp::core::ScalingFilter scalingFilter;
+        retrovdp::core::ImageFillMode fillMode;
         int horizontalOffset{};
         int verticalOffset{};
-        newconvert9918::core::RgbColor foregroundColor{};
-        newconvert9918::core::RgbColor backgroundColor{};
-        std::vector<newconvert9918::core::RgbColor> workingPalette;
+        retrovdp::core::RgbColor foregroundColor{};
+        retrovdp::core::RgbColor backgroundColor{};
+        std::vector<retrovdp::core::RgbColor> workingPalette;
         bool powerPaintFraming{};
     };
 
-    void accept(newconvert9918::imageio::ImageLoadResult result, QString sourceName);
+    void accept(retrovdp::imageio::ImageLoadResult result, QString sourceName);
     void refreshSourcePreview();
     void scheduleConversion();
     void startConversion();
-    void publishConversion(const newconvert9918::core::ConversionRequest& request,
-                           newconvert9918::core::ConversionResult result);
+    void publishConversion(const retrovdp::core::ConversionRequest& request,
+                           retrovdp::core::ConversionResult result);
     void updatePaletteInspection();
     void refreshSourceColorChoices();
     void drawSourceStrokeSegment(double fromNormalizedX,
@@ -308,7 +504,7 @@ private:
                                  double toNormalizedY);
     void paintDrawingPixel(int x,
                            int y,
-                           newconvert9918::core::RgbColor color,
+                           retrovdp::core::RgbColor color,
                            double coverage);
     void fillSourceShape(double fromNormalizedX,
                          double fromNormalizedY,
@@ -317,11 +513,48 @@ private:
                          bool ellipse,
                          double inset);
     void ensureDrawingLayer();
-    void compositeDrawingLayer(newconvert9918::core::RgbImage& canvas) const;
+    void compositeDrawingLayer(retrovdp::core::RgbImage& canvas) const;
     void beginDrawingTransaction();
     void commitDrawingTransaction(bool changed);
     void clearDrawingHistory();
     void refreshAfterDrawingHistoryChange();
+    void beginScreenImageTransaction();
+    void commitScreenImageTransaction(bool changed);
+    void clearScreenImageHistory();
+    void resetScreenImageSelectionState();
+    [[nodiscard]] std::shared_ptr<retrovdp::core::RgbImage>
+    copyScreenImageRegion(int x, int y, int width, int height) const;
+    void beginScreenImageFloating(
+        std::shared_ptr<retrovdp::core::RgbImage> image,
+        bool movingSelection,
+        bool topLeftAnchor = false);
+    [[nodiscard]] std::shared_ptr<retrovdp::core::RgbImage>
+    renderScreenImageText(const QString& text,
+                          const QString& fontKey,
+                          int pixelSize,
+                          QString* error = nullptr) const;
+    [[nodiscard]] std::shared_ptr<retrovdp::core::RgbImage>
+    renderScreenImageClipArt(int width,
+                             int height,
+                             int colorMode,
+                             bool transparentBackground,
+                             bool useSelectedColors,
+                             QString* error = nullptr) const;
+    void refreshScreenImage();
+    void paintScreenImagePixel(int x,
+                               int y,
+                               retrovdp::core::RgbColor color,
+                               double coverage);
+    void fillScreenImageShape(double fromNormalizedX,
+                              double fromNormalizedY,
+                              double toNormalizedX,
+                              double toNormalizedY,
+                              bool ellipse,
+                              double inset);
+    void drawScreenImageStrokeSegment(double fromNormalizedX,
+                                      double fromNormalizedY,
+                                      double toNormalizedX,
+                                      double toNormalizedY);
     void updateExportSummary();
     void recordUndo();
     void applySnapshot(const SettingsSnapshot& snapshot);
@@ -330,28 +563,32 @@ private:
     void saveSettings() const;
     void settingsWereChanged(bool sourceTransformChanged = false);
     void setErrorDistributionWeight(int index, int value);
-    [[nodiscard]] newconvert9918::formats::GeneratedFileManifest exportManifest() const;
+    [[nodiscard]] retrovdp::formats::GeneratedFileManifest exportManifest() const;
     [[nodiscard]] QString exportBaseName() const;
 
-    std::shared_ptr<newconvert9918::core::RgbImage> image_;
-    std::optional<newconvert9918::core::RgbImage> framedSource_;
-    std::shared_ptr<newconvert9918::core::RgbImage> drawingLayer_;
-    std::optional<newconvert9918::core::ConversionResult> result_;
-    newconvert9918::core::ConversionSettings settings_;
-    newconvert9918::core::ScalingFilter scalingFilter_{
-        newconvert9918::core::ScalingFilter::Bilinear};
-    newconvert9918::core::ImageFillMode fillMode_{newconvert9918::core::ImageFillMode::Fit};
+    std::shared_ptr<retrovdp::core::RgbImage> image_;
+    std::optional<retrovdp::core::RgbImage> framedSource_;
+    std::shared_ptr<retrovdp::core::RgbImage> drawingLayer_;
+    std::optional<retrovdp::core::ConversionResult> result_;
+    mutable std::optional<retrovdp::core::ConversionResult> screenImageExportResult_;
+    retrovdp::core::ConversionSettings settings_;
+    retrovdp::core::ScalingFilter scalingFilter_{
+        retrovdp::core::ScalingFilter::Bilinear};
+    retrovdp::core::ImageFillMode fillMode_{retrovdp::core::ImageFillMode::Fit};
     int horizontalOffset_{};
     int verticalOffset_{};
-    newconvert9918::core::RgbColor foregroundColor_{};
-    newconvert9918::core::RgbColor backgroundColor_{};
-    std::vector<newconvert9918::core::RgbColor> workingPalette_;
+    retrovdp::core::RgbColor foregroundColor_{};
+    retrovdp::core::RgbColor backgroundColor_{};
+    retrovdp::core::RgbColor screenImageForegroundColor_{255, 255, 255};
+    retrovdp::core::RgbColor screenImageBackgroundColor_{};
+    std::vector<retrovdp::core::RgbColor> workingPalette_;
     bool powerPaintFraming_{};
     int exportFormat_{};
     bool busy_{};
     bool conversionPending_{};
     bool autoUpdate_{true};
     bool livePreview_{};
+    bool screenImageEdited_{};
     bool applyingSnapshot_{};
     bool sourceStrokeActive_{};
     bool sourceStrokeTouched_{};
@@ -360,11 +597,40 @@ private:
     int sourceStrokeDiameter_{1};
     bool sourceStrokeEraser_{};
     bool sourceStrokeHardEdges_{};
-    std::shared_ptr<newconvert9918::core::RgbImage> drawingBeforeImage_;
-    std::vector<std::shared_ptr<newconvert9918::core::RgbImage>> drawingUndoStack_;
-    std::vector<std::shared_ptr<newconvert9918::core::RgbImage>> drawingRedoStack_;
+    bool sourceStrokeSquareBrush_{};
+    std::shared_ptr<retrovdp::core::RgbImage> drawingBeforeImage_;
+    std::vector<std::shared_ptr<retrovdp::core::RgbImage>> drawingUndoStack_;
+    std::vector<std::shared_ptr<retrovdp::core::RgbImage>> drawingRedoStack_;
+    std::shared_ptr<retrovdp::core::RgbImage> screenImage_;
+    std::shared_ptr<retrovdp::core::RgbImage> screenImageBefore_;
+    std::vector<std::shared_ptr<retrovdp::core::RgbImage>> screenImageUndoStack_;
+    std::vector<std::shared_ptr<retrovdp::core::RgbImage>> screenImageRedoStack_;
+    bool screenImageStrokeActive_{};
+    bool screenImageStrokeTouched_{};
+    double screenImageStrokeX_{};
+    double screenImageStrokeY_{};
+    int screenImageStrokeDiameter_{1};
+    bool screenImageStrokeEraser_{};
+    bool screenImageStrokeHardEdges_{};
+    bool screenImageStrokeSquareBrush_{};
+    int screenImageSelectionX_{};
+    int screenImageSelectionY_{};
+    int screenImageSelectionWidth_{};
+    int screenImageSelectionHeight_{};
+    std::shared_ptr<retrovdp::core::RgbImage> screenImageFloatingImage_;
+    QString screenImageFloatingPreview_;
+    bool screenImageFloatingMove_{};
+    bool screenImageFloatingTopLeft_{};
+    int screenImageFloatingSourceX_{};
+    int screenImageFloatingSourceY_{};
+    QVariantList screenImageFonts_;
+    QString tiArtistLibraryPath_;
+    QString tiArtistFontsPath_;
+    std::shared_ptr<retrovdp::core::RgbImage> screenImageClipArtSourceImage_;
+    QString screenImageClipArtSourcePreview_;
+    QString screenImageClipArtSourceName_;
 
-    newconvert9918::core::ConversionJobController jobs_;
+    retrovdp::core::ConversionJobController jobs_;
     QTimer debounceTimer_;
     QTimer undoCoalesceTimer_;
     std::vector<SettingsSnapshot> undoStack_;
@@ -387,5 +653,5 @@ private:
     QString outputSummary_;
     QString overwriteMessage_;
     QString pendingExportDirectory_;
-    std::optional<newconvert9918::formats::GeneratedFileManifest> pendingManifest_;
+    std::optional<retrovdp::formats::GeneratedFileManifest> pendingManifest_;
 };

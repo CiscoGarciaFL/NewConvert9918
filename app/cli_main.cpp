@@ -1,9 +1,10 @@
 #include "ConversionPipeline.hpp"
 
-#include "newconvert9918/core/Dithering.hpp"
-#include "newconvert9918/formats/Export.hpp"
-#include "newconvert9918/imageio/ExportWriter.hpp"
-#include "newconvert9918/imageio/ImageLoader.hpp"
+#include "retrovdp/core/Dithering.hpp"
+#include "retrovdp/core/TargetProfile.hpp"
+#include "retrovdp/formats/Export.hpp"
+#include "retrovdp/imageio/ExportWriter.hpp"
+#include "retrovdp/imageio/ImageLoader.hpp"
 
 #include <QCommandLineOption>
 #include <QCommandLineParser>
@@ -29,7 +30,7 @@
 
 namespace {
 
-using namespace newconvert9918;
+using namespace retrovdp;
 
 enum class ExitCode : int {
     Success = 0,
@@ -43,6 +44,16 @@ enum class ExitCode : int {
 struct ModeChoice {
     const char* name;
     core::ConversionMode value;
+};
+
+struct TargetChoice {
+    const char* name;
+    core::TargetProfileId value;
+};
+
+constexpr std::array targetChoices{
+    TargetChoice{"tms9918a", core::TargetProfileId::Tms9918A},
+    TargetChoice{"f18a", core::TargetProfileId::F18A},
 };
 
 struct FormatChoice {
@@ -114,8 +125,9 @@ bool loadRecipe(const QString& path,
         return false;
     }
     const QJsonObject root = document.object();
-    if (root.value(QStringLiteral("kind")).toString()
-            != QStringLiteral("newconvert9918-recipe")
+    const QString recipeKind = root.value(QStringLiteral("kind")).toString();
+    if ((recipeKind != QStringLiteral("retrovdp-studio-recipe")
+         && recipeKind != QStringLiteral("newconvert9918-recipe"))
         || root.value(QStringLiteral("schemaVersion")).toInt() != 1) {
         error = QStringLiteral("Unsupported recipe type or schema version.");
         return false;
@@ -134,6 +146,10 @@ bool loadRecipe(const QString& path,
 
     settings.mode = static_cast<core::ConversionMode>(std::clamp(
         conversion.value(QStringLiteral("mode")).toInt(0), 0, 8));
+    const auto savedTarget = core::targetProfileId(
+        conversion.value(QStringLiteral("targetProfile")).toString().toStdString());
+    settings.targetProfile = core::effectiveTargetProfile(
+        savedTarget.value_or(core::primaryTargetProfile(settings.mode)), settings.mode);
     settings.dither = static_cast<core::DitherMode>(std::clamp(
         conversion.value(QStringLiteral("dither")).toInt(2), 0, 7));
     settings.perceptualColorMatching = conversion.value(
@@ -250,7 +266,7 @@ int reportFailure(bool json,
         if (!details.isEmpty()) result.insert(QStringLiteral("details"), details);
         QTextStream(stdout) << QJsonDocument(result).toJson(QJsonDocument::Compact) << '\n';
     } else {
-        QTextStream(stderr) << "newconvert9918-cli: " << message << '\n';
+        QTextStream(stderr) << "retrovdp-cli: " << message << '\n';
     }
     return static_cast<int>(exitCode);
 }
@@ -312,12 +328,12 @@ QString firstConversionError(const core::ConversionResult& result)
 int main(int argc, char* argv[])
 {
     QCoreApplication application(argc, argv);
-    application.setApplicationName(QStringLiteral("newconvert9918-cli"));
-    application.setApplicationVersion(QStringLiteral(NEWCONVERT9918_VERSION));
+    application.setApplicationName(QStringLiteral("retrovdp-cli"));
+    application.setApplicationVersion(QStringLiteral(RETROVDP_VERSION));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral(
-        "Headless TMS9918A/F18A image conversion and export."));
+        "Headless conversion and export for RetroVDP Studio target profiles."));
     const QCommandLineOption helpOption = parser.addHelpOption();
     const QCommandLineOption versionOption = parser.addVersionOption();
     const QCommandLineOption inputOption(
@@ -325,7 +341,7 @@ int main(int argc, char* argv[])
         QStringLiteral("Source image path."), QStringLiteral("file"));
     const QCommandLineOption recipeOption(
         QStringLiteral("recipe"),
-        QStringLiteral("Load GUI-compatible conversion settings from a .nc9918.json recipe."),
+        QStringLiteral("Load GUI-compatible conversion settings from a .rvdp.json recipe."),
         QStringLiteral("file"));
     const QCommandLineOption outputOption(
         {QStringLiteral("o"), QStringLiteral("output")},
@@ -335,6 +351,10 @@ int main(int argc, char* argv[])
         QStringLiteral("Conversion mode: bitmap-9918a, greyscale-bitmap-9918a, black-and-white-bitmap-9918a, multicolor-9918, dual-multicolor-9918, half-multicolor-9918a, bitmap-color-only-9918a, paletted-bitmap-f18a, or scanline-palette-bitmap-f18a."),
         QStringLiteral("name"),
         QStringLiteral("bitmap-9918a"));
+    const QCommandLineOption targetOption(
+        {QStringLiteral("t"), QStringLiteral("target")},
+        QStringLiteral("Target VDP profile: tms9918a or f18a."),
+        QStringLiteral("name"));
     const QCommandLineOption presetOption(
         {QStringLiteral("p"), QStringLiteral("preset")},
         QStringLiteral("Preset: balanced, crisp-pixel-art, smooth-photograph, or ordered-retro."),
@@ -351,8 +371,8 @@ int main(int argc, char* argv[])
         QStringLiteral("overwrite"), QStringLiteral("Replace existing output files."));
     const QCommandLineOption jsonOption(
         QStringLiteral("json"), QStringLiteral("Write one machine-readable JSON result."));
-    parser.addOptions({inputOption, recipeOption, outputOption, modeOption, presetOption, formatOption,
-                       baseNameOption, overwriteOption, jsonOption});
+    parser.addOptions({inputOption, recipeOption, outputOption, targetOption, modeOption,
+                       presetOption, formatOption, baseNameOption, overwriteOption, jsonOption});
 
     const QStringList arguments = application.arguments();
     const bool wantsJson = arguments.contains(QStringLiteral("--json"));
@@ -410,7 +430,33 @@ int main(int argc, char* argv[])
         }
         settings.mode = *mode;
     }
+    if (parser.isSet(targetOption)) {
+        const QString requestedTarget = parser.value(targetOption).toLower();
+        const auto target = choiceValue<TargetChoice, targetChoices.size(),
+                                        core::TargetProfileId>(
+            targetChoices, requestedTarget);
+        if (!target) {
+            return reportFailure(wantsJson, ExitCode::Usage,
+                                 QStringLiteral("unknown-target"),
+                                 QStringLiteral("Unknown target VDP: %1")
+                                     .arg(requestedTarget));
+        }
+        if (!core::supportsConversionMode(*target, settings.mode)) {
+            return reportFailure(
+                wantsJson, ExitCode::Usage,
+                QStringLiteral("unsupported-target-mode"),
+                QStringLiteral("The selected target VDP does not support this conversion mode."));
+        }
+        settings.targetProfile = *target;
+    } else {
+        settings.targetProfile = core::effectiveTargetProfile(
+            settings.targetProfile, settings.mode);
+    }
     const QString modeName = choiceName(modeChoices, settings.mode);
+    const auto& selectedTarget = core::targetProfile(settings.targetProfile);
+    const QString targetName = QString::fromLatin1(
+        selectedTarget.stableId.data(),
+        static_cast<qsizetype>(selectedTarget.stableId.size()));
 
     std::optional<formats::ExportFormat> format;
     if (parser.isSet(recipeOption) && !parser.isSet(formatOption)) {
@@ -497,6 +543,7 @@ int main(int argc, char* argv[])
             {QStringLiteral("status"), QStringLiteral("ok")},
             {QStringLiteral("input"), QFileInfo(inputPath).absoluteFilePath()},
             {QStringLiteral("output"), QDir(outputPath).absolutePath()},
+            {QStringLiteral("target"), targetName},
             {QStringLiteral("mode"), modeName},
             {QStringLiteral("preset"), presetName},
             {QStringLiteral("format"), formatName},
@@ -506,7 +553,11 @@ int main(int argc, char* argv[])
         QTextStream(stdout) << QJsonDocument(result).toJson(QJsonDocument::Compact) << '\n';
     } else {
         QTextStream output(stdout);
-        output << "Converted " << QFileInfo(inputPath).fileName() << " using " << modeName
+        output << "Converted " << QFileInfo(inputPath).fileName() << " for "
+               << QString::fromLatin1(selectedTarget.displayName.data(),
+                                      static_cast<qsizetype>(
+                                          selectedTarget.displayName.size()))
+               << " using " << modeName
                << " and wrote " << written.paths.size() << " file(s):\n";
         for (const QString& path : written.paths) output << "  " << path << '\n';
         for (const auto& warning : manifest.warnings) {

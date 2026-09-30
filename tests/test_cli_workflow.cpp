@@ -35,7 +35,7 @@ struct RunResult {
 RunResult runCli(const QStringList& arguments)
 {
     QProcess process;
-    process.setProgram(QStringLiteral(NEWCONVERT9918_CLI_PATH));
+    process.setProgram(QStringLiteral(RETROVDP_CLI_PATH));
     process.setArguments(arguments);
     process.start();
     const bool started = process.waitForStarted(15'000);
@@ -63,29 +63,31 @@ int main(int argc, char* argv[])
     QCoreApplication application(argc, argv);
     TestContext test;
 
-    const QString source = QDir(QStringLiteral(NEWCONVERT9918_GOLDEN_DIR))
+    const QString source = QDir(QStringLiteral(RETROVDP_GOLDEN_DIR))
                                .filePath(QStringLiteral("source/tiny-rgba.png"));
     QTemporaryDir output;
-    test.expect(QFileInfo::exists(QStringLiteral(NEWCONVERT9918_CLI_PATH)),
+    test.expect(QFileInfo::exists(QStringLiteral(RETROVDP_CLI_PATH)),
                 "CLI executable should exist");
     test.expect(QFileInfo::exists(source), "CLI source fixture should exist");
     test.expect(output.isValid(), "CLI output directory should be available");
 
     const RunResult help = runCli({QStringLiteral("--help")});
     if (!help.completed || help.exitCode != 0) {
-        std::cerr << "CLI help launch failed; executable=" << NEWCONVERT9918_CLI_PATH
+        std::cerr << "CLI help launch failed; executable=" << RETROVDP_CLI_PATH
                   << " exit=" << help.exitCode
                   << " stderr=" << help.standardError.toStdString() << '\n';
     }
     test.expect(help.completed && help.exitCode == 0
                     && help.standardOutput.contains("--input")
                     && help.standardOutput.contains("--recipe")
+                    && help.standardOutput.contains("--target")
                     && help.standardOutput.contains("--format"),
                 "CLI help should describe its stable input and export options");
 
     const QStringList validArguments{
         QStringLiteral("--input"), source,
         QStringLiteral("--output"), output.path(),
+        QStringLiteral("--target"), QStringLiteral("tms9918a"),
         QStringLiteral("--mode"), QStringLiteral("bitmap-9918a"),
         QStringLiteral("--preset"), QStringLiteral("crisp-pixel-art"),
         QStringLiteral("--format"), QStringLiteral("raw"),
@@ -104,6 +106,8 @@ int main(int argc, char* argv[])
                     && firstJson.value(QStringLiteral("status")) == QStringLiteral("ok")
                     && firstJson.value(QStringLiteral("mode"))
                         == QStringLiteral("bitmap-9918a")
+                    && firstJson.value(QStringLiteral("target"))
+                        == QStringLiteral("tms9918a")
                     && firstJson.value(QStringLiteral("preset"))
                         == QStringLiteral("crisp-pixel-art")
                     && filesExist,
@@ -128,7 +132,7 @@ int main(int argc, char* argv[])
                         == QStringLiteral("ok"),
                 "CLI should replace files only when --overwrite is explicit");
 
-    const QString recipePath = output.filePath(QStringLiteral("batch.nc9918.json"));
+    const QString recipePath = output.filePath(QStringLiteral("batch.rvdp.json"));
     QFile recipeFile(recipePath);
     const QJsonObject recipe{
         {QStringLiteral("kind"), QStringLiteral("newconvert9918-recipe")},
@@ -137,6 +141,7 @@ int main(int argc, char* argv[])
         {QStringLiteral("source"), QJsonObject{{QStringLiteral("path"), source}}},
         {QStringLiteral("conversion"),
          QJsonObject{{QStringLiteral("mode"), 0},
+                     {QStringLiteral("targetProfile"), QStringLiteral("tms9918a")},
                      {QStringLiteral("dither"), 0},
                      {QStringLiteral("scalingFilter"), 0},
                      {QStringLiteral("fillMode"), 0},
@@ -158,9 +163,11 @@ int main(int argc, char* argv[])
                         == QStringLiteral("recipe")
                     && recipeJson.value(QStringLiteral("mode"))
                         == QStringLiteral("bitmap-9918a")
+                    && recipeJson.value(QStringLiteral("target"))
+                        == QStringLiteral("tms9918a")
                     && recipeJson.value(QStringLiteral("format"))
                         == QStringLiteral("raw"),
-                "CLI should execute the same versioned Screen Image recipe saved by the GUI");
+                "CLI should migrate a versioned recipe saved under the retired identity");
 
     const RunResult badMode = runCli({
         QStringLiteral("--input"), source,

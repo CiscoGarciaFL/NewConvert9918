@@ -1,10 +1,11 @@
-#include "newconvert9918/core/F18AConverter.hpp"
+#include "retrovdp/core/F18AConverter.hpp"
 
-#include "newconvert9918/core/Bitmap9918Converter.hpp"
-#include "newconvert9918/core/ColorMath.hpp"
-#include "newconvert9918/core/Dithering.hpp"
-#include "newconvert9918/core/PaletteSelection.hpp"
-#include "newconvert9918/core/Validation.hpp"
+#include "retrovdp/core/Bitmap9918Converter.hpp"
+#include "retrovdp/core/ColorMath.hpp"
+#include "retrovdp/core/Dithering.hpp"
+#include "retrovdp/core/PaletteSelection.hpp"
+#include "retrovdp/core/TargetProfile.hpp"
+#include "retrovdp/core/Validation.hpp"
 
 #include <array>
 #include <algorithm>
@@ -18,7 +19,7 @@
 #include <utility>
 #include <vector>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 namespace {
 
 constexpr std::uint32_t imageWidth = 256;
@@ -436,6 +437,7 @@ ConversionResult convertPalettedBitmapF18A(const RgbImage& source,
 
     const Palette palette = roundedPalette(selectedPalette);
     ConversionSettings bitmapSettings = settings;
+    bitmapSettings.targetProfile = TargetProfileId::F18A;
     bitmapSettings.mode = ConversionMode::Bitmap9918;
     ConversionResult result = convertBitmap9918(
         source, palette, bitmapSettings, std::move(cancellation), std::move(progress));
@@ -638,6 +640,7 @@ ConversionResult convertScanlinePaletteBitmapF18A(
     }
     auto [patterns, colors] = encodeBitmapTables(indexed);
     TargetMemoryImage target{
+        .profile = TargetProfileId::F18A,
         .mode = ConversionMode::ScanlinePaletteBitmapF18A,
         .palette = std::nullopt,
         .tables = {
@@ -658,4 +661,4 @@ ConversionResult convertScanlinePaletteBitmapF18A(
     };
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

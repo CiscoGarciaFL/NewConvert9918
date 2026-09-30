@@ -1,8 +1,8 @@
-#include "newconvert9918/core/Validation.hpp"
+#include "retrovdp/core/Validation.hpp"
 
 #include <cmath>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 
 std::vector<ValidationIssue> validate(const ConversionSettings& settings)
 {
@@ -181,4 +181,4 @@ std::vector<ValidationIssue> validate(const ConversionRequest& request)
     return issues;
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

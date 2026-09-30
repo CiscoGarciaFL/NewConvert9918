@@ -62,8 +62,8 @@ if(PLATFORM STREQUAL "windows")
         "plugins/platforms/qwindows.dll")
 elseif(PLATFORM STREQUAL "macos")
     set(runtime_candidates
-        "NewConvert9918.app/Contents/Frameworks/QtCore.framework/Versions/A/QtCore"
-        "NewConvert9918.app/Contents/PlugIns/platforms/libqcocoa.dylib")
+        "RetroVDPStudio.app/Contents/Frameworks/QtCore.framework/Versions/A/QtCore"
+        "RetroVDPStudio.app/Contents/PlugIns/platforms/libqcocoa.dylib")
 elseif(PLATFORM STREQUAL "linux")
     set(runtime_candidates
         "lib/libQt6Core.so.6"

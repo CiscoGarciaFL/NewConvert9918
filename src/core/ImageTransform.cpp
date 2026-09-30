@@ -1,4 +1,4 @@
-#include "newconvert9918/core/ImageTransform.hpp"
+#include "retrovdp/core/ImageTransform.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 namespace {
 
 struct AxisPlacement {
@@ -475,4 +475,4 @@ ImageTransformResult transformImage(const RgbImage& source,
     return result;
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

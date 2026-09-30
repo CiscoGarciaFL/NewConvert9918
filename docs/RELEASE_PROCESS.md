@@ -1,6 +1,6 @@
 # Release and Packaging Process
 
-This document defines how New Convert 9918 becomes a downloadable,
+This document defines how RetroVDP Studio becomes a downloadable,
 cross-platform product. It is the detailed contract for Phase 8 in
 `PROJECT_PLAN.md`; the project plan remains the short progress checklist.
 
@@ -94,7 +94,7 @@ sessions.
 The Linux software-center roadmap is:
 
 1. Add a validated AppStream MetaInfo file using the frozen
-   `io.github.ciscogarciafl.NewConvert9918` application ID, and keep its
+   `io.github.ciscogarciafl.RetroVDPStudio` application ID, and keep its
    desktop file, icon, screenshots, releases, summary, licenses, and URLs in
    sync. This metadata improves package presentation but does not by itself
    create a Discover repository.
@@ -160,30 +160,37 @@ settings/recipe migration policy.
 
 ## Stable identity and beta-to-official upgrades
 
-The following identities are frozen beginning with `v0.1.0-beta.1`:
+The following identities are frozen beginning with the first RetroVDP Studio
+release, `v0.1.0-beta.4`:
 
 | Identity | Frozen value and policy |
 | --- | --- |
 | Qt organization name | `CiscoGarciaFL`; keep it so existing per-user settings remain discoverable. |
-| Qt application name | `NewConvert9918`; keep it so the settings key does not split between preview and stable builds. |
+| Qt application name | `RetroVDPStudio`; keep it so the settings key does not split between preview and stable builds. |
 | Windows installer identity | `{9D53324F-AE3A-42FC-96C6-0B2256798410}`; never regenerate it for later versions. |
-| Windows install path | `%LOCALAPPDATA%\NewConvert9918`, with `NewConvert9918.exe` and `newconvert9918-cli.exe` under `bin`. |
-| macOS bundle identifier | `io.github.ciscogarciafl.NewConvert9918` for both unsigned previews and signed stable bundles. |
-| Linux desktop/application ID | `io.github.ciscogarciafl.NewConvert9918`, shared by the desktop file and installed icons. |
-| Debian package name | Keep `newconvert9918` so package-manager upgrades replace earlier versions. |
+| Windows install path | `%LOCALAPPDATA%\RetroVDPStudio`, with `RetroVDPStudio.exe` and `retrovdp-cli.exe` under `bin`. |
+| macOS bundle identifier | `io.github.ciscogarciafl.RetroVDPStudio` for both unsigned previews and signed stable bundles. |
+| Linux desktop/application ID | `io.github.ciscogarciafl.RetroVDPStudio`, shared by the desktop file and installed icons. |
+| Debian package name | `retrovdp-studio`, matching the product and repository identity. |
 | Recipe and settings schema | Version persisted data and preserve backward compatibility or provide an explicit migration. |
-| Application version source | `NEWCONVERT9918_VERSION` in the root `CMakeLists.txt`; GUI, CLI, packages, tags, asset names, and release titles must match it. |
+| Application version source | `RETROVDP_VERSION` in the root `CMakeLists.txt`; GUI, CLI, packages, tags, asset names, and release titles must match it. |
 
-With those identities held stable, the official signed Windows installer can
-upgrade the unsigned beta, the official macOS application can replace the
+The earlier beta.1 through beta.3 packages used the retired product identity
+and are not in-place installation upgrades. Remove an earlier installed beta
+before installing beta.4; portable archives and AppImages can simply be
+replaced. On first launch, RetroVDP Studio imports prior per-user settings when
+its new settings store is empty, and it accepts version-1 recipes written under
+the retired recipe identifier. Every subsequent write uses the new identity.
+
+With the beta.4 identities held stable, the official signed Windows installer
+can upgrade that unsigned beta, the official macOS application can replace its
 unsigned bundle in Applications, and newer Linux artifacts can replace or
 upgrade their matching preview forms. Portable ZIP and AppImage users still
-replace the old artifact manually. User settings and recipes must survive all
-of these transitions.
+replace the old artifact manually.
 
-The current source uses `CiscoGarciaFL` and `NewConvert9918` for Qt settings
+The current source uses `CiscoGarciaFL` and `RetroVDPStudio` for Qt settings
 identity. The GUI, CLI, packages, and release workflow derive their version
-from `NEWCONVERT9918_VERSION` in the root `CMakeLists.txt`.
+from `RETROVDP_VERSION` in the root `CMakeLists.txt`.
 
 ## Planned release assets
 
@@ -191,14 +198,14 @@ from `NEWCONVERT9918_VERSION` in the root `CMakeLists.txt`.
 
 | Platform | Required artifact | Purpose |
 | --- | --- | --- |
-| Windows x64 | `NewConvert9918-<version>-Windows-x64-Setup.exe` | Recommended per-user graphical installer with shortcuts and uninstall support. |
-| Windows x64 | `NewConvert9918-<version>-Windows-x64-Portable.zip` | Installer-free folder containing GUI, CLI, Qt, plugins, runtime, and notices. |
-| macOS Apple Silicon | `NewConvert9918-<version>-macOS-arm64.dmg` | Signed and notarized drag-to-Applications GUI bundle. |
-| macOS Intel | `NewConvert9918-<version>-macOS-x86_64.dmg` | Signed and notarized drag-to-Applications GUI bundle. |
-| Linux x64 | `NewConvert9918-<version>-Linux-x86_64.AppImage` | Primary portable GUI package. |
-| Debian/Ubuntu x64 | `newconvert9918_<version>_amd64.deb` | Isolated package with its bundled runtime under `/opt/newconvert9918` plus launchers, desktop integration, documentation, and declared base-system dependencies. |
-| Linux ARM64 (future) | `NewConvert9918-<version>-Linux-aarch64.AppImage` | Native AArch64 portable GUI package, added only after the ARM64 acceptance gates pass. |
-| Debian/Ubuntu ARM64 (future) | `newconvert9918_<version>_arm64.deb` | Native ARM64 package using the same private `/opt/newconvert9918` runtime boundary as the x64 package. |
+| Windows x64 | `RetroVDPStudio-<version>-Windows-x64-Setup.exe` | Recommended per-user graphical installer with shortcuts and uninstall support. |
+| Windows x64 | `RetroVDPStudio-<version>-Windows-x64-Portable.zip` | Installer-free folder containing GUI, CLI, Qt, plugins, runtime, and notices. |
+| macOS Apple Silicon | `RetroVDPStudio-<version>-macOS-arm64.dmg` | Signed and notarized drag-to-Applications GUI bundle. |
+| macOS Intel | `RetroVDPStudio-<version>-macOS-x86_64.dmg` | Signed and notarized drag-to-Applications GUI bundle. |
+| Linux x64 | `RetroVDPStudio-<version>-Linux-x86_64.AppImage` | Primary portable GUI package. |
+| Debian/Ubuntu x64 | `retrovdp-studio_<version>_amd64.deb` | Isolated package with its bundled runtime under `/opt/retrovdp-studio` plus launchers, desktop integration, documentation, and declared base-system dependencies. |
+| Linux ARM64 (future) | `RetroVDPStudio-<version>-Linux-aarch64.AppImage` | Native AArch64 portable GUI package, added only after the ARM64 acceptance gates pass. |
+| Debian/Ubuntu ARM64 (future) | `retrovdp-studio_<version>_arm64.deb` | Native ARM64 package using the same private `/opt/retrovdp-studio` runtime boundary as the x64 package. |
 | All binary releases | `SHA256SUMS.txt` | Digest of every published binary artifact. |
 
 Intel and Apple Silicon DMGs are separate initially because both architectures
@@ -210,14 +217,14 @@ DMGs and Windows executables may be unsigned when the release is clearly
 labeled as described above. Signing and notarization become mandatory gates
 for the official stable release.
 
-The Windows installer and portable ZIP contain `NewConvert9918.exe` and
-`newconvert9918-cli.exe`. The installer does not modify `PATH` by default. The
+The Windows installer and portable ZIP contain `RetroVDPStudio.exe` and
+`retrovdp-cli.exe`. The installer does not modify `PATH` by default. The
 desktop executable uses the Windows GUI subsystem so Explorer and installer
 shortcuts do not open a console window; the CLI deliberately uses the Windows
 console subsystem. The release workflow inspects both PE subsystem values. The
 Debian package installs small launchers in `/usr/bin`, desktop integration
 under `/usr/share`, and the actual GUI, CLI, `qt.conf`, Qt libraries, plugins,
-and QML modules under `/opt/newconvert9918`. The macOS DMG and Linux AppImage
+and QML modules under `/opt/retrovdp-studio`. The macOS DMG and Linux AppImage
 focus on the GUI; matching, versioned CLI archives may be attached when
 terminal installation instructions and architecture coverage are finalized.
 
@@ -253,20 +260,20 @@ diagnostics, but are not placed in normal user packages.
 A self-contained application runtime must never become a global Qt runtime.
 The Debian package therefore follows these ownership boundaries:
 
-- `/opt/newconvert9918` owns the private executables, `qt.conf`, libraries,
+- `/opt/retrovdp-studio` owns the private executables, `qt.conf`, libraries,
   plugins, QML modules, resources, and bundled license material;
-- `/usr/bin/NewConvert9918` and `/usr/bin/newconvert9918-cli` are launchers that
+- `/usr/bin/RetroVDPStudio` and `/usr/bin/retrovdp-cli` are launchers that
   execute the corresponding private binaries;
 - `/usr/share/applications`, `/usr/share/icons`, and
-  `/usr/share/doc/newconvert9918` contain only normal desktop integration and
+  `/usr/share/doc/retrovdp-studio` contain only normal desktop integration and
   documentation; and
 - the package must not create `/usr/bin/qt.conf`, `/usr/plugins`, `/usr/qml`,
   `/apprun-hooks`, or unnamespaced bundled Qt, X11, or XCB libraries directly
   under `/usr/lib`.
 
 Keeping `qt.conf` beside the real executable under the private prefix limits
-its plugin-path changes to New Convert 9918. Removing the package must remove
-the complete `/opt/newconvert9918` tree and both launchers without touching
+its plugin-path changes to RetroVDP Studio. Removing the package must remove
+the complete `/opt/retrovdp-studio` tree and both launchers without touching
 host Qt packages or configuration.
 
 ## CMake deployment and packaging design
@@ -285,7 +292,7 @@ be repurposed as the Debian filesystem root.
 4. CPack or a narrowly scoped platform packaging script consumes only the
    staged install tree. Linux creates distinct package roots: linuxdeploy may
    mutate `AppDir` for the AppImage, while the Debian builder relocates that
-   deployed runtime under `/opt/newconvert9918` and explicitly constructs only
+   deployed runtime under `/opt/retrovdp-studio` and explicitly constructs only
    the approved `/usr` integration files.
 5. A package-content audit rejects debug libraries, build-machine paths,
    unintended plugins, missing notices, and unresolved dynamic dependencies.
@@ -469,9 +476,9 @@ package cannot change its source path before APT opens it. Release notes must
 explain the notice and give this warning-free alternative:
 
 ```shell
-install -m 0644 ./package.deb /tmp/newconvert9918.deb
-sudo apt install /tmp/newconvert9918.deb
-rm /tmp/newconvert9918.deb
+install -m 0644 ./package.deb /tmp/retrovdp.deb
+sudo apt install /tmp/retrovdp.deb
+rm /tmp/retrovdp.deb
 ```
 
 Do not recommend disabling APT's sandbox, making a home directory
@@ -480,7 +487,7 @@ authenticated APT repository would avoid this local-file condition because
 APT controls its download/cache path.
 
 The Debian archive also records a positive `Installed-Size`, confines bundled
-runtime files to `/opt/newconvert9918`, and passes both archive-layout and
+runtime files to `/opt/retrovdp-studio`, and passes both archive-layout and
 post-install path audits. A successful application launch alone is not enough:
 the test must also prove that unrelated host Qt applications retain their own
 configuration and plugin discovery after installation and reboot/logout.
@@ -597,7 +604,7 @@ test locally. Feedback from `v0.1.0-beta.1` identified a Windows GUI-subsystem
 error and an unreliable graphical Debian installation path; `v0.1.0-beta.2`
 corrected the former but retained an unsafe Debian filesystem layout. The
 published `v0.1.0-beta.3` implementation isolates the deployed runtime under
-`/opt/newconvert9918`, adds explicit launchers and desktop integration, records
+`/opt/retrovdp-studio`, adds explicit launchers and desktop integration, records
 `Installed-Size`, rejects forbidden global paths, and verifies installation,
 launch, removal, and cleanup. Its tagged release workflow passed on 2026-09-27
 and published the complete seven-file asset set. The remaining Linux acceptance

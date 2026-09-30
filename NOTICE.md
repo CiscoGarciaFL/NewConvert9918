@@ -8,22 +8,20 @@
 Original source repository:
 <https://github.com/tursilion/convert9918>
 
-The original application's conversion behavior, supported target systems,
-file-format knowledge, documentation, and established workflow are the
-foundation of New Convert 9918. Mike Brent's original copyright and license
-remain in force.
+RetroVDP Studio is inspired by the original application's conversion behavior,
+supported target systems, file-format knowledge, documentation, and established
+workflow. Mike Brent's original copyright and license remain in force.
 
-## New application
+## RetroVDP Studio
 
-**New Convert 9918** cross-platform architecture, Qt interface, user
+**RetroVDP Studio** cross-platform architecture, Qt interface, user
 experience, and new features are created by **Cisco Garcia / CiscoGarciaFL**.
 
 Copyright (C) 2026 Cisco Garcia / CiscoGarciaFL
 
 ## Third-party work
 
-Separately licensed third-party components must retain their own copyright
-and license notices. The retired ImgSource library is not included in New
-Convert 9918 and will be replaced with Qt image I/O and independently
-licensed or independently implemented codecs.
-
+Separately licensed third-party components must retain their own copyright and
+license notices. The retired ImgSource library is not included in RetroVDP
+Studio; Qt image I/O and independently licensed or independently implemented
+codecs provide those boundaries.

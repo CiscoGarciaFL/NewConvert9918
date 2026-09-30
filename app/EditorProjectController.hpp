@@ -158,6 +158,14 @@ public:
                                       int row,
                                       int column,
                                       bool foreground);
+    Q_INVOKABLE void drawSpriteLine(int setIndex,
+                                    int spriteIndex,
+                                    int size,
+                                    int fromRow,
+                                    int fromColumn,
+                                    int toRow,
+                                    int toColumn,
+                                    bool foreground);
     Q_INVOKABLE void beginSpriteEdit(int setIndex, int spriteIndex, int size);
     Q_INVOKABLE void endSpriteEdit();
     Q_INVOKABLE void rotateActiveSpritePattern();
@@ -177,6 +185,13 @@ public:
                                          int row,
                                          int column,
                                          bool foreground);
+    Q_INVOKABLE void drawCharacterLine(int setIndex,
+                                       int patternIndex,
+                                       int fromRow,
+                                       int fromColumn,
+                                       int toRow,
+                                       int toColumn,
+                                       bool foreground);
     Q_INVOKABLE void beginCharacterEdit(int setIndex, int patternIndex);
     Q_INVOKABLE void endCharacterEdit();
     Q_INVOKABLE void rotateActiveCharacterPattern();

@@ -31,7 +31,7 @@ def render_pngs(inkscape: str, source: Path, output_dir: Path) -> dict[int, Path
     output_dir.mkdir(parents=True, exist_ok=True)
     rendered: dict[int, Path] = {}
     for size in PNG_SIZES:
-        output = output_dir / f"NewConvert9918-{size}.png"
+        output = output_dir / f"RetroVDPStudio-{size}.png"
         subprocess.run(
             [
                 inkscape,
@@ -49,7 +49,7 @@ def render_pngs(inkscape: str, source: Path, output_dir: Path) -> dict[int, Path
 
 def render_watermark(inkscape: str, source: Path, output_dir: Path) -> Path:
     """Render the larger source used by the subdued preview watermark."""
-    output = output_dir / "NewConvert9918-watermark-512.png"
+    output = output_dir / "RetroVDPStudio-watermark-512.png"
     subprocess.run(
         [
             inkscape,
@@ -109,7 +109,7 @@ def main() -> None:
 
     project_root = Path(__file__).resolve().parents[1]
     asset_dir = project_root / "app" / "assets"
-    source = asset_dir / "NewConvert9918.svg"
+    source = asset_dir / "RetroVDPStudio.svg"
     output_dir = asset_dir / "icons"
     inkscape = args.inkscape or shutil.which("inkscape") or shutil.which("inkscape.com")
     if inkscape is None:
@@ -119,8 +119,8 @@ def main() -> None:
 
     rendered = render_pngs(inkscape, source, output_dir)
     render_watermark(inkscape, source, output_dir)
-    write_ico(rendered, output_dir / "NewConvert9918.ico")
-    write_icns(rendered, output_dir / "NewConvert9918.icns")
+    write_ico(rendered, output_dir / "RetroVDPStudio.ico")
+    write_icns(rendered, output_dir / "RetroVDPStudio.icns")
     print(f"Generated application icons in {output_dir}")
 
 

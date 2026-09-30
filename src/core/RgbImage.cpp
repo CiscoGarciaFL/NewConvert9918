@@ -1,10 +1,10 @@
-#include "newconvert9918/core/RgbImage.hpp"
+#include "retrovdp/core/RgbImage.hpp"
 
 #include <limits>
 #include <stdexcept>
 #include <utility>
 
-namespace newconvert9918::core {
+namespace retrovdp::core {
 namespace {
 
 void setError(ImageLayoutError* destination, ImageLayoutError error)
@@ -141,4 +141,4 @@ RgbImage::RgbImage(ImageLayout layout, std::vector<std::uint8_t> bytes)
 {
 }
 
-} // namespace newconvert9918::core
+} // namespace retrovdp::core

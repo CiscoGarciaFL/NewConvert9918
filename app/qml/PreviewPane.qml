@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 
 ThemedFrame {
@@ -15,18 +16,36 @@ ThemedFrame {
     property bool acceptDrops: false
     property bool showTitle: true
     property bool sourceTools: false
+    property bool screenImageTools: false
     property bool convertedTools: false
     property int activeColor: 1 // 0 = foreground, 1 = background
     property bool pickingColor: false
-    property int drawingTool: 0 // 0 = none, 1 = pencil, 2 = eraser, 3 = ellipse, 4 = rectangle
+    // 0 = none, 1 = pencil, 2 = eraser, 3 = ellipse, 4 = rectangle,
+    // 5 = line, 6 = chained K-Line, 7 = fixed-origin Rays, 8 = color swap,
+    // 9 = rectangular selection, 10 = floating selection placement.
+    property int drawingTool: 0
     property int drawingDiameter: 1
     property bool hardDrawingEdges: false
+    property bool squareDrawingBrush: false
     property bool fillDrawingShapes: false
+    property bool gridVisible: false
+    property bool snapDrawingToCharacterBounds: false
     property Component upperToolbarContent
     property Component workspaceContent
     property Component lowerToolbarContent
     property bool zoomInteractive: true
     property bool zoomContentAvailable: imageSource.toString().length > 0
+    readonly property bool editingTools: sourceTools || screenImageTools
+    readonly property bool editableContentAvailable: screenImageTools
+                                                     ? imageInput.hasConversion
+                                                       && !imageInput.busy
+                                                     : imageInput.hasImage
+    readonly property color foregroundPaintColor: screenImageTools
+                                                  ? imageInput.screenImageForegroundColor
+                                                  : imageInput.foregroundColor
+    readonly property color backgroundPaintColor: screenImageTools
+                                                  ? imageInput.screenImageBackgroundColor
+                                                  : imageInput.backgroundColor
     signal fileDropped(url fileUrl)
     signal colorPointPicked(real normalizedX, real normalizedY, bool foreground)
 
@@ -51,17 +70,472 @@ ThemedFrame {
     }
 
     function chooseActiveColor(color) {
-        if (root.activeColor === 0)
+        if (root.screenImageTools) {
+            if (root.activeColor === 0)
+                imageInput.screenImageForegroundColor = color
+            else
+                imageInput.screenImageBackgroundColor = color
+        } else if (root.activeColor === 0) {
             imageInput.foregroundColor = color
-        else
+        } else {
             imageInput.backgroundColor = color
+        }
         backgroundPalettePopup.close()
+    }
+
+    function finishMultiLine() {
+        if (!strokeOverlay.polylineActive)
+            return
+        if (root.screenImageTools)
+            imageInput.endScreenImageStroke()
+        else
+            imageInput.endSourceStroke()
+        strokeOverlay.finishPolyline()
+    }
+
+    function finishKLine() {
+        finishMultiLine()
+    }
+
+    function selectDrawingTool(tool) {
+        if ((root.drawingTool === 6 || root.drawingTool === 7)
+                && tool !== root.drawingTool)
+            root.finishMultiLine()
+        if (root.screenImageTools && imageInput.screenImageFloating
+                && tool !== 10)
+            imageInput.cancelScreenImageFloating()
+        root.drawingTool = tool
+        root.pickingColor = false
+    }
+
+    function positionFloatingAtSelectionOrCenter() {
+        const imageWidth = Math.max(1, preview.sourceSize.width)
+        const imageHeight = Math.max(1, preview.sourceSize.height)
+        if (imageInput.hasScreenImageSelection) {
+            drawingMouseArea.floatingCenterX =
+                (imageInput.screenImageSelectionX
+                 + (imageInput.screenImageFloatingTopLeft
+                    ? 0 : imageInput.screenImageSelectionWidth / 2))
+                * preview.width / imageWidth
+            drawingMouseArea.floatingCenterY =
+                (imageInput.screenImageSelectionY
+                 + (imageInput.screenImageFloatingTopLeft
+                    ? 0 : imageInput.screenImageSelectionHeight / 2))
+                * preview.height / imageHeight
+        } else {
+            drawingMouseArea.floatingCenterX = preview.width / 2
+            drawingMouseArea.floatingCenterY = preview.height / 2
+        }
+        drawingMouseArea.forceActiveFocus()
+    }
+
+    function drawingDiameterForTool(tool) {
+        if (!root.screenImageTools || !root.snapDrawingToCharacterBounds
+                || tool < 3)
+            return root.drawingDiameter
+        // A brush wider than the cell cannot remain inside a single snapped
+        // 8x8 bound. Soft brushes reserve one blended fringe pixel per side.
+        return Math.min(root.drawingDiameter, root.hardDrawingEdges ? 8 : 7)
+    }
+
+    function characterSnapInset(tool) {
+        const diameter = drawingDiameterForTool(tool)
+        return diameter / 2 + (root.hardDrawingEdges ? 0 : 0.5)
+    }
+
+    function characterCellTopLeft(localX, localY, tool) {
+        const imageWidth = Math.max(1, preview.sourceSize.width)
+        const imageHeight = Math.max(1, preview.sourceSize.height)
+        const sourceX = Math.max(0, Math.min(imageWidth - 0.001,
+                                             localX * imageWidth
+                                             / Math.max(1, preview.width)))
+        const sourceY = Math.max(0, Math.min(imageHeight - 0.001,
+                                             localY * imageHeight
+                                             / Math.max(1, preview.height)))
+        const inset = characterSnapInset(tool)
+        return Qt.point((Math.floor(sourceX / 8) * 8 + inset)
+                            * preview.width / imageWidth,
+                        (Math.floor(sourceY / 8) * 8 + inset)
+                            * preview.height / imageHeight)
+    }
+
+    function characterCellBottomRight(localX, localY, tool) {
+        const imageWidth = Math.max(1, preview.sourceSize.width)
+        const imageHeight = Math.max(1, preview.sourceSize.height)
+        const sourceX = Math.max(0, Math.min(imageWidth - 0.001,
+                                             localX * imageWidth
+                                             / Math.max(1, preview.width)))
+        const sourceY = Math.max(0, Math.min(imageHeight - 0.001,
+                                             localY * imageHeight
+                                             / Math.max(1, preview.height)))
+        const inset = characterSnapInset(tool)
+        return Qt.point(Math.min(imageWidth - inset,
+                                 (Math.floor(sourceX / 8) + 1) * 8 - inset)
+                            * preview.width / imageWidth,
+                        Math.min(imageHeight - inset,
+                                 (Math.floor(sourceY / 8) + 1) * 8 - inset)
+                            * preview.height / imageHeight)
+    }
+
+    function drawingStartPoint(localX, localY, tool) {
+        return root.screenImageTools && root.snapDrawingToCharacterBounds
+               && tool >= 3 ? characterCellTopLeft(localX, localY, tool)
+                            : Qt.point(localX, localY)
+    }
+
+    function drawingEndPoint(localX, localY, tool) {
+        return root.screenImageTools && root.snapDrawingToCharacterBounds
+               && tool >= 3 ? characterCellBottomRight(localX, localY, tool)
+                            : Qt.point(localX, localY)
+    }
+
+    Connections {
+        target: imageInput
+        function onScreenImageFloatingChanged() {
+            if (!root.screenImageTools)
+                return
+            if (imageInput.screenImageFloating) {
+                root.drawingTool = 10
+                root.pickingColor = false
+                root.positionFloatingAtSelectionOrCenter()
+            } else if (root.drawingTool === 10) {
+                root.drawingTool = imageInput.hasScreenImageSelection ? 9 : 0
+            }
+        }
+    }
+
+    Dialog {
+        id: typeToolDialog
+        objectName: root.objectName + "TypeToolDialog"
+        title: qsTr("Type")
+        modal: true
+        width: Math.max(360, Math.min(620, root.width - 32))
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        onAccepted: {
+            if (fontCombo.currentIndex < 0)
+                return
+            imageInput.prepareScreenImageText(
+                typeText.text,
+                imageInput.screenImageFonts[fontCombo.currentIndex].key,
+                typeSize.value)
+        }
+
+        ColumnLayout {
+            width: parent.width
+            spacing: 8
+
+            Label { text: qsTr("Text") }
+            TextArea {
+                id: typeText
+                objectName: root.objectName + "TypeText"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 76
+                placeholderText: qsTr("Enter text to place")
+                wrapMode: TextEdit.NoWrap
+                selectByMouse: true
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Label { text: qsTr("Font") }
+                ComboBox {
+                    id: fontCombo
+                    objectName: root.objectName + "TypeFontComboBox"
+                    Layout.fillWidth: true
+                    model: imageInput.screenImageFonts
+                    textRole: "name"
+                    valueRole: "key"
+                    popup.height: Math.min(420, popup.contentItem.implicitHeight)
+                    delegate: ItemDelegate {
+                        required property var modelData
+                        width: fontCombo.popup.width
+                        height: 38
+                        contentItem: RowLayout {
+                            spacing: 7
+                            Rectangle {
+                                implicitWidth: 34
+                                implicitHeight: 22
+                                radius: 3
+                                color: palette.highlight
+                                Label {
+                                    anchors.centerIn: parent
+                                    text: modelData.badge
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    color: palette.highlightedText
+                                }
+                            }
+                            Image {
+                                visible: modelData.kind === "tiartist"
+                                Layout.preferredWidth: visible ? 150 : 0
+                                Layout.preferredHeight: 24
+                                source: modelData.preview
+                                fillMode: Image.PreserveAspectFit
+                                horizontalAlignment: Image.AlignLeft
+                                smooth: false
+                            }
+                            Label {
+                                Layout.fillWidth: true
+                                text: modelData.name
+                                elide: Text.ElideRight
+                                font.family: modelData.kind === "system"
+                                             ? modelData.family : "monospace"
+                            }
+                        }
+                    }
+                    Accessible.name: qsTr("Font and font format")
+                }
+                Label { text: qsTr("Size") }
+                SpinBox {
+                    id: typeSize
+                    objectName: root.objectName + "TypeSizeSpinBox"
+                    from: 1
+                    to: 192
+                    value: 16
+                    editable: true
+                    Accessible.name: qsTr("Font pixel size")
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 72
+                color: "#101317"
+                border.color: "#53606d"
+                radius: 3
+                Label {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    text: typeText.text.length > 0 ? typeText.text : qsTr("Text preview")
+                    color: root.foregroundPaintColor
+                    font.family: fontCombo.currentIndex >= 0
+                                 && imageInput.screenImageFonts[fontCombo.currentIndex].kind
+                                    === "system"
+                                 ? imageInput.screenImageFonts[fontCombo.currentIndex].family
+                                 : "monospace"
+                    font.pixelSize: Math.min(typeSize.value, 48)
+                    elide: Text.ElideRight
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Label {
+                    Layout.fillWidth: true
+                    text: qsTr("TI Artist fonts: %1").arg(imageInput.tiArtistFontsPath)
+                    elide: Text.ElideMiddle
+                    color: palette.placeholderText
+                    ToolTip.visible: fontPathHover.hovered
+                    ToolTip.text: imageInput.tiArtistFontsPath
+                    HoverHandler { id: fontPathHover }
+                }
+                Button {
+                    text: qsTr("Open Folder")
+                    onClicked: imageInput.openTiArtistFontsFolder()
+                }
+                Button {
+                    text: qsTr("Refresh")
+                    onClicked: imageInput.reloadScreenImageFonts()
+                }
+            }
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: root.snapDrawingToCharacterBounds
+                      ? qsTr("Placement starts at the upper-left of the 8×8 cell under the pointer.")
+                      : qsTr("Placement starts at the exact pixel under the pointer.")
+                color: palette.placeholderText
+            }
+        }
+    }
+
+    FileDialog {
+        id: clipArtFileDialog
+        title: qsTr("Choose Slide/ClipArt")
+        nameFilters: [
+            qsTr("Images (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp *.pcx)"),
+            qsTr("TI and retro art (*.tiap *.tiac *.tiam *_P *_C *_M *.sc2 *.pc *.pp *.hgr *.hgrh)"),
+            qsTr("All files (*)")
+        ]
+        onAccepted: imageInput.loadScreenImageClipArt(selectedFile)
+    }
+
+    Dialog {
+        id: clipArtDialog
+        objectName: root.objectName + "ClipArtDialog"
+        title: qsTr("Slide / ClipArt")
+        modal: true
+        width: Math.max(360, Math.min(620, root.width - 32))
+        property bool changingSize: false
+        property real sourceAspect: imageInput.screenImageClipArtSourceHeight > 0
+                                    ? imageInput.screenImageClipArtSourceWidth
+                                      / imageInput.screenImageClipArtSourceHeight : 1
+        property string processedPreview: ""
+
+        function resetSourceSize() {
+            if (imageInput.screenImageClipArtSourceWidth <= 0)
+                return
+            changingSize = true
+            clipWidth.value = Math.min(256, imageInput.screenImageClipArtSourceWidth)
+            clipHeight.value = Math.min(192, imageInput.screenImageClipArtSourceHeight)
+            changingSize = false
+            refreshPreview()
+        }
+        function refreshPreview() {
+            processedPreview = imageInput.screenImageClipArtPreview(
+                clipWidth.value, clipHeight.value, clipColorMode.currentIndex,
+                clipTransparent.checked, clipUseColors.checked)
+        }
+        onOpened: refreshPreview()
+        onAccepted: imageInput.prepareScreenImageClipArt(
+            clipWidth.value, clipHeight.value, clipColorMode.currentIndex,
+            clipTransparent.checked, clipUseColors.checked)
+
+        Connections {
+            target: imageInput
+            function onScreenImageClipArtChanged() {
+                clipArtDialog.resetSourceSize()
+            }
+            function onScreenImageColorsChanged() {
+                if (clipArtDialog.opened)
+                    clipArtDialog.refreshPreview()
+            }
+        }
+
+        footer: DialogButtonBox {
+            Button {
+                text: qsTr("Place")
+                enabled: imageInput.screenImageClipArtSourceWidth > 0
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+            }
+            Button {
+                text: qsTr("Cancel")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+            }
+        }
+
+        ColumnLayout {
+            width: parent.width
+            spacing: 8
+            RowLayout {
+                Layout.fillWidth: true
+                Button {
+                    objectName: root.objectName + "ClipArtChooseFileButton"
+                    text: qsTr("Choose File…")
+                    onClicked: clipArtFileDialog.open()
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: imageInput.screenImageClipArtSourceName.length > 0
+                          ? imageInput.screenImageClipArtSourceName
+                          : qsTr("No art selected")
+                    elide: Text.ElideMiddle
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 230
+                color: "#101317"
+                border.color: "#53606d"
+                radius: 3
+                Image {
+                    id: clipArtPreviewImage
+                    objectName: root.objectName + "ClipArtProcessedPreview"
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    source: clipArtDialog.processedPreview
+                    fillMode: Image.PreserveAspectFit
+                    smooth: false
+                }
+                Label {
+                    anchors.centerIn: parent
+                    visible: clipArtPreviewImage.source.toString().length === 0
+                    text: qsTr("Choose an image to preview")
+                    color: palette.placeholderText
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Label { text: qsTr("Width") }
+                SpinBox {
+                    id: clipWidth
+                    objectName: root.objectName + "ClipArtWidthSpinBox"
+                    from: 1
+                    to: 256
+                    value: 64
+                    editable: true
+                    onValueModified: {
+                        if (clipKeepAspect.checked && !clipArtDialog.changingSize) {
+                            clipArtDialog.changingSize = true
+                            clipHeight.value = Math.max(
+                                1, Math.min(192, Math.round(value
+                                    / clipArtDialog.sourceAspect)))
+                            clipArtDialog.changingSize = false
+                        }
+                        clipArtDialog.refreshPreview()
+                    }
+                }
+                Label { text: qsTr("Height") }
+                SpinBox {
+                    id: clipHeight
+                    objectName: root.objectName + "ClipArtHeightSpinBox"
+                    from: 1
+                    to: 192
+                    value: 64
+                    editable: true
+                    onValueModified: {
+                        if (clipKeepAspect.checked && !clipArtDialog.changingSize) {
+                            clipArtDialog.changingSize = true
+                            clipWidth.value = Math.max(
+                                1, Math.min(256, Math.round(value
+                                    * clipArtDialog.sourceAspect)))
+                            clipArtDialog.changingSize = false
+                        }
+                        clipArtDialog.refreshPreview()
+                    }
+                }
+                CheckBox {
+                    id: clipKeepAspect
+                    text: qsTr("Keep aspect")
+                    checked: true
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Label { text: qsTr("Color") }
+                ComboBox {
+                    id: clipColorMode
+                    objectName: root.objectName + "ClipArtColorModeComboBox"
+                    Layout.fillWidth: true
+                    model: [qsTr("Original color"), qsTr("Monochrome"),
+                            qsTr("Black and white")]
+                    onCurrentIndexChanged: clipArtDialog.refreshPreview()
+                }
+            }
+            CheckBox {
+                id: clipUseColors
+                objectName: root.objectName + "ClipArtUseSelectedColorsCheckBox"
+                text: qsTr("Map the art to the selected foreground/background colors")
+                onToggled: clipArtDialog.refreshPreview()
+            }
+            CheckBox {
+                id: clipTransparent
+                objectName: root.objectName + "ClipArtTransparentCheckBox"
+                text: qsTr("Make the background transparent")
+                checked: true
+                onToggled: clipArtDialog.refreshPreview()
+            }
+        }
     }
 
     Popup {
         id: backgroundPalettePopup
         objectName: root.objectName + "ColorPickerPopup"
-        enabled: imageInput.hasImage
+        enabled: root.editableContentAvailable
         parent: root
         x: Math.max(0, Math.min(root.width - width,
                                colorControl.mapToItem(root, 0, 0).x))
@@ -189,7 +663,9 @@ ThemedFrame {
                     spacing: 5
                     Label {
                         Layout.fillWidth: true
-                        text: qsTr("Colors found in the source image")
+                        text: root.screenImageTools && !imageInput.hasImage
+                              ? qsTr("Colors used by the Screen Image")
+                              : qsTr("Colors found in the source image")
                         color: palette.placeholderText
                     }
                     GridView {
@@ -242,7 +718,7 @@ ThemedFrame {
             objectName: root.objectName + "DrawingToolbarSlot"
             Layout.fillWidth: true
             Layout.minimumWidth: 0
-            Layout.preferredHeight: width < 300 ? 53 : 26
+            Layout.preferredHeight: width < 560 ? 53 : 26
 
             Loader {
                 objectName: root.objectName + "CustomUpperToolbar"
@@ -254,7 +730,7 @@ ThemedFrame {
             Flow {
                 objectName: root.objectName + "DrawingTools"
                 anchors.fill: parent
-                visible: root.sourceTools
+                visible: root.editingTools
                 spacing: 1
 
                 ToolButton {
@@ -264,7 +740,7 @@ ThemedFrame {
                 implicitHeight: 26
                 checkable: true
                 checked: root.drawingTool === 1
-                enabled: imageInput.hasImage
+                enabled: root.editableContentAvailable
                 Accessible.name: qsTr("Draw with the foreground color")
                 ToolTip.visible: hovered
                 ToolTip.text: Accessible.name
@@ -297,8 +773,7 @@ ThemedFrame {
                     }
                 }
                 onClicked: {
-                    root.drawingTool = 1
-                    root.pickingColor = false
+                    root.selectDrawingTool(1)
                 }
                 }
                 ToolButton {
@@ -308,7 +783,7 @@ ThemedFrame {
                 implicitHeight: 26
                 checkable: true
                 checked: root.drawingTool === 2
-                enabled: imageInput.hasImage
+                enabled: root.editableContentAvailable
                 Accessible.name: qsTr("Erase with the background color")
                 ToolTip.visible: hovered
                 ToolTip.text: Accessible.name
@@ -337,9 +812,162 @@ ThemedFrame {
                     }
                 }
                 onClicked: {
-                    root.drawingTool = 2
-                    root.pickingColor = false
+                    root.selectDrawingTool(2)
                 }
+                }
+                ToolButton {
+                    id: colorSwapButton
+                    objectName: root.objectName + "ColorSwapButton"
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    checkable: true
+                    checked: root.drawingTool === 8
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Swap the foreground color with a color in the image")
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Color Swap — click an image color to exchange all matching pixels with the foreground color")
+                    onClicked: root.selectDrawingTool(8)
+
+                    contentItem: Canvas {
+                        implicitWidth: 16
+                        implicitHeight: 16
+                        property color iconColor: colorSwapButton.enabled
+                                                  ? colorSwapButton.palette.buttonText
+                                                  : colorSwapButton.palette.mid
+                        property color foregroundSwatch: root.foregroundPaintColor
+                        onIconColorChanged: requestPaint()
+                        onForegroundSwatchChanged: requestPaint()
+                        onPaint: {
+                            const context = getContext("2d")
+                            context.clearRect(0, 0, width, height)
+                            context.fillStyle = foregroundSwatch
+                            context.strokeStyle = iconColor
+                            context.lineWidth = 1
+                            context.fillRect(1, 2, 5, 5)
+                            context.strokeRect(1, 2, 5, 5)
+                            context.fillStyle = iconColor
+                            context.fillRect(10, 9, 5, 5)
+                            context.beginPath()
+                            context.moveTo(6, 4)
+                            context.lineTo(12, 4)
+                            context.lineTo(10, 2)
+                            context.moveTo(10, 12)
+                            context.lineTo(4, 12)
+                            context.lineTo(6, 14)
+                            context.stroke()
+                        }
+                    }
+                }
+                ToolButton {
+                    id: lineButton
+                    objectName: root.objectName + "LineButton"
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    checkable: true
+                    checked: root.drawingTool === 5
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Draw a line; hold Shift for horizontal or vertical")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name
+                    onClicked: root.selectDrawingTool(5)
+                    contentItem: Canvas {
+                        implicitWidth: 16
+                        implicitHeight: 16
+                        property color iconColor: lineButton.enabled
+                                                  ? lineButton.palette.buttonText
+                                                  : lineButton.palette.mid
+                        onIconColorChanged: requestPaint()
+                        onPaint: {
+                            const context = getContext("2d")
+                            context.clearRect(0, 0, width, height)
+                            context.strokeStyle = iconColor
+                            context.lineWidth = 2
+                            context.lineCap = "round"
+                            context.beginPath()
+                            context.moveTo(2, 13)
+                            context.lineTo(14, 3)
+                            context.stroke()
+                        }
+                    }
+                }
+                ToolButton {
+                    id: kLineButton
+                    objectName: root.objectName + "KLineButton"
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    checkable: true
+                    checked: root.drawingTool === 6
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Draw connected K-Line segments; Escape finishes")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name
+                    onClicked: root.selectDrawingTool(6)
+                    contentItem: Canvas {
+                        implicitWidth: 16
+                        implicitHeight: 16
+                        property color iconColor: kLineButton.enabled
+                                                  ? kLineButton.palette.buttonText
+                                                  : kLineButton.palette.mid
+                        onIconColorChanged: requestPaint()
+                        onPaint: {
+                            const context = getContext("2d")
+                            context.clearRect(0, 0, width, height)
+                            context.strokeStyle = iconColor
+                            context.fillStyle = iconColor
+                            context.lineWidth = 1.5
+                            context.lineJoin = "round"
+                            context.beginPath()
+                            context.moveTo(2, 13)
+                            context.lineTo(7, 4)
+                            context.lineTo(14, 11)
+                            context.stroke()
+                            context.beginPath()
+                            context.arc(2, 13, 1.5, 0, Math.PI * 2)
+                            context.arc(7, 4, 1.5, 0, Math.PI * 2)
+                            context.arc(14, 11, 1.5, 0, Math.PI * 2)
+                            context.fill()
+                        }
+                    }
+                }
+                ToolButton {
+                    id: raysButton
+                    objectName: root.objectName + "RaysButton"
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    checkable: true
+                    checked: root.drawingTool === 7
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Draw fixed-origin Rays; Escape finishes")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name
+                    onClicked: root.selectDrawingTool(7)
+                    contentItem: Canvas {
+                        implicitWidth: 16
+                        implicitHeight: 16
+                        property color iconColor: raysButton.enabled
+                                                  ? raysButton.palette.buttonText
+                                                  : raysButton.palette.mid
+                        onIconColorChanged: requestPaint()
+                        onPaint: {
+                            const context = getContext("2d")
+                            context.clearRect(0, 0, width, height)
+                            context.strokeStyle = iconColor
+                            context.fillStyle = iconColor
+                            context.lineWidth = 1.5
+                            context.lineCap = "round"
+                            context.beginPath()
+                            context.moveTo(3, 8)
+                            context.lineTo(13, 3)
+                            context.moveTo(3, 8)
+                            context.lineTo(14, 8)
+                            context.moveTo(3, 8)
+                            context.lineTo(13, 13)
+                            context.stroke()
+                            context.beginPath()
+                            context.arc(3, 8, 2, 0, Math.PI * 2)
+                            context.fill()
+                        }
+                    }
                 }
                 ToolButton {
                     id: ellipseButton
@@ -348,13 +976,12 @@ ThemedFrame {
                     implicitHeight: 26
                     checkable: true
                     checked: root.drawingTool === 3
-                    enabled: imageInput.hasImage
+                    enabled: root.editableContentAvailable
                     Accessible.name: qsTr("Draw an ellipse; hold Shift for a circle")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
                     onClicked: {
-                        root.drawingTool = 3
-                        root.pickingColor = false
+                        root.selectDrawingTool(3)
                     }
 
                     contentItem: Canvas {
@@ -387,13 +1014,12 @@ ThemedFrame {
                     implicitHeight: 26
                     checkable: true
                     checked: root.drawingTool === 4
-                    enabled: imageInput.hasImage
+                    enabled: root.editableContentAvailable
                     Accessible.name: qsTr("Draw a rectangle; hold Shift for a square")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
                     onClicked: {
-                        root.drawingTool = 4
-                        root.pickingColor = false
+                        root.selectDrawingTool(4)
                     }
 
                     contentItem: Canvas {
@@ -413,13 +1039,58 @@ ThemedFrame {
                     }
                 }
                 ToolButton {
+                    id: characterSnapButton
+                    objectName: root.objectName + "CharacterSnapButton"
+                    visible: root.screenImageTools
+                    implicitWidth: visible ? 26 : 0
+                    implicitHeight: 26
+                    checkable: true
+                    checked: root.snapDrawingToCharacterBounds
+                    enabled: root.editableContentAvailable
+                    Accessible.name: checked
+                                     ? qsTr("Disable 8 by 8 character-bound snapping")
+                                     : qsTr("Snap shapes and lines to 8 by 8 character bounds")
+                    ToolTip.visible: hovered
+                    ToolTip.text: checked
+                                      ? qsTr("Character-bound snap is on")
+                                      : qsTr("Align shape anchors and endpoints to character-cell corners")
+                    onClicked: root.snapDrawingToCharacterBounds = checked
+
+                    contentItem: Canvas {
+                        implicitWidth: 16
+                        implicitHeight: 16
+                        property color iconColor: characterSnapButton.enabled
+                                                  ? characterSnapButton.palette.buttonText
+                                                  : characterSnapButton.palette.mid
+                        property bool snapState: characterSnapButton.checked
+                        onIconColorChanged: requestPaint()
+                        onSnapStateChanged: requestPaint()
+                        onPaint: {
+                            const context = getContext("2d")
+                            context.clearRect(0, 0, width, height)
+                            context.strokeStyle = iconColor
+                            context.fillStyle = iconColor
+                            context.lineWidth = snapState ? 2 : 1
+                            context.strokeRect(2, 2, 12, 12)
+                            context.beginPath()
+                            context.moveTo(8, 2)
+                            context.lineTo(8, 14)
+                            context.moveTo(2, 8)
+                            context.lineTo(14, 8)
+                            context.stroke()
+                            context.fillRect(1, 1, 3, 3)
+                            context.fillRect(12, 12, 3, 3)
+                        }
+                    }
+                }
+                ToolButton {
                     id: hardEdgeButton
                     objectName: root.objectName + "HardEdgeButton"
                     implicitWidth: 26
                     implicitHeight: 26
                     checkable: true
                     checked: root.hardDrawingEdges
-                    enabled: imageInput.hasImage
+                    enabled: root.editableContentAvailable
                     Accessible.name: checked
                                      ? qsTr("Use hard drawing edges")
                                      : qsTr("Use soft drawing edges")
@@ -472,7 +1143,7 @@ ThemedFrame {
                     implicitHeight: 26
                     checkable: true
                     checked: root.fillDrawingShapes
-                    enabled: imageInput.hasImage
+                    enabled: root.editableContentAvailable
                     Accessible.name: checked
                                      ? qsTr("Fill shapes with the background color")
                                      : qsTr("Draw shapes without a fill")
@@ -488,7 +1159,7 @@ ThemedFrame {
                         property color iconColor: shapeFillButton.enabled
                                                   ? shapeFillButton.palette.buttonText
                                                   : shapeFillButton.palette.mid
-                        property color fillColor: imageInput.backgroundColor
+                        property color fillColor: root.backgroundPaintColor
                         property bool filled: root.fillDrawingShapes
                         onIconColorChanged: requestPaint()
                         onFillColorChanged: requestPaint()
@@ -539,11 +1210,18 @@ ThemedFrame {
                     objectName: root.objectName + "DrawingUndoButton"
                     implicitWidth: 26
                     implicitHeight: 26
-                    enabled: imageInput.hasImage && imageInput.canUndoDrawing
+                    enabled: root.editableContentAvailable
+                             && (root.screenImageTools
+                                 ? imageInput.canUndoScreenImage
+                                 : imageInput.canUndoDrawing)
                     Accessible.name: qsTr("Undo drawing change")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name + qsTr(" (Ctrl+Z)")
-                    onClicked: imageInput.undoDrawing()
+                    onClicked: {
+                        root.finishKLine()
+                        if (root.screenImageTools) imageInput.undoScreenImage()
+                        else imageInput.undoDrawing()
+                    }
 
                     contentItem: Canvas {
                         implicitWidth: 16
@@ -574,11 +1252,18 @@ ThemedFrame {
                     objectName: root.objectName + "DrawingRedoButton"
                     implicitWidth: 26
                     implicitHeight: 26
-                    enabled: imageInput.hasImage && imageInput.canRedoDrawing
+                    enabled: root.editableContentAvailable
+                             && (root.screenImageTools
+                                 ? imageInput.canRedoScreenImage
+                                 : imageInput.canRedoDrawing)
                     Accessible.name: qsTr("Redo drawing change")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name + qsTr(" (Ctrl+Y)")
-                    onClicked: imageInput.redoDrawing()
+                    onClicked: {
+                        root.finishKLine()
+                        if (root.screenImageTools) imageInput.redoScreenImage()
+                        else imageInput.redoDrawing()
+                    }
 
                     contentItem: Canvas {
                         implicitWidth: 16
@@ -605,16 +1290,45 @@ ThemedFrame {
                     }
                 }
                 ToolSeparator { width: 5; height: 26 }
-                Item {
-                width: 18
-                height: 26
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 7
-                    height: 7
-                    radius: width / 2
-                    color: pencilButton.palette.buttonText
-                }
+                ToolButton {
+                    id: brushShapeButton
+                    objectName: root.objectName + "BrushShapeButton"
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    checkable: true
+                    checked: root.squareDrawingBrush
+                    enabled: root.editableContentAvailable
+                    Accessible.name: checked
+                                     ? qsTr("Use a square drawing brush")
+                                     : qsTr("Use a round drawing brush")
+                    ToolTip.visible: hovered
+                    ToolTip.text: checked
+                                      ? qsTr("Square brush: sharp caps and rectangle corners")
+                                      : qsTr("Round brush: rounded caps and corners")
+                    onClicked: root.squareDrawingBrush = checked
+
+                    contentItem: Canvas {
+                        implicitWidth: 16
+                        implicitHeight: 16
+                        property color iconColor: brushShapeButton.enabled
+                                                  ? brushShapeButton.palette.buttonText
+                                                  : brushShapeButton.palette.mid
+                        property bool squareState: brushShapeButton.checked
+                        onIconColorChanged: requestPaint()
+                        onSquareStateChanged: requestPaint()
+                        onPaint: {
+                            const context = getContext("2d")
+                            context.clearRect(0, 0, width, height)
+                            context.fillStyle = iconColor
+                            if (squareState)
+                                context.fillRect(3, 3, 10, 10)
+                            else {
+                                context.beginPath()
+                                context.arc(8, 8, 5, 0, Math.PI * 2)
+                                context.fill()
+                            }
+                        }
+                    }
                 }
                 SpinBox {
                     id: drawingDiameterField
@@ -625,10 +1339,10 @@ ThemedFrame {
                     to: 64
                     editable: true
                     value: root.drawingDiameter
-                    enabled: imageInput.hasImage
+                    enabled: root.editableContentAvailable
                     leftPadding: 3
                     rightPadding: 15
-                    Accessible.name: qsTr("Pencil and eraser diameter")
+                    Accessible.name: qsTr("Drawing brush diameter")
                     onValueModified: root.drawingDiameter = value
 
                     up.indicator: Rectangle {
@@ -697,6 +1411,198 @@ ThemedFrame {
                         }
                     }
                 }
+                ToolSeparator {
+                    visible: root.screenImageTools
+                    width: visible ? 5 : 0
+                    height: 26
+                }
+                ToolButton {
+                    objectName: root.objectName + "MirrorButton"
+                    visible: root.screenImageTools
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: qsTr("↔")
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Mirror Screen Image horizontally")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name
+                    onClicked: {
+                        root.finishKLine()
+                        imageInput.mirrorScreenImage()
+                    }
+                }
+                ToolButton {
+                    objectName: root.objectName + "FlipButton"
+                    visible: root.screenImageTools
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: qsTr("↕")
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Flip Screen Image vertically")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name
+                    onClicked: {
+                        root.finishKLine()
+                        imageInput.flipScreenImage()
+                    }
+                }
+                ToolButton {
+                    objectName: root.objectName + "InvertButton"
+                    visible: root.screenImageTools
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: qsTr("◐")
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Invert Screen Image colors")
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Invert colors inside the selection, or the whole Screen Image when no selection is active")
+                    onClicked: {
+                        root.finishKLine()
+                        imageInput.invertScreenImage()
+                    }
+                }
+                ToolButton {
+                    objectName: root.objectName + "RemoveColorButton"
+                    visible: root.screenImageTools
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: qsTr("G")
+                    font.bold: true
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Remove color from Screen Image")
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Convert the selection to grayscale, or the whole Screen Image when no selection is active")
+                    onClicked: {
+                        root.finishKLine()
+                        imageInput.removeScreenImageColor()
+                    }
+                }
+                ToolButton {
+                    id: typeToolButton
+                    objectName: root.objectName + "TypeToolButton"
+                    visible: root.screenImageTools
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: qsTr("T")
+                    enabled: root.editableContentAvailable
+                    font.bold: true
+                    Accessible.name: qsTr("Place text on the Screen Image")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name
+                    onClicked: {
+                        root.finishKLine()
+                        imageInput.reloadScreenImageFonts()
+                        typeToolDialog.open()
+                        typeText.forceActiveFocus()
+                    }
+                }
+                ToolButton {
+                    id: clipArtToolButton
+                    objectName: root.objectName + "ClipArtToolButton"
+                    visible: root.screenImageTools
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: qsTr("▧")
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Place a Slide or ClipArt image")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name
+                    onClicked: {
+                        root.finishKLine()
+                        clipArtDialog.open()
+                    }
+                }
+                ToolButton {
+                    id: selectionButton
+                    objectName: root.objectName + "SelectionButton"
+                    visible: root.screenImageTools
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: qsTr("▱")
+                    checkable: true
+                    checked: root.drawingTool === 9
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Select a rectangular Screen Image area")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name + qsTr("; Escape clears the selection")
+                    onClicked: root.selectDrawingTool(9)
+                }
+                ToolButton {
+                    id: moveSelectionButton
+                    objectName: root.objectName + "MoveSelectionButton"
+                    visible: root.screenImageTools
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: qsTr("✥")
+                    checkable: true
+                    checked: root.drawingTool === 10
+                             && imageInput.screenImageFloatingMove
+                    enabled: root.editableContentAvailable
+                             && imageInput.hasScreenImageSelection
+                    Accessible.name: qsTr("Move the selected Screen Image area")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name
+                                 + qsTr("; click to place or press Escape to cancel")
+                    onClicked: {
+                        root.finishKLine()
+                        imageInput.beginMoveScreenImageSelection()
+                        if (imageInput.screenImageFloating) {
+                            root.drawingTool = 10
+                            root.pickingColor = false
+                            root.positionFloatingAtSelectionOrCenter()
+                        }
+                    }
+                }
+                ToolButton {
+                    objectName: root.objectName + "CopyButton"
+                    visible: root.screenImageTools
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: qsTr("⧉")
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Copy Screen Image")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name + qsTr(" (Ctrl+C)")
+                    onClicked: {
+                        root.finishKLine()
+                        imageInput.copyScreenImage()
+                    }
+                }
+                ToolButton {
+                    objectName: root.objectName + "PasteButton"
+                    visible: root.screenImageTools
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: qsTr("▣")
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Paste image into Screen Image")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name + qsTr(" (Ctrl+V)")
+                    onClicked: {
+                        root.finishKLine()
+                        imageInput.pasteScreenImage()
+                        if (imageInput.screenImageFloating) {
+                            root.drawingTool = 10
+                            root.pickingColor = false
+                            root.positionFloatingAtSelectionOrCenter()
+                        }
+                    }
+                }
+                ToolButton {
+                    objectName: root.objectName + "ClearButton"
+                    visible: root.screenImageTools
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: qsTr("✦")
+                    enabled: root.editableContentAvailable
+                    Accessible.name: qsTr("Clear Screen Image with the background color")
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name
+                    onClicked: {
+                        root.finishKLine()
+                        imageInput.clearScreenImage()
+                    }
+                }
             }
         }
 
@@ -724,7 +1630,7 @@ ThemedFrame {
                     id: preview
                     objectName: root.objectName + "Image"
                     source: root.imageSource
-                    asynchronous: !root.sourceTools
+                    asynchronous: !root.editingTools
                     retainWhileLoading: true
                     cache: false
                     width: Math.max(1, sourceSize.width * root.effectiveZoom)
@@ -735,29 +1641,135 @@ ThemedFrame {
                     smooth: root.effectiveZoom < 1
 
                     Canvas {
+                        id: gridOverlay
+                        objectName: root.objectName + "GridOverlay"
+                        anchors.fill: parent
+                        z: 1
+                        visible: root.screenImageTools && root.gridVisible
+                                 && preview.status === Image.Ready
+                        antialiasing: false
+                        readonly property bool pixelGrid: root.effectiveZoom >= 5.0
+                        readonly property int gridStep: pixelGrid ? 1 : 8
+                        readonly property int patternGridStep: 8
+                        readonly property bool drawsOuterBorder: true
+                        readonly property bool patternGridVisible: visible
+                        onPixelGridChanged: requestPaint()
+                        onGridStepChanged: requestPaint()
+                        onWidthChanged: requestPaint()
+                        onHeightChanged: requestPaint()
+                        onVisibleChanged: if (visible) requestPaint()
+
+                        Connections {
+                            target: root
+                            function onEffectiveZoomChanged() {
+                                gridOverlay.requestPaint()
+                            }
+                        }
+
+                        onPaint: {
+                            const context = getContext("2d")
+                            context.clearRect(0, 0, width, height)
+                            if (!visible || preview.sourceSize.width <= 0
+                                    || preview.sourceSize.height <= 0)
+                                return
+                            context.lineWidth = 1
+                            const alignedX = sourceX => {
+                                if (sourceX <= 0)
+                                    return 0.5
+                                if (sourceX >= preview.sourceSize.width)
+                                    return width - 0.5
+                                return Math.round(sourceX * width
+                                                  / preview.sourceSize.width) + 0.5
+                            }
+                            const alignedY = sourceY => {
+                                if (sourceY <= 0)
+                                    return 0.5
+                                if (sourceY >= preview.sourceSize.height)
+                                    return height - 0.5
+                                return Math.round(sourceY * height
+                                                  / preview.sourceSize.height) + 0.5
+                            }
+
+                            // Match the sprite tiling screen: the fine pixel grid
+                            // fills only the interiors of the persistent 8x8 pattern grid.
+                            if (pixelGrid) {
+                                context.strokeStyle = "#70ffffff"
+                                context.beginPath()
+                                for (let sourceX = 1;
+                                     sourceX < preview.sourceSize.width;
+                                     ++sourceX) {
+                                    if (sourceX % patternGridStep === 0)
+                                        continue
+                                    const x = alignedX(sourceX)
+                                    context.moveTo(x, 0)
+                                    context.lineTo(x, height)
+                                }
+                                for (let sourceY = 1;
+                                     sourceY < preview.sourceSize.height;
+                                     ++sourceY) {
+                                    if (sourceY % patternGridStep === 0)
+                                        continue
+                                    const y = alignedY(sourceY)
+                                    context.moveTo(0, y)
+                                    context.lineTo(width, y)
+                                }
+                                context.stroke()
+                            }
+
+                            // Pattern boundaries remain visible at every zoom and
+                            // include all four outer edges of the 256x192 screen.
+                            context.strokeStyle = "#9effd35a"
+                            context.beginPath()
+                            for (let sourceX = 0;
+                                 sourceX <= preview.sourceSize.width;
+                                 sourceX += patternGridStep) {
+                                const x = alignedX(sourceX)
+                                context.moveTo(x, 0)
+                                context.lineTo(x, height)
+                            }
+                            for (let sourceY = 0;
+                                 sourceY <= preview.sourceSize.height;
+                                 sourceY += patternGridStep) {
+                                const y = alignedY(sourceY)
+                                context.moveTo(0, y)
+                                context.lineTo(width, y)
+                            }
+                            context.stroke()
+                        }
+                    }
+
+                    Canvas {
                         id: strokeOverlay
                         objectName: root.objectName + "StrokeOverlay"
                         anchors.fill: parent
-                        z: 1
-                        visible: root.sourceTools
+                        z: 2
+                        visible: root.editingTools
                         antialiasing: !root.hardDrawingEdges
                         property var segments: []
                         property point lastPoint: Qt.point(0, 0)
                         property bool shapeActive: false
                         property bool shapeEllipse: false
+                        property bool shapeLine: false
                         property real shapeStartX: 0
                         property real shapeStartY: 0
                         property real shapeEndX: 0
                         property real shapeEndY: 0
+                        property bool polylineActive: false
+                        property bool raysActive: false
+                        property point rayOrigin: Qt.point(0, 0)
+                        property real polylinePreviewX: 0
+                        property real polylinePreviewY: 0
                         property bool hardEdges: root.hardDrawingEdges
+                        property bool squareBrush: root.squareDrawingBrush
                         property bool shapeFilled: root.fillDrawingShapes
                         onHardEdgesChanged: requestPaint()
+                        onSquareBrushChanged: requestPaint()
                         onShapeFilledChanged: requestPaint()
 
                         function strokeColor() {
                             return String(root.drawingTool === 2
-                                          ? imageInput.backgroundColor
-                                          : imageInput.foregroundColor)
+                                          ? root.backgroundPaintColor
+                                          : root.foregroundPaintColor)
                         }
 
                         function beginStroke(x, y) {
@@ -768,7 +1780,8 @@ ThemedFrame {
                             segments.push({x1: x, y1: y, x2: x, y2: y,
                                            color: strokeColor(),
                                            diameter: Math.max(1,
-                                               root.drawingDiameter * root.effectiveZoom)})
+                                               root.drawingDiameterForTool(root.drawingTool)
+                                                   * root.effectiveZoom)})
                             requestPaint()
                         }
 
@@ -782,15 +1795,94 @@ ThemedFrame {
                                             shapeStartY + (deltaY < 0 ? -size : size))
                         }
 
+                        function constrainedLineEnd(startX, startY, x, y, locked) {
+                            if (!locked)
+                                return Qt.point(x, y)
+                            if (Math.abs(x - startX) >= Math.abs(y - startY))
+                                return Qt.point(x, startY)
+                            return Qt.point(startX, y)
+                        }
+
                         function beginShape(x, y, ellipse) {
                             clearStrokeTimer.stop()
                             segments = []
                             shapeActive = true
                             shapeEllipse = ellipse
+                            shapeLine = false
                             shapeStartX = x
                             shapeStartY = y
                             shapeEndX = x
                             shapeEndY = y
+                            requestPaint()
+                        }
+
+                        function beginLine(x, y) {
+                            clearStrokeTimer.stop()
+                            segments = []
+                            shapeActive = true
+                            shapeEllipse = false
+                            shapeLine = true
+                            shapeStartX = x
+                            shapeStartY = y
+                            shapeEndX = x
+                            shapeEndY = y
+                            requestPaint()
+                        }
+
+                        function updateLine(x, y, locked) {
+                            const point = constrainedLineEnd(
+                                shapeStartX, shapeStartY, x, y, locked)
+                            shapeEndX = point.x
+                            shapeEndY = point.y
+                            requestPaint()
+                            return point
+                        }
+
+                        function beginPolyline(x, y, rays) {
+                            beginStroke(x, y)
+                            polylineActive = true
+                            raysActive = rays === true
+                            rayOrigin = Qt.point(x, y)
+                            polylinePreviewX = x
+                            polylinePreviewY = y
+                            requestPaint()
+                        }
+
+                        function updatePolylinePreview(x, y, locked) {
+                            if (!polylineActive)
+                                return Qt.point(x, y)
+                            const origin = raysActive ? rayOrigin : lastPoint
+                            const point = constrainedLineEnd(
+                                origin.x, origin.y, x, y, locked)
+                            polylinePreviewX = point.x
+                            polylinePreviewY = point.y
+                            requestPaint()
+                            return point
+                        }
+
+                        function appendPolylinePoint(x, y, locked) {
+                            const point = updatePolylinePreview(x, y, locked)
+                            if (raysActive) {
+                                segments.push({x1: rayOrigin.x, y1: rayOrigin.y,
+                                               x2: point.x, y2: point.y,
+                                               color: strokeColor(),
+                                               diameter: Math.max(1,
+                                                   root.drawingDiameterForTool(
+                                                       root.drawingTool)
+                                                       * root.effectiveZoom)})
+                            } else {
+                                extendStroke(point.x, point.y)
+                            }
+                            polylinePreviewX = point.x
+                            polylinePreviewY = point.y
+                            requestPaint()
+                            return point
+                        }
+
+                        function finishPolyline() {
+                            polylineActive = false
+                            raysActive = false
+                            clearStrokeTimer.restart()
                             requestPaint()
                         }
 
@@ -808,6 +1900,7 @@ ThemedFrame {
 
                         function cancelShape() {
                             shapeActive = false
+                            shapeLine = false
                             requestPaint()
                         }
 
@@ -816,7 +1909,8 @@ ThemedFrame {
                                            x2: x, y2: y,
                                            color: strokeColor(),
                                            diameter: Math.max(1,
-                                               root.drawingDiameter * root.effectiveZoom)})
+                                               root.drawingDiameterForTool(root.drawingTool)
+                                                   * root.effectiveZoom)})
                             lastPoint = Qt.point(x, y)
                             requestPaint()
                         }
@@ -828,6 +1922,9 @@ ThemedFrame {
                         function clearStroke() {
                             segments = []
                             shapeActive = false
+                            shapeLine = false
+                            polylineActive = false
+                            raysActive = false
                             requestPaint()
                         }
 
@@ -836,18 +1933,24 @@ ThemedFrame {
                             context.clearRect(0, 0, width, height)
                             context.globalAlpha = 1.0
                             context.imageSmoothingEnabled = !hardEdges
-                            context.lineCap = "round"
-                            context.lineJoin = "round"
+                            context.lineCap = squareBrush ? "square" : "round"
+                            context.lineJoin = squareBrush ? "miter" : "round"
                             for (let index = 0; index < segments.length; ++index) {
                                 const segment = segments[index]
                                 context.strokeStyle = segment.color
                                 context.fillStyle = segment.color
                                 context.lineWidth = segment.diameter
                                 if (segment.x1 === segment.x2 && segment.y1 === segment.y2) {
-                                    context.beginPath()
-                                    context.arc(segment.x1, segment.y1,
-                                                segment.diameter / 2, 0, Math.PI * 2)
-                                    context.fill()
+                                    if (squareBrush) {
+                                        context.fillRect(segment.x1 - segment.diameter / 2,
+                                                         segment.y1 - segment.diameter / 2,
+                                                         segment.diameter, segment.diameter)
+                                    } else {
+                                        context.beginPath()
+                                        context.arc(segment.x1, segment.y1,
+                                                    segment.diameter / 2, 0, Math.PI * 2)
+                                        context.fill()
+                                    }
                                 } else {
                                     context.beginPath()
                                     context.moveTo(segment.x1, segment.y1)
@@ -860,23 +1963,62 @@ ThemedFrame {
                                 const top = Math.min(shapeStartY, shapeEndY)
                                 const shapeWidth = Math.abs(shapeEndX - shapeStartX)
                                 const shapeHeight = Math.abs(shapeEndY - shapeStartY)
-                                context.strokeStyle = String(imageInput.foregroundColor)
-                                context.fillStyle = String(imageInput.foregroundColor)
+                                context.strokeStyle = String(root.foregroundPaintColor)
+                                context.fillStyle = String(root.foregroundPaintColor)
                                 context.lineWidth = Math.max(
-                                    1, root.drawingDiameter * root.effectiveZoom)
+                                    1, root.drawingDiameterForTool(root.drawingTool)
+                                        * root.effectiveZoom)
+                                if (!shapeLine && shapeFilled
+                                        && shapeWidth >= 0.5 && shapeHeight >= 0.5) {
+                                    context.fillStyle = String(root.backgroundPaintColor)
+                                    if (shapeEllipse) {
+                                        const fillCenterX = left + shapeWidth / 2
+                                        const fillCenterY = top + shapeHeight / 2
+                                        const fillRadiusX = shapeWidth / 2
+                                        const fillRadiusY = shapeHeight / 2
+                                        const fillSteps = Math.max(32, Math.min(4096,
+                                            Math.ceil(Math.PI * (shapeWidth + shapeHeight))))
+                                        context.beginPath()
+                                        context.moveTo(fillCenterX + fillRadiusX,
+                                                       fillCenterY)
+                                        for (let step = 1; step <= fillSteps; ++step) {
+                                            const angle = Math.PI * 2 * step / fillSteps
+                                            context.lineTo(
+                                                fillCenterX + Math.cos(angle) * fillRadiusX,
+                                                fillCenterY + Math.sin(angle) * fillRadiusY)
+                                        }
+                                        context.closePath()
+                                        context.fill()
+                                    } else {
+                                        context.fillRect(left, top, shapeWidth, shapeHeight)
+                                    }
+                                }
+                                context.strokeStyle = String(root.foregroundPaintColor)
+                                context.fillStyle = String(root.foregroundPaintColor)
                                 context.beginPath()
                                 if (shapeWidth < 0.5 && shapeHeight < 0.5) {
-                                    context.arc(shapeStartX, shapeStartY,
-                                                context.lineWidth / 2,
-                                                0, Math.PI * 2)
-                                    context.fill()
+                                    if (squareBrush) {
+                                        context.fillRect(
+                                            shapeStartX - context.lineWidth / 2,
+                                            shapeStartY - context.lineWidth / 2,
+                                            context.lineWidth, context.lineWidth)
+                                    } else {
+                                        context.arc(shapeStartX, shapeStartY,
+                                                    context.lineWidth / 2,
+                                                    0, Math.PI * 2)
+                                        context.fill()
+                                    }
+                                } else if (shapeLine) {
+                                    context.moveTo(shapeStartX, shapeStartY)
+                                    context.lineTo(shapeEndX, shapeEndY)
+                                    context.stroke()
                                 } else if (shapeEllipse) {
                                     const centerX = left + shapeWidth / 2
                                     const centerY = top + shapeHeight / 2
                                     const radiusX = shapeWidth / 2
                                     const radiusY = shapeHeight / 2
-                                    const steps = Math.max(24, Math.min(192,
-                                        Math.ceil(Math.max(shapeWidth, shapeHeight) * 0.8)))
+                                    const steps = Math.max(32, Math.min(4096,
+                                        Math.ceil(Math.PI * (shapeWidth + shapeHeight))))
                                     context.moveTo(centerX + radiusX, centerY)
                                     for (let step = 1; step <= steps; ++step) {
                                         const angle = Math.PI * 2 * step / steps
@@ -887,37 +2029,18 @@ ThemedFrame {
                                 } else {
                                     context.strokeRect(left, top, shapeWidth, shapeHeight)
                                 }
-                                if (shapeFilled && shapeWidth >= 0.5 && shapeHeight >= 0.5) {
-                                    const inset = Math.max(
-                                        0, context.lineWidth / 2 - (hardEdges ? 0 : 1))
-                                    const innerWidth = shapeWidth - inset * 2
-                                    const innerHeight = shapeHeight - inset * 2
-                                    if (innerWidth > 0 && innerHeight > 0) {
-                                        context.fillStyle = String(imageInput.backgroundColor)
-                                        if (shapeEllipse) {
-                                            const innerCenterX = left + shapeWidth / 2
-                                            const innerCenterY = top + shapeHeight / 2
-                                            const innerRadiusX = innerWidth / 2
-                                            const innerRadiusY = innerHeight / 2
-                                            const fillSteps = Math.max(24, Math.min(192,
-                                                Math.ceil(Math.max(innerWidth, innerHeight) * 0.8)))
-                                            context.beginPath()
-                                            context.moveTo(innerCenterX + innerRadiusX,
-                                                           innerCenterY)
-                                            for (let step = 1; step <= fillSteps; ++step) {
-                                                const angle = Math.PI * 2 * step / fillSteps
-                                                context.lineTo(
-                                                    innerCenterX + Math.cos(angle) * innerRadiusX,
-                                                    innerCenterY + Math.sin(angle) * innerRadiusY)
-                                            }
-                                            context.closePath()
-                                            context.fill()
-                                        } else {
-                                            context.fillRect(left + inset, top + inset,
-                                                             innerWidth, innerHeight)
-                                        }
-                                    }
-                                }
+                            }
+                            if (polylineActive) {
+                                context.strokeStyle = strokeColor()
+                                context.lineWidth = Math.max(
+                                    1, root.drawingDiameterForTool(root.drawingTool)
+                                        * root.effectiveZoom)
+                                context.lineCap = squareBrush ? "square" : "round"
+                                context.beginPath()
+                                context.moveTo(raysActive ? rayOrigin.x : lastPoint.x,
+                                               raysActive ? rayOrigin.y : lastPoint.y)
+                                context.lineTo(polylinePreviewX, polylinePreviewY)
+                                context.stroke()
                             }
                         }
 
@@ -929,72 +2052,433 @@ ThemedFrame {
                         }
                     }
 
+                    Canvas {
+                        id: selectionOverlay
+                        objectName: root.objectName + "SelectionOverlay"
+                        anchors.fill: parent
+                        z: 3
+                        visible: root.screenImageTools
+                                 && ((imageInput.hasScreenImageSelection
+                                      && !imageInput.screenImageFloating)
+                                     || drawingMouseArea.selectionDragging)
+                        antialiasing: false
+                        property int selectionX: imageInput.screenImageSelectionX
+                        property int selectionY: imageInput.screenImageSelectionY
+                        property int selectionWidth: imageInput.screenImageSelectionWidth
+                        property int selectionHeight: imageInput.screenImageSelectionHeight
+                        property bool dragging: drawingMouseArea.selectionDragging
+                        onSelectionXChanged: requestPaint()
+                        onSelectionYChanged: requestPaint()
+                        onSelectionWidthChanged: requestPaint()
+                        onSelectionHeightChanged: requestPaint()
+                        onDraggingChanged: requestPaint()
+                        onWidthChanged: requestPaint()
+                        onHeightChanged: requestPaint()
+
+                        function paintOutline(context, x, y, width, height) {
+                            context.lineWidth = 3
+                            context.strokeStyle = "#d0101010"
+                            context.setLineDash([])
+                            context.strokeRect(x, y, width, height)
+                            context.lineWidth = 1
+                            context.strokeStyle = "#ffffff"
+                            context.setLineDash([4, 3])
+                            context.strokeRect(x, y, width, height)
+                            context.setLineDash([])
+                        }
+
+                        onPaint: {
+                            const context = getContext("2d")
+                            context.clearRect(0, 0, width, height)
+                            if (!visible || preview.sourceSize.width <= 0
+                                    || preview.sourceSize.height <= 0)
+                                return
+                            if (dragging) {
+                                const left = Math.min(drawingMouseArea.selectionStartX,
+                                                      drawingMouseArea.selectionCurrentX)
+                                const top = Math.min(drawingMouseArea.selectionStartY,
+                                                     drawingMouseArea.selectionCurrentY)
+                                const selectionWidth = Math.max(
+                                    1, Math.abs(drawingMouseArea.selectionCurrentX
+                                                - drawingMouseArea.selectionStartX))
+                                const selectionHeight = Math.max(
+                                    1, Math.abs(drawingMouseArea.selectionCurrentY
+                                                - drawingMouseArea.selectionStartY))
+                                paintOutline(context, left, top,
+                                             selectionWidth, selectionHeight)
+                            } else if (imageInput.hasScreenImageSelection) {
+                                paintOutline(
+                                    context,
+                                    selectionX * width / preview.sourceSize.width,
+                                    selectionY * height / preview.sourceSize.height,
+                                    selectionWidth * width / preview.sourceSize.width,
+                                    selectionHeight * height / preview.sourceSize.height)
+                            }
+                        }
+                    }
+
+                    Item {
+                        id: floatingPlacementOverlay
+                        objectName: root.objectName + "FloatingPlacementOverlay"
+                        z: 4
+                        visible: root.screenImageTools
+                                 && imageInput.screenImageFloating
+                                 && preview.sourceSize.width > 0
+                                 && preview.sourceSize.height > 0
+                        width: visible ? Math.max(
+                            1, imageInput.screenImageFloatingWidth
+                               * preview.width / preview.sourceSize.width) : 1
+                        height: visible ? Math.max(
+                            1, imageInput.screenImageFloatingHeight
+                               * preview.height / preview.sourceSize.height) : 1
+                        x: Math.max(0, Math.min(preview.width - width,
+                                              drawingMouseArea.floatingCenterX
+                                              - (imageInput.screenImageFloatingTopLeft
+                                                 ? 0 : width / 2)))
+                        y: Math.max(0, Math.min(preview.height - height,
+                                              drawingMouseArea.floatingCenterY
+                                              - (imageInput.screenImageFloatingTopLeft
+                                                 ? 0 : height / 2)))
+
+                        Image {
+                            anchors.fill: parent
+                            source: imageInput.screenImageFloatingPreview
+                            fillMode: Image.Stretch
+                            smooth: false
+                            opacity: 0.88
+                        }
+
+                        Canvas {
+                            anchors.fill: parent
+                            onWidthChanged: requestPaint()
+                            onHeightChanged: requestPaint()
+                            onPaint: {
+                                const context = getContext("2d")
+                                context.clearRect(0, 0, width, height)
+                                context.lineWidth = 3
+                                context.strokeStyle = "#d0101010"
+                                context.strokeRect(0, 0, width, height)
+                                context.lineWidth = 1
+                                context.strokeStyle = "#ffdd55"
+                                context.setLineDash([4, 3])
+                                context.strokeRect(0, 0, width, height)
+                                context.setLineDash([])
+                            }
+                        }
+                    }
+
                     MouseArea {
                         id: drawingMouseArea
-                        z: 2
+                        z: 5
                         anchors.fill: parent
-                        enabled: root.sourceTools && imageInput.hasImage
-                                 && root.drawingTool !== 0
+                        enabled: root.editingTools && root.editableContentAvailable
+                                 && (root.drawingTool !== 0
+                                     || (root.screenImageTools
+                                         && imageInput.screenImageFloating))
                         acceptedButtons: Qt.LeftButton
                         hoverEnabled: true
                         preventStealing: true
-                        cursorShape: Qt.CrossCursor
+                        cursorShape: imageInput.screenImageFloating
+                                     ? Qt.SizeAllCursor : Qt.CrossCursor
                         property int dragTool: 0
-                        onPressed: mouse => {
-                            dragTool = root.drawingTool
-                            if (dragTool <= 2) {
-                                strokeOverlay.beginStroke(mouse.x, mouse.y)
-                                imageInput.beginSourceStroke(
-                                    mouse.x / Math.max(1, width),
-                                    mouse.y / Math.max(1, height),
-                                    root.drawingDiameter,
-                                    dragTool === 2,
-                                    root.hardDrawingEdges)
+                        property bool selectionDragging: false
+                        property real selectionStartX: 0
+                        property real selectionStartY: 0
+                        property real selectionCurrentX: 0
+                        property real selectionCurrentY: 0
+                        property real floatingCenterX: width / 2
+                        property real floatingCenterY: height / 2
+                        function updateFloatingPointer(localX, localY) {
+                            if (imageInput.screenImageFloatingTopLeft
+                                    && root.snapDrawingToCharacterBounds
+                                    && preview.sourceSize.width > 0
+                                    && preview.sourceSize.height > 0) {
+                                const sourceX = Math.max(
+                                    0, Math.min(preview.sourceSize.width - 0.001,
+                                                localX * preview.sourceSize.width
+                                                / Math.max(1, width)))
+                                const sourceY = Math.max(
+                                    0, Math.min(preview.sourceSize.height - 0.001,
+                                                localY * preview.sourceSize.height
+                                                / Math.max(1, height)))
+                                floatingCenterX = Math.floor(sourceX / 8) * 8
+                                    * width / preview.sourceSize.width
+                                floatingCenterY = Math.floor(sourceY / 8) * 8
+                                    * height / preview.sourceSize.height
                             } else {
-                                strokeOverlay.beginShape(mouse.x, mouse.y,
-                                                         dragTool === 3)
+                                floatingCenterX = localX
+                                floatingCenterY = localY
                             }
                         }
-                        onPositionChanged: mouse => {
-                            if (pressed) {
-                                if (dragTool <= 2) {
-                                    strokeOverlay.extendStroke(mouse.x, mouse.y)
-                                    imageInput.continueSourceStroke(
+                        focus: strokeOverlay.polylineActive
+                               || imageInput.screenImageFloating
+                               || (root.screenImageTools
+                                   && imageInput.hasScreenImageSelection)
+                        Keys.onEscapePressed: event => {
+                            if (root.screenImageTools
+                                    && imageInput.screenImageFloating) {
+                                imageInput.cancelScreenImageFloating()
+                                root.drawingTool = imageInput.hasScreenImageSelection
+                                                   ? 9 : 0
+                                dragTool = 0
+                                event.accepted = true
+                            } else if (strokeOverlay.polylineActive) {
+                                root.finishKLine()
+                                dragTool = 0
+                                event.accepted = true
+                            } else if (root.screenImageTools
+                                       && imageInput.hasScreenImageSelection) {
+                                imageInput.clearScreenImageSelection()
+                                event.accepted = true
+                            }
+                        }
+                        onPressed: mouse => {
+                            updateFloatingPointer(mouse.x, mouse.y)
+                            if (root.screenImageTools
+                                    && imageInput.screenImageFloating) {
+                                imageInput.placeScreenImageFloating(
+                                    floatingCenterX / Math.max(1, width),
+                                    floatingCenterY / Math.max(1, height))
+                                root.drawingTool = 9
+                                dragTool = 0
+                                return
+                            }
+                            dragTool = root.drawingTool
+                            if (dragTool === 9 && root.screenImageTools) {
+                                forceActiveFocus()
+                                selectionDragging = true
+                                selectionStartX = mouse.x
+                                selectionStartY = mouse.y
+                                selectionCurrentX = mouse.x
+                                selectionCurrentY = mouse.y
+                                selectionOverlay.requestPaint()
+                            } else if (dragTool <= 2) {
+                                strokeOverlay.beginStroke(mouse.x, mouse.y)
+                                if (root.screenImageTools) {
+                                    imageInput.beginScreenImageStroke(
+                                        mouse.x / Math.max(1, width),
+                                        mouse.y / Math.max(1, height),
+                                        root.drawingDiameterForTool(dragTool),
+                                        dragTool === 2,
+                                        root.hardDrawingEdges,
+                                        root.squareDrawingBrush)
+                                } else {
+                                    imageInput.beginSourceStroke(
+                                        mouse.x / Math.max(1, width),
+                                        mouse.y / Math.max(1, height),
+                                        root.drawingDiameterForTool(dragTool),
+                                        dragTool === 2,
+                                        root.hardDrawingEdges,
+                                        root.squareDrawingBrush)
+                                }
+                            } else if (dragTool === 8) {
+                                if (root.screenImageTools) {
+                                    imageInput.swapScreenImageColors(
                                         mouse.x / Math.max(1, width),
                                         mouse.y / Math.max(1, height))
                                 } else {
+                                    imageInput.swapSourceColors(
+                                        mouse.x / Math.max(1, width),
+                                        mouse.y / Math.max(1, height))
+                                }
+                            } else if (dragTool === 5) {
+                                const start = root.drawingStartPoint(
+                                    mouse.x, mouse.y, dragTool)
+                                strokeOverlay.beginLine(start.x, start.y)
+                                const end = root.drawingEndPoint(
+                                    mouse.x, mouse.y, dragTool)
+                                strokeOverlay.updateLine(end.x, end.y, false)
+                            } else if (dragTool === 6 || dragTool === 7) {
+                                forceActiveFocus()
+                                if (!strokeOverlay.polylineActive) {
+                                    const start = root.drawingStartPoint(
+                                        mouse.x, mouse.y, dragTool)
+                                    strokeOverlay.beginPolyline(
+                                        start.x, start.y, dragTool === 7)
+                                    const end = root.drawingEndPoint(
+                                        mouse.x, mouse.y, dragTool)
+                                    strokeOverlay.updatePolylinePreview(
+                                        end.x, end.y, false)
+                                    if (root.screenImageTools) {
+                                        imageInput.beginScreenImageStroke(
+                                            start.x / Math.max(1, width),
+                                            start.y / Math.max(1, height),
+                                            root.drawingDiameterForTool(dragTool), false,
+                                            root.hardDrawingEdges,
+                                            root.squareDrawingBrush)
+                                    } else {
+                                        imageInput.beginSourceStroke(
+                                            start.x / Math.max(1, width),
+                                            start.y / Math.max(1, height),
+                                            root.drawingDiameterForTool(dragTool), false,
+                                            root.hardDrawingEdges,
+                                            root.squareDrawingBrush)
+                                    }
+                                } else {
+                                    const end = root.drawingEndPoint(
+                                        mouse.x, mouse.y, dragTool)
+                                    const point = strokeOverlay.appendPolylinePoint(
+                                        end.x, end.y,
+                                        (mouse.modifiers & Qt.ShiftModifier) !== 0)
+                                    if (root.screenImageTools) {
+                                        if (dragTool === 7)
+                                            imageInput.continueScreenImageRay(
+                                                point.x / Math.max(1, width),
+                                                point.y / Math.max(1, height))
+                                        else
+                                            imageInput.continueScreenImageStroke(
+                                                point.x / Math.max(1, width),
+                                                point.y / Math.max(1, height))
+                                    } else {
+                                        if (dragTool === 7)
+                                            imageInput.continueSourceRay(
+                                                point.x / Math.max(1, width),
+                                                point.y / Math.max(1, height))
+                                        else
+                                            imageInput.continueSourceStroke(
+                                                point.x / Math.max(1, width),
+                                                point.y / Math.max(1, height))
+                                    }
+                                }
+                            } else if (dragTool === 3 || dragTool === 4) {
+                                const start = root.drawingStartPoint(
+                                    mouse.x, mouse.y, dragTool)
+                                const end = root.drawingEndPoint(
+                                    mouse.x, mouse.y, dragTool)
+                                strokeOverlay.beginShape(start.x, start.y,
+                                                         dragTool === 3)
+                                strokeOverlay.updateShape(end.x, end.y, false)
+                            }
+                        }
+                        onPositionChanged: mouse => {
+                            updateFloatingPointer(mouse.x, mouse.y)
+                            if (strokeOverlay.polylineActive
+                                    && (root.drawingTool === 6
+                                        || root.drawingTool === 7)) {
+                                const end = root.drawingEndPoint(
+                                    mouse.x, mouse.y, root.drawingTool)
+                                strokeOverlay.updatePolylinePreview(
+                                    end.x, end.y,
+                                    (mouse.modifiers & Qt.ShiftModifier) !== 0)
+                            }
+                            if (pressed) {
+                                if (dragTool === 9 && selectionDragging) {
+                                    selectionCurrentX = mouse.x
+                                    selectionCurrentY = mouse.y
+                                    selectionOverlay.requestPaint()
+                                } else if (dragTool <= 2) {
+                                    strokeOverlay.extendStroke(mouse.x, mouse.y)
+                                    if (root.screenImageTools) {
+                                        imageInput.continueScreenImageStroke(
+                                            mouse.x / Math.max(1, width),
+                                            mouse.y / Math.max(1, height))
+                                    } else {
+                                        imageInput.continueSourceStroke(
+                                            mouse.x / Math.max(1, width),
+                                            mouse.y / Math.max(1, height))
+                                    }
+                                } else if (dragTool === 5) {
+                                    const end = root.drawingEndPoint(
+                                        mouse.x, mouse.y, dragTool)
+                                    strokeOverlay.updateLine(
+                                        end.x, end.y,
+                                        (mouse.modifiers & Qt.ShiftModifier) !== 0)
+                                } else if (dragTool === 3 || dragTool === 4) {
+                                    const end = root.drawingEndPoint(
+                                        mouse.x, mouse.y, dragTool)
                                     strokeOverlay.updateShape(
-                                        mouse.x, mouse.y,
+                                        end.x, end.y,
                                         (mouse.modifiers & Qt.ShiftModifier) !== 0)
                                 }
                             }
                         }
                         onReleased: mouse => {
-                            if (dragTool <= 2) {
-                                imageInput.endSourceStroke()
+                            if (dragTool === 9 && selectionDragging) {
+                                selectionCurrentX = mouse.x
+                                selectionCurrentY = mouse.y
+                                imageInput.setScreenImageSelection(
+                                    selectionStartX / Math.max(1, width),
+                                    selectionStartY / Math.max(1, height),
+                                    selectionCurrentX / Math.max(1, width),
+                                    selectionCurrentY / Math.max(1, height))
+                                selectionDragging = false
+                                selectionOverlay.requestPaint()
+                                forceActiveFocus()
+                            } else if (dragTool <= 2) {
+                                if (root.screenImageTools) imageInput.endScreenImageStroke()
+                                else imageInput.endSourceStroke()
                                 strokeOverlay.finishStroke()
-                            } else {
-                                strokeOverlay.updateShape(
-                                    mouse.x, mouse.y,
+                            } else if (dragTool === 5) {
+                                const end = root.drawingEndPoint(
+                                    mouse.x, mouse.y, dragTool)
+                                strokeOverlay.updateLine(
+                                    end.x, end.y,
                                     (mouse.modifiers & Qt.ShiftModifier) !== 0)
-                                imageInput.drawSourceShape(
-                                    strokeOverlay.shapeStartX / Math.max(1, width),
-                                    strokeOverlay.shapeStartY / Math.max(1, height),
-                                    strokeOverlay.shapeEndX / Math.max(1, width),
-                                    strokeOverlay.shapeEndY / Math.max(1, height),
-                                    root.drawingDiameter,
-                                    dragTool === 3,
-                                    root.hardDrawingEdges,
-                                    root.fillDrawingShapes)
+                                if (root.screenImageTools) {
+                                    imageInput.drawScreenImageLine(
+                                        strokeOverlay.shapeStartX / Math.max(1, width),
+                                        strokeOverlay.shapeStartY / Math.max(1, height),
+                                        strokeOverlay.shapeEndX / Math.max(1, width),
+                                        strokeOverlay.shapeEndY / Math.max(1, height),
+                                        root.drawingDiameterForTool(dragTool),
+                                        root.hardDrawingEdges,
+                                        root.squareDrawingBrush)
+                                } else {
+                                    imageInput.drawSourceLine(
+                                        strokeOverlay.shapeStartX / Math.max(1, width),
+                                        strokeOverlay.shapeStartY / Math.max(1, height),
+                                        strokeOverlay.shapeEndX / Math.max(1, width),
+                                        strokeOverlay.shapeEndY / Math.max(1, height),
+                                        root.drawingDiameterForTool(dragTool),
+                                        root.hardDrawingEdges,
+                                        root.squareDrawingBrush)
+                                }
+                                strokeOverlay.finishShape()
+                            } else if (dragTool === 3 || dragTool === 4) {
+                                const end = root.drawingEndPoint(
+                                    mouse.x, mouse.y, dragTool)
+                                strokeOverlay.updateShape(
+                                    end.x, end.y,
+                                    (mouse.modifiers & Qt.ShiftModifier) !== 0)
+                                if (root.screenImageTools) {
+                                    imageInput.drawScreenImageShape(
+                                        strokeOverlay.shapeStartX / Math.max(1, width),
+                                        strokeOverlay.shapeStartY / Math.max(1, height),
+                                        strokeOverlay.shapeEndX / Math.max(1, width),
+                                        strokeOverlay.shapeEndY / Math.max(1, height),
+                                        root.drawingDiameterForTool(dragTool),
+                                        dragTool === 3,
+                                        root.hardDrawingEdges,
+                                        root.fillDrawingShapes,
+                                        root.squareDrawingBrush)
+                                } else {
+                                    imageInput.drawSourceShape(
+                                        strokeOverlay.shapeStartX / Math.max(1, width),
+                                        strokeOverlay.shapeStartY / Math.max(1, height),
+                                        strokeOverlay.shapeEndX / Math.max(1, width),
+                                        strokeOverlay.shapeEndY / Math.max(1, height),
+                                        root.drawingDiameterForTool(dragTool),
+                                        dragTool === 3,
+                                        root.hardDrawingEdges,
+                                        root.fillDrawingShapes,
+                                        root.squareDrawingBrush)
+                                }
                                 strokeOverlay.finishShape()
                             }
                             dragTool = 0
                         }
                         onCanceled: {
-                            if (dragTool <= 2) {
-                                imageInput.endSourceStroke()
+                            if (dragTool === 9) {
+                                selectionDragging = false
+                                selectionOverlay.requestPaint()
+                            } else if (dragTool <= 2) {
+                                if (root.screenImageTools) imageInput.endScreenImageStroke()
+                                else imageInput.endSourceStroke()
                                 strokeOverlay.finishStroke()
-                            } else {
+                            } else if (dragTool === 6 || dragTool === 7) {
+                                root.finishMultiLine()
+                            } else if (dragTool === 3 || dragTool === 4
+                                       || dragTool === 5) {
                                 strokeOverlay.cancelShape()
                             }
                             dragTool = 0
@@ -1004,26 +2488,29 @@ ThemedFrame {
                     Item {
                         id: brushCursorRing
                         objectName: root.objectName + "BrushCursorRing"
-                        z: 3
+                        z: 6
                         readonly property real cursorDiameter: Math.max(
-                            1, root.drawingDiameter * root.effectiveZoom)
+                            1, root.drawingDiameterForTool(root.drawingTool)
+                                * root.effectiveZoom)
                         width: Math.max(3, cursorDiameter)
                         height: width
                         x: drawingMouseArea.mouseX - width / 2
                         y: drawingMouseArea.mouseY - height / 2
                         visible: drawingMouseArea.enabled
                                  && drawingMouseArea.containsMouse
+                                 && root.drawingTool > 0
+                                 && root.drawingTool < 8
 
                         Rectangle {
                             anchors.fill: parent
-                            radius: width / 2
+                            radius: root.squareDrawingBrush ? 0 : width / 2
                             color: "transparent"
                             border.width: 3
                             border.color: "#202020"
                         }
                         Rectangle {
                             anchors.fill: parent
-                            radius: width / 2
+                            radius: root.squareDrawingBrush ? 0 : width / 2
                             color: "transparent"
                             border.width: 1
                             border.color: "#f5f5f5"
@@ -1031,7 +2518,7 @@ ThemedFrame {
                     }
 
                     TapHandler {
-                        enabled: root.sourceTools && root.pickingColor
+                        enabled: root.editingTools && root.pickingColor
                         acceptedButtons: Qt.LeftButton
                         onTapped: (eventPoint, button) => {
                             root.colorPointPicked(
@@ -1043,7 +2530,7 @@ ThemedFrame {
                     }
 
                     HoverHandler {
-                        enabled: root.sourceTools && root.pickingColor
+                        enabled: root.editingTools && root.pickingColor
                         cursorShape: Qt.CrossCursor
                     }
                 }
@@ -1067,13 +2554,13 @@ ThemedFrame {
                 anchors.centerIn: parent
                 width: Math.max(1, Math.min(parent.width, parent.height) / 2)
                 height: width
-                source: Qt.resolvedUrl("../assets/icons/NewConvert9918-watermark-512.png")
+                source: Qt.resolvedUrl("../assets/icons/RetroVDPStudio-watermark-512.png")
                 fillMode: Image.PreserveAspectFit
                 smooth: true
                 mipmap: true
                 opacity: 0.12
                 visible: root.imageSource.toString().length === 0 && !root.busy
-                Accessible.name: qsTr("New Convert 9918 logo")
+                Accessible.name: qsTr("RetroVDP Studio logo")
             }
 
             Label {
@@ -1158,7 +2645,7 @@ ThemedFrame {
 
             Flow {
                 objectName: root.objectName + "SourceTools"
-                visible: root.sourceTools
+                visible: root.editingTools
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
                 Layout.preferredHeight: childrenRect.height
@@ -1169,7 +2656,7 @@ ThemedFrame {
                     objectName: root.objectName + "BackgroundColorButton"
                     implicitWidth: 26
                     implicitHeight: 26
-                    enabled: imageInput.hasImage
+                    enabled: root.editableContentAvailable
                     opacity: enabled ? 1.0 : 0.45
                     Accessible.name: qsTr("Choose foreground or background color")
 
@@ -1184,7 +2671,7 @@ ThemedFrame {
                         width: 16
                         height: 16
                         z: root.activeColor === 1 ? 2 : 1
-                        color: imageInput.backgroundColor
+                        color: root.backgroundPaintColor
                         radius: 3
                         border.width: root.activeColor === 1 ? 2 : 1
                         border.color: root.activeColor === 1
@@ -1204,7 +2691,7 @@ ThemedFrame {
                         width: 16
                         height: 16
                         z: root.activeColor === 0 ? 2 : 1
-                        color: imageInput.foregroundColor
+                        color: root.foregroundPaintColor
                         radius: 3
                         border.width: root.activeColor === 0 ? 2 : 1
                         border.color: root.activeColor === 0
@@ -1225,14 +2712,18 @@ ThemedFrame {
                     text: qsTr("⌖")
                     checkable: true
                     checked: root.pickingColor
-                    enabled: imageInput.hasImage
-                    Accessible.name: qsTr("Pick the active color from the source image")
+                    enabled: root.editableContentAvailable
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Pick the active color from the Screen Image")
+                                     : qsTr("Pick the active color from the source image")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
                     onClicked: {
                         root.pickingColor = checked
-                        if (checked)
+                        if (checked) {
+                            root.finishKLine()
                             root.drawingTool = 0
+                        }
                     }
                 }
                 ToolSeparator { width: 5; height: 26 }
@@ -1241,57 +2732,108 @@ ThemedFrame {
                     implicitWidth: 24
                     implicitHeight: 26
                     text: qsTr("←")
-                    enabled: imageInput.hasImage
-                    Accessible.name: qsTr("Move source left")
+                    enabled: root.editableContentAvailable
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Move Screen Image left")
+                                     : qsTr("Move source left")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
-                    onClicked: imageInput.nudgeSource(-1, 0)
+                    onClicked: {
+                        root.finishKLine()
+                        if (root.screenImageTools) imageInput.nudgeScreenImage(-1, 0)
+                        else imageInput.nudgeSource(-1, 0)
+                    }
                 }
                 ToolButton {
                     objectName: root.objectName + "MoveUpButton"
                     implicitWidth: 24
                     implicitHeight: 26
                     text: qsTr("↑")
-                    enabled: imageInput.hasImage
-                    Accessible.name: qsTr("Move source up")
+                    enabled: root.editableContentAvailable
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Move Screen Image up")
+                                     : qsTr("Move source up")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
-                    onClicked: imageInput.nudgeSource(0, -1)
+                    onClicked: {
+                        root.finishKLine()
+                        if (root.screenImageTools) imageInput.nudgeScreenImage(0, -1)
+                        else imageInput.nudgeSource(0, -1)
+                    }
                 }
                 ToolButton {
                     objectName: root.objectName + "CenterButton"
+                    visible: !root.screenImageTools
                     implicitWidth: 24
                     implicitHeight: 26
                     text: qsTr("◎")
-                    enabled: imageInput.hasImage
+                    enabled: root.editableContentAvailable
                              && (imageInput.horizontalOffset !== 0
                                  || imageInput.verticalOffset !== 0)
                     Accessible.name: qsTr("Center source")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
-                    onClicked: imageInput.centerSource()
+                    onClicked: {
+                        root.finishKLine()
+                        imageInput.centerSource()
+                    }
                 }
                 ToolButton {
                     objectName: root.objectName + "MoveDownButton"
                     implicitWidth: 24
                     implicitHeight: 26
                     text: qsTr("↓")
-                    enabled: imageInput.hasImage
-                    Accessible.name: qsTr("Move source down")
+                    enabled: root.editableContentAvailable
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Move Screen Image down")
+                                     : qsTr("Move source down")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
-                    onClicked: imageInput.nudgeSource(0, 1)
+                    onClicked: {
+                        root.finishKLine()
+                        if (root.screenImageTools) imageInput.nudgeScreenImage(0, 1)
+                        else imageInput.nudgeSource(0, 1)
+                    }
                 }
                 ToolButton {
                     objectName: root.objectName + "MoveRightButton"
                     implicitWidth: 24
                     implicitHeight: 26
                     text: qsTr("→")
-                    enabled: imageInput.hasImage
-                    Accessible.name: qsTr("Move source right")
+                    enabled: root.editableContentAvailable
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Move Screen Image right")
+                                     : qsTr("Move source right")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
-                    onClicked: imageInput.nudgeSource(1, 0)
+                    onClicked: {
+                        root.finishKLine()
+                        if (root.screenImageTools) imageInput.nudgeScreenImage(1, 0)
+                        else imageInput.nudgeSource(1, 0)
+                    }
+                }
+                ToolSeparator {
+                    visible: root.screenImageTools
+                    width: visible ? 5 : 0
+                    height: 26
+                }
+                ToolButton {
+                    objectName: root.objectName + "GridButton"
+                    visible: root.screenImageTools
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    text: qsTr("#")
+                    checkable: true
+                    checked: root.gridVisible
+                    enabled: root.editableContentAvailable
+                    Accessible.name: checked
+                                     ? qsTr("Hide Screen Image grid")
+                                     : qsTr("Show Screen Image grid")
+                    ToolTip.visible: hovered
+                    ToolTip.text: root.effectiveZoom >= 5.0
+                                  ? qsTr("Pixel and 8 by 8 pattern grid")
+                                  : qsTr("8 by 8 character grid")
+                    onClicked: root.gridVisible = checked
                 }
             }
 
@@ -1317,10 +2859,26 @@ ThemedFrame {
                     ToolTip.text: Accessible.name
                     onToggled: imageInput.autoUpdate = checked
                 }
+
+                ToolButton {
+                    objectName: root.convertedTools
+                                ? root.objectName + "ApplyScreenImageEditsButton" : ""
+                    implicitHeight: 26
+                    text: qsTr("Apply")
+                    enabled: root.screenImageTools && imageInput.screenImageEdited
+                             && !imageInput.busy
+                    Accessible.name: qsTr("Apply chipset rules to Screen Image drawing")
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Reconvert the complete edited Screen Image with the active chipset mode; this is undoable")
+                    onClicked: {
+                        root.finishKLine()
+                        imageInput.applyScreenImageEdits()
+                    }
+                }
             }
 
             Item {
-                visible: !root.sourceTools && !root.convertedTools
+                visible: !root.editingTools && !root.convertedTools
                          && root.lowerToolbarContent === null
                 Layout.fillWidth: true
             }

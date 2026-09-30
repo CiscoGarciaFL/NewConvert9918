@@ -4,13 +4,13 @@ add_executable(test_core_validation
 
 target_link_libraries(test_core_validation
     PRIVATE
-        newconvert9918_core
+        retrovdp_core
         Qt6::Gui
 )
 
 target_compile_definitions(test_core_validation
     PRIVATE
-        NEWCONVERT9918_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
+        RETROVDP_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
 )
 
 # The test uses a small standalone runner and requires no Qt meta-object code.
@@ -24,7 +24,7 @@ add_executable(test_image_input
 
 target_link_libraries(test_image_input
     PRIVATE
-        newconvert9918_imageio
+        retrovdp_imageio
         Qt6::Core
         Qt6::Gui
 )
@@ -39,12 +39,12 @@ add_executable(test_export_formats
 
 target_link_libraries(test_export_formats
     PRIVATE
-        newconvert9918_formats
+        retrovdp_formats
 )
 
 target_compile_definitions(test_export_formats
     PRIVATE
-        NEWCONVERT9918_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
+        RETROVDP_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
 )
 
 set_target_properties(test_export_formats PROPERTIES AUTOMOC OFF)
@@ -57,7 +57,7 @@ add_executable(test_export_writer
 
 target_link_libraries(test_export_writer
     PRIVATE
-        newconvert9918_imageio
+        retrovdp_imageio
         Qt6::Core
         Qt6::Gui
 )
@@ -72,7 +72,7 @@ add_executable(test_interface_workflow
 
 target_link_libraries(test_interface_workflow
     PRIVATE
-        newconvert9918_app_support
+        retrovdp_app_support
         Qt6::Core
         Qt6::Gui
         Qt6::Qml
@@ -82,8 +82,8 @@ target_link_libraries(test_interface_workflow
 
 target_compile_definitions(test_interface_workflow
     PRIVATE
-        NEWCONVERT9918_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
-        NEWCONVERT9918_QML_DIR="${PROJECT_SOURCE_DIR}/app/qml"
+        RETROVDP_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
+        RETROVDP_QML_DIR="${PROJECT_SOURCE_DIR}/app/qml"
 )
 
 set_target_properties(test_interface_workflow PROPERTIES AUTOMOC OFF)
@@ -103,11 +103,11 @@ target_link_libraries(test_cli_workflow
 
 target_compile_definitions(test_cli_workflow
     PRIVATE
-        NEWCONVERT9918_CLI_PATH="$<TARGET_FILE:NewConvert9918Cli>"
-        NEWCONVERT9918_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
+        RETROVDP_CLI_PATH="$<TARGET_FILE:RetroVDPStudioCli>"
+        RETROVDP_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
 )
 
-add_dependencies(test_cli_workflow NewConvert9918Cli)
+add_dependencies(test_cli_workflow RetroVDPStudioCli)
 set_target_properties(test_cli_workflow PROPERTIES AUTOMOC OFF)
 
 add_test(NAME cli_workflow_validation COMMAND test_cli_workflow)
@@ -119,7 +119,7 @@ add_executable(benchmark_core_conversion
 
 target_link_libraries(benchmark_core_conversion
     PRIVATE
-        newconvert9918_core
+        retrovdp_core
 )
 
 set_target_properties(benchmark_core_conversion PROPERTIES AUTOMOC OFF)

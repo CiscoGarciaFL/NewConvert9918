@@ -15,6 +15,7 @@
 #include <QQuickWindow>
 #include <QQuickStyle>
 #include <QPropertyAnimation>
+#include <QSettings>
 #include <QSplashScreen>
 #include <QTimer>
 #include <QUrl>
@@ -24,6 +25,25 @@
 #include <string_view>
 
 namespace {
+
+void importLegacySettings()
+{
+    QSettings current;
+    if (!current.allKeys().isEmpty()) return;
+
+    // Keep the retired identifier only at this migration boundary. All new
+    // settings are written under the RetroVDPStudio application identity.
+    QSettings legacy(QSettings::NativeFormat,
+                     QSettings::UserScope,
+                     QStringLiteral("CiscoGarciaFL"),
+                     QStringLiteral("NewConvert9918"));
+    const QStringList legacyKeys = legacy.allKeys();
+    if (legacyKeys.isEmpty()) return;
+
+    for (const QString& key : legacyKeys) current.setValue(key, legacy.value(key));
+    current.setValue(QStringLiteral("migration/importedLegacySettings"), true);
+    current.sync();
+}
 
 QPixmap createSplashPixmap()
 {
@@ -37,7 +57,7 @@ QPixmap createSplashPixmap()
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
 
     const QPixmap sourceLogo(QStringLiteral(
-        ":/qt/qml/NewConvert9918/assets/icons/NewConvert9918-256.png"));
+        ":/qt/qml/retrovdp-studio/assets/icons/RetroVDPStudio-256.png"));
     const QPixmap logo = sourceLogo.scaled(
         224, 224, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     painter.drawPixmap((splashWidth - logo.width()) / 2, 24, logo);
@@ -49,7 +69,7 @@ QPixmap createSplashPixmap()
     painter.setPen(QColor(QStringLiteral("#f4f7fa")));
     painter.drawText(QRect(24, 270, splashWidth - 48, 52),
                      Qt::AlignCenter,
-                     QStringLiteral("New Convert 9918/F18A"));
+                     QStringLiteral("RetroVDP Studio"));
 
     return splashPixmap;
 }
@@ -64,12 +84,13 @@ int main(int argc, char* argv[])
             return std::string_view(argument) == "--smoke-test";
         });
     QApplication application(argc, argv);
-    application.setApplicationName(QStringLiteral("NewConvert9918"));
-    application.setApplicationDisplayName(QStringLiteral("New Convert 9918"));
-    application.setApplicationVersion(QStringLiteral(NEWCONVERT9918_VERSION));
+    application.setApplicationName(QStringLiteral("RetroVDPStudio"));
+    application.setApplicationDisplayName(QStringLiteral("RetroVDP Studio"));
+    application.setApplicationVersion(QStringLiteral(RETROVDP_VERSION));
     application.setOrganizationName(QStringLiteral("CiscoGarciaFL"));
+    importLegacySettings();
     application.setWindowIcon(QIcon(QStringLiteral(
-        ":/qt/qml/NewConvert9918/assets/icons/NewConvert9918-256.png")));
+        ":/qt/qml/retrovdp-studio/assets/icons/RetroVDPStudio-256.png")));
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
     QElapsedTimer splashLifetime;
@@ -100,7 +121,7 @@ int main(int argc, char* argv[])
         &application,
         [] { QCoreApplication::exit(EXIT_FAILURE); },
         Qt::QueuedConnection);
-    engine.loadFromModule(QStringLiteral("NewConvert9918"), QStringLiteral("Main"));
+    engine.loadFromModule(QStringLiteral("RetroVDPStudio"), QStringLiteral("Main"));
     if (engine.rootObjects().isEmpty()) {
         return EXIT_FAILURE;
     }
