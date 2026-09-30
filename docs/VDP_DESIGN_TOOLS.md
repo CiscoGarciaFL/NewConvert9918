@@ -6,6 +6,12 @@ This document describes the hardware-aware authoring direction for RetroVDP
 Studio. Some editor foundations already exist, while the complete project and
 multi-target workflow remains incremental work.
 
+This is the behavioral specification for design tools, not a separate
+architecture schedule. Module sequencing and exit gates are defined in
+[ARCHITECTURE_IMPLEMENTATION_PLAN.md](ARCHITECTURE_IMPLEMENTATION_PLAN.md), and
+the hardware catalog is defined in
+[VDP_SUPPORT_ROADMAP.md](VDP_SUPPORT_ROADMAP.md).
+
 Design workspaces complement source conversion with hardware-aware authoring
 tools. Controls and import actions are capability-gated by the selected target
 profile rather than permanently tied to two chipsets. The initial tools cover:
@@ -773,91 +779,30 @@ be approximated by overwriting current full-screen tables. All modes must
 call shared palette, validation, table-layout, and image operations rather than
 maintaining subtly different hardware rules.
 
-## Proposed implementation phases
+## Delivery relationship
 
-### Design Phase 0 — Hardware contracts and fixtures
+The architecture migration deliberately separates framework order from feature
+priority. Design Tools depends on these architecture gates:
 
-- Freeze the terminology table and target profiles.
-- Translate TMS9918A and F18A table/sprite rules into core validation contracts.
-- Create independent byte-level fixtures for pattern banks, sprite priority,
-  scanline overflow, collision, size, magnification, offscreen placement,
-  Graphics I colors, Graphics II bank transitions, and Multicolor nibbles.
-- Decide the versioned project-file envelope and safety limits.
+| Capability | Architecture prerequisite | Product slice after the gate |
+| --- | --- | --- |
+| Portable pattern and sprite values | Stages 3–4 | Move current editor data and recipes out of Qt controllers |
+| Encoded validation and preview | Stages 2 and 6 | Add scanline, collision, bank, palette, and memory diagnostics |
+| Managed outputs and regeneration safety | Stage 7 | Create editable design assets from Screen Image results |
+| Target-derived editor controls | Stages 1, 5, and 6 | Replace chipset checks with descriptor-driven tools |
 
-Exit criterion: the headless hardware model renders and diagnoses approved
-fixtures without a design UI.
+After those foundations, vertical feature slices should be delivered in this
+order unless the project plan explicitly changes priority:
 
-### Design Phase 1 — Shared project shell and pixel editor
+1. finish TMS9918A sprite instances, composites, validation, and native export;
+2. finish character banks, tile/name maps, reservations, and stable allocation;
+3. add Multicolor table round-trip editing and hardware preview;
+4. add F18A palette, ECM, sprite, layer, and downgrade behavior; and
+5. add animation, metatiles, scene templates, and sequence analysis.
 
-- Add new/open/save/save-as project workflow with atomic saves and recovery.
-- Build the shared indexed-pixel canvas, palette tools, zoom/grid, selection,
-  undo/redo, and accessible keyboard commands.
-- Add the asset navigator, inspector, diagnostics, and memory summary.
-
-Exit criterion: a small bounded pattern asset can be edited, saved, reopened,
-and reproduced byte-for-byte on every platform.
-
-### Design Phase 2 — TMS9918A sprites and composites
-
-- Implement 8x8/16x16 sprite pattern editing and attribute instances.
-- Add arbitrary composite layout and anchor/offset manifests.
-- Add accurate priority, collision, early-clock, magnification, and scanline
-  overflow simulation.
-- Export sprite pattern/attribute data and PNG previews.
-
-Exit criterion: the editor correctly identifies and simulates a fifth sprite on
-one line and exports a nonrectangular composite reproducibly.
-
-### Design Phase 3 — Character banks, editing, and reservations
-
-- Add one-/two-/three-bank viewers and the mode-aware character editor.
-- Add tile/name-table view and linked-use highlighting.
-- Implement free/allocated/reserved/locked/conflict states.
-- Add deterministic allocation, deduplication, stable re-conversion, and
-  previewed remapping.
-
-Exit criterion: a project preserves named reserved ranges while importing and
-re-importing a tiled image, and every table reference remains valid.
-
-### Design Phase 4 — Multicolor simulator
-
-- Add the 64x48 logical-cell editor and accurate 256x192 preview.
-- Expose pattern, nibble, name-table, and repeated-use views.
-- Overlay sprite scenes with hardware scanline behavior.
-- Round-trip existing Multicolor conversion tables.
-
-Exit criterion: imported, edited, exported, and re-imported Multicolor tables
-produce the same preview and byte data.
-
-### Design Phase 5 — Conversion and export integration
-
-- Create design projects from all applicable existing conversion results.
-- Reuse manifest preflight and atomic file writing.
-- Add complete raw/TIFILES/V9T9 roles and project manifests.
-- Define optional assembler/C/C++/BASIC data dialects separately.
-
-Exit criterion: conversion-to-design-to-export is deterministic and never
-silently overwrites source or reserved data.
-
-### Design Phase 6 — F18A enhancement layer
-
-- Add programmable palettes and ECM1/ECM2/ECM3 sprite/tile editing.
-- Add per-sprite size/flip, enhanced scanline budget, optional linking, tile
-  attributes, and second-layer visualization.
-- Add compatibility analysis and assisted downgrade to original TMS9918A.
-
-Exit criterion: every enhanced attribute affects both the preview and emitted
-data, and switching target profiles reports every incompatible resource.
-
-### Design Phase 7 — Animation and game-workflow polish
-
-- Add sprite animation frames and onion skinning.
-- Analyze worst-case scanline/collision budgets across frames.
-- Add metatile libraries, reusable scene templates, and code-symbol naming.
-- Connect sprite/pattern sequences to the future Batch Mode manifest where
-  useful without making either feature depend on the other.
-
-This phase is optional for the first complete Design Tools release.
+Each slice uses the common project, artifact, validator, preview, and format
+contracts. Its behavior is complete only when the applicable acceptance
+criteria below pass headlessly and through the interface.
 
 ## Acceptance criteria
 
@@ -889,11 +834,11 @@ This phase is optional for the first complete Design Tools release.
 - Animation timing and runtime update-bandwidth analysis.
 - Automatic sprite multiplexing/flicker scheduling for original hardware.
 - F18A GPU programming, bitmap-layer painting, and full scrolling-map tooling.
-- V9938/V9958, Sega VDP, or other related but distinct video chips.
 - Collaborative/cloud project storage.
 
-These may build on the shared hardware model later but must not broaden the
-initial TMS9918A/F18A authoring scope unnoticed.
+These may build on the shared hardware model later but must not broaden a
+delivery slice unnoticed. New hardware scope is governed by the VDP support
+roadmap rather than this deferred-question list.
 
 ## Technical references
 

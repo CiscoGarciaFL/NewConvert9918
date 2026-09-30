@@ -1,5 +1,9 @@
 # Phase 6A parity review
 
+Status: historical verification record. This review is complete and is not an
+active implementation plan. Current work is tracked in
+[../PROJECT_PLAN.md](../PROJECT_PLAN.md).
+
 Phase 6A closes the user-facing legacy-feature audit. A checked item means
 either that the behavior is available and tested or that an intentional
 difference has been recorded here. It does not mean that unverified legacy

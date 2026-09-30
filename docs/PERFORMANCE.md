@@ -1,6 +1,6 @@
 # Conversion performance baseline
 
-This baseline measures the portable Phase 3 conversion core. It is intended to
+This baseline measures the portable conversion core. It is intended to
 guide later background-work and optimization decisions; it is not a CI timing
 threshold.
 

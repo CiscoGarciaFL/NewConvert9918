@@ -279,5 +279,6 @@ Every captured case should include:
   intentional improvement, or known original defect
 - Reviewer and approval date for public distribution of the fixture
 
-The next Phase 2 task is to select redistributable source assets covering the
-roadmap categories, then execute this capture protocol on Windows.
+The redistribution-safe source corpus and captured reference outputs now live
+under `tests/golden`; its README records provenance and maintenance. This
+capture protocol remains the authority when fixtures are added or refreshed.

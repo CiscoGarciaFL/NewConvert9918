@@ -1,8 +1,9 @@
 # Release and Packaging Process
 
 This document defines how RetroVDP Studio becomes a downloadable,
-cross-platform product. It is the detailed contract for Phase 8 in
-`PROJECT_PLAN.md`; the project plan remains the short progress checklist.
+cross-platform product. It is the authoritative packaging and release contract;
+[`../PROJECT_PLAN.md`](../PROJECT_PLAN.md) tracks program milestones without
+duplicating this procedure.
 
 ## User-facing release promise
 
@@ -360,7 +361,8 @@ and [linuxdeploy-plugin-qt releases](https://github.com/linuxdeploy/linuxdeploy-
 The first packaging exercise was published as `v0.1.0-beta.1`. Corrective
 package changes are released under a new tag rather than replacing its assets.
 Preview builds may be unsigned under the policy above. `v1.0.0` remains gated
-by the v1.0 criteria in `PROJECT_PLAN.md`.
+by the stable-release and trust criteria in this document plus the applicable
+product quality gates in `PROJECT_PLAN.md`.
 
 ## Prerelease readiness checklist
 
@@ -616,9 +618,9 @@ notarization gates described above. AppStream/software-center metadata and the
 native Linux ARM64 workflow are documented future work; no current Linux asset
 or support statement implies ARM64 compatibility.
 
-## Phase 8 completion definition
+## Release-process completion definition
 
-Phase 8 is complete only when:
+The release process is complete enough for stable publication only when:
 
 - every required artifact is reproducibly generated from a clean tagged
   checkout;

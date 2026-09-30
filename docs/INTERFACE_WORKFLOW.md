@@ -1,7 +1,7 @@
 # Interface workflow
 
-Phase 6 connects the Qt Quick interface to the portable conversion and export
-libraries. The primary path is deliberately linear:
+This document records the implemented Qt Quick workflow over the portable
+conversion and export libraries. The primary path is deliberately linear:
 
 1. Create a blank Screen Image, or open, drop, paste, or pass an image on the command line.
 2. Choose fit/crop positioning and a scaling filter.
