@@ -1,7 +1,7 @@
 # Image input policy and format support
 
-Phase 4 replaces ImgSource and the original Windows-only input paths with a
-bounded, cross-platform image-loading pipeline. Every successful reader emits
+RetroVDP Studio replaces ImgSource and the original Windows-only input paths
+with a bounded, cross-platform image-loading pipeline. Every successful reader emits
 the same platform-neutral `RgbImage` representation used by the conversion
 core.
 

@@ -6,11 +6,17 @@ This document specifies a future feature. It does not describe functionality
 available in the current application and does not authorize adding a media
 dependency yet.
 
+Its delivery is deferred until the single-asset project, managed-output, and
+application-service contracts in
+[ARCHITECTURE_IMPLEMENTATION_PLAN.md](ARCHITECTURE_IMPLEMENTATION_PLAN.md) are
+stable. This document specifies behavior, not a competing implementation
+schedule.
+
 Batch Mode will turn a time-ordered or explicitly ordered source into an
-enumerated sequence of still frames, then apply one snapshot of the normal New
-Convert 9918 conversion settings to each frame. The same conversion core,
-target modes, validation, and exporters used for a single image must be used
-for every batch item.
+enumerated sequence of still frames, then apply one snapshot of the normal
+RetroVDP Studio compile settings to each frame. The same compiler, validator,
+target modes, and exporters used for a single image must be used for every
+batch item.
 
 The initial goal is deterministic frame-sequence production, not video
 editing, audio handling, or direct encoding of a new movie file.

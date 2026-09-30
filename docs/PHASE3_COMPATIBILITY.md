@@ -1,5 +1,9 @@
 # Phase 3 compatibility review
 
+Status: historical verification record. This review is complete and is not an
+active implementation plan. Current work is tracked in
+[../PROJECT_PLAN.md](../PROJECT_PLAN.md).
+
 Phase 3 now has portable implementations for all nine conversion modes,
 focused deterministic fixtures for their table contracts, cross-platform CI,
 cancellable preview-job generations, and a reproducible performance/memory

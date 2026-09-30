@@ -1,5 +1,9 @@
 # Target profiles and project outputs
 
+Status: authoritative product-model contract. Architecture ownership and the
+ordered migration are defined in [ARCHITECTURE.md](ARCHITECTURE.md) and
+[ARCHITECTURE_IMPLEMENTATION_PLAN.md](ARCHITECTURE_IMPLEMENTATION_PLAN.md).
+
 ## Product model
 
 RetroVDP Studio is a multi-target graphics workspace. A VDP name is not part
@@ -19,6 +23,10 @@ source library
 TMS9918A and F18A are the implemented target profiles. V9938 is the next
 planned profile. Additional profiles must be registered through the same core
 contract rather than added as unrelated UI modes.
+
+The complete planned hardware catalog, reusable compiler families,
+implementation waves, and per-target acceptance gates are maintained in
+[VDP_SUPPORT_ROADMAP.md](VDP_SUPPORT_ROADMAP.md).
 
 ## Source formats are target-independent
 
@@ -52,9 +60,11 @@ visual source instead of disappearing from the application.
 
 ## Target-profile contract
 
-Each target profile has a stable identifier and declares capabilities rather
-than relying on target-name checks throughout the application. The contract
-includes:
+Each target profile and display mode has a stable string identifier and
+declares typed capabilities rather than relying on target-name checks
+throughout the application. The current numeric C++ enums remain temporary
+implementation conveniences; they are not the long-term persistence boundary.
+The contract includes:
 
 - implemented and planned status;
 - display modes and geometry;
@@ -70,7 +80,7 @@ includes:
 A newer target must not be treated as a complete superset merely because it
 inherits part of an earlier VDP's behavior.
 
-## Current workspace and future projects
+## Current workspace and managed projects
 
 The current application works with Screen Image, Character Editor, and Sprite
 Editor documents individually. Existing recipes retain that behavior. This is
