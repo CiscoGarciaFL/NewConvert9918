@@ -41,6 +41,14 @@ does not infer support from a target name.
 The present foundation is sound enough to evolve in place. A rewrite is not
 justified.
 
+The first migration seam is implemented: validated `TargetId`, `ModeId`,
+`FormatId`, and `RegionRoleId` values now front the legacy enums; TMS9918A and
+F18A modes publish geometry and palette descriptors through a validated
+registry; GUI and CLI mode labels resolve through that registry; and portable
+core/format sources are guarded against Qt includes. Numeric enums and the
+version-1 JSON layout remain compatibility internals until their downstream
+consumers move to the new contracts.
+
 ### Strengths to preserve
 
 - `retrovdp_core` uses standard C++ values and is independent of Qt and the
@@ -60,7 +68,7 @@ justified.
 
 | Priority | Finding | Consequence |
 | --- | --- | --- |
-| P0 | `ConversionMode`, `TargetProfileId`, `TargetTableRole`, and `ExportFormat` are closed numeric enums used across registries, UI state, CLI parsing, recipes, and writers. | Every target or format expands central switches and numeric persistence becomes fragile. |
+| P0 | `ConversionMode`, `TargetProfileId`, `TargetTableRole`, and `ExportFormat` remain closed compatibility enums inside converters, UI properties, version-1 recipes, and writers, although typed stable-ID adapters now protect registry and CLI boundaries. | Remaining numeric persistence and central switches must be retired incrementally before target and format additions become local changes. |
 | P0 | Geometry, the fifteen-color working palette, and TMS9918A preparation assumptions are embedded in the application conversion pipeline. | A V9938 or non-TI target cannot be added as a descriptor-only extension. |
 | P0 | `ImageInputController` owns source state, edits, settings, jobs, preview publication, export state, recipes, undo, and a large QML surface. | Changes have broad regression scope and application policy cannot be reused without Qt presentation state. |
 | P0 | Character and sprite value types, histories, and JSON persistence are private to `EditorProjectController`. | The GUI is the domain model; the CLI, tests, future project browser, and target compilers cannot share editor assets cleanly. |
@@ -221,7 +229,7 @@ or JSON results.
 ### Identifiers
 
 Persisted identities are validated strings such as `tms9918a`,
-`graphics-ii`, `pattern`, and `ti-files`. Display names are localizable labels
+`bitmap-9918a`, `pattern`, and `tifiles`. Display names are localizable labels
 and may change. Existing numeric enums may remain temporary implementation
 details, but serializers and frontends resolve through the registries.
 
@@ -235,6 +243,18 @@ A display-mode descriptor defines logical and visible geometry, rational pixel
 aspect, palette model, pixel/tile encoding, layer and object rules, memory
 regions, supported asset kinds, and registered strategies. Descriptors are
 immutable after registry construction.
+
+A target character-pattern descriptor defines pattern pixel dimensions,
+patterns per set, set count, and map columns/rows. Character extraction and
+preview presentation consume that descriptor instead of embedding an 8×8,
+256-pattern, or 32×24 assumption in QML.
+
+A target sprite descriptor defines supported pattern sizes, patterns per set,
+the visible-sprite limit, maximum color depth, and whether size is global or
+stored per sprite. Display-mode option flags similarly declare whether a mode
+uses a working palette, palette selection, scanline palette controls, or a
+multicolor flicker limit. The presentation layer renders these descriptors;
+it does not identify chips or mode numbers to decide which controls exist.
 
 Descriptor validation runs at startup and in unit tests. Duplicate IDs,
 missing strategies, contradictory capabilities, invalid sizes, and overlapping
@@ -293,6 +313,14 @@ The project file is a versioned envelope with stable IDs. Parsing, migration,
 validation, and writing are centralized behind one project serializer used by
 GUI and CLI. The in-memory project stays Qt-independent even if the first JSON
 adapter uses Qt.
+
+The project session owns the project name, configured target set, active
+target, reusable sources, and all target assets. Source presentation is common
+to every target. The active target filters available creation modes without
+deleting assets belonging to another configured target. The Project Bar is a
+presentation of this session state and the sole active-target selector. Mode
+option panels summarize that target and expose only descriptor-approved
+controls; they are not additional settings owners.
 
 Saves are atomic. Load limits cover total bytes, asset counts, dimensions,
 region sizes, nesting, and history. Older readers must not silently rewrite

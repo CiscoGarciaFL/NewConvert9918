@@ -1,0 +1,51 @@
+{
+  "kind": "retrovdp-studio-recipe",
+  "schemaVersion": 1,
+  "project": {
+    "name": "Fixture Project",
+    "targets": [
+      "tms9918a",
+      "f18a"
+    ]
+  },
+  "workspace": "screen-image",
+  "source": {
+    "path": ""
+  },
+  "profiles": {
+    "tms9918a": {
+      "enabled": true
+    },
+    "f18a": {
+      "enabled": true,
+      "inherits": "tms9918a"
+    }
+  },
+  "preview": "tms9918a",
+  "editScope": "shared-baseline",
+  "characterEditor": {
+    "activeSet": 0,
+    "activePattern": 0,
+    "editors": [],
+    "sets": []
+  },
+  "spriteEditor": {
+    "activeSet": 0,
+    "activeSprite": 0,
+    "activeSize": 8,
+    "globalSize": 8,
+    "editors": [],
+    "sets": []
+  },
+  "conversion": {
+    "mode": 0,
+    "targetProfile": "tms9918a",
+    "dither": 0,
+    "scalingFilter": 0,
+    "fillMode": 0,
+    "gamma": 1.25,
+    "foregroundColor": "#ffffff",
+    "backgroundColor": "#000000",
+    "exportFormat": 2
+  }
+}

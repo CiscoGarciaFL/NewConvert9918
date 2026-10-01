@@ -3,6 +3,8 @@
 #include <QObject>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
+#include <QStringList>
 
 #include <array>
 #include <cstdint>
@@ -14,8 +16,17 @@ class ImageInputController;
 class EditorProjectController final : public QObject {
     Q_OBJECT
 
+    Q_PROPERTY(QString projectName READ projectName WRITE setProjectName NOTIFY projectChanged)
+    Q_PROPERTY(bool tms9918aEnabled READ tms9918aEnabled WRITE setTms9918aEnabled NOTIFY projectChanged)
     Q_PROPERTY(int workspaceMode READ workspaceMode WRITE setWorkspaceMode NOTIFY projectChanged)
     Q_PROPERTY(bool f18aEnabled READ f18aEnabled WRITE setF18aEnabled NOTIFY projectChanged)
+    Q_PROPERTY(QStringList plannedTargetIds READ plannedTargetIds NOTIFY projectChanged)
+    Q_PROPERTY(int activeTarget READ activeTarget WRITE setActiveTarget NOTIFY projectChanged)
+    Q_PROPERTY(QVariantList supportedTargets READ supportedTargets NOTIFY projectChanged)
+    Q_PROPERTY(QVariantMap activeTargetInfo READ activeTargetInfo NOTIFY projectChanged)
+    Q_PROPERTY(bool screenImageModeAvailable READ screenImageModeAvailable NOTIFY projectChanged)
+    Q_PROPERTY(bool characterModeAvailable READ characterModeAvailable NOTIFY projectChanged)
+    Q_PROPERTY(bool spriteModeAvailable READ spriteModeAvailable NOTIFY projectChanged)
     Q_PROPERTY(int previewTarget READ previewTarget WRITE setPreviewTarget NOTIFY projectChanged)
     Q_PROPERTY(int editScope READ editScope WRITE setEditScope NOTIFY projectChanged)
     Q_PROPERTY(int activeCharacterSet READ activeCharacterSet WRITE setActiveCharacterSet NOTIFY projectChanged)
@@ -34,6 +45,14 @@ class EditorProjectController final : public QObject {
     Q_PROPERTY(bool canUndoCharacter READ canUndoCharacter NOTIFY projectChanged)
     Q_PROPERTY(bool canRedoCharacter READ canRedoCharacter NOTIFY projectChanged)
     Q_PROPERTY(bool canPasteCharacterPattern READ canPasteCharacterPattern NOTIFY projectChanged)
+    Q_PROPERTY(int characterPatternWidth READ characterPatternWidth NOTIFY projectChanged)
+    Q_PROPERTY(int characterPatternHeight READ characterPatternHeight NOTIFY projectChanged)
+    Q_PROPERTY(int characterPatternsPerSet READ characterPatternsPerSet NOTIFY projectChanged)
+    Q_PROPERTY(int characterSetCount READ characterSetCount NOTIFY projectChanged)
+    Q_PROPERTY(int characterMapColumns READ characterMapColumns NOTIFY projectChanged)
+    Q_PROPERTY(int characterMapRows READ characterMapRows NOTIFY projectChanged)
+    Q_PROPERTY(bool screenImageSelectionCharacterAligned READ
+                   screenImageSelectionCharacterAligned NOTIFY projectChanged)
     Q_PROPERTY(int activeSpriteSet READ activeSpriteSet WRITE setActiveSpriteSet NOTIFY projectChanged)
     Q_PROPERTY(int activeSprite READ activeSprite WRITE setActiveSprite NOTIFY projectChanged)
     Q_PROPERTY(int activeSpriteSize READ activeSpriteSize WRITE setActiveSpriteSize NOTIFY projectChanged)
@@ -62,8 +81,17 @@ public:
     explicit EditorProjectController(ImageInputController* imageInput,
                                      QObject* parent = nullptr);
 
+    [[nodiscard]] QString projectName() const { return projectName_; }
+    [[nodiscard]] bool tms9918aEnabled() const { return tms9918aEnabled_; }
     [[nodiscard]] int workspaceMode() const { return workspaceMode_; }
     [[nodiscard]] bool f18aEnabled() const { return f18aEnabled_; }
+    [[nodiscard]] QStringList plannedTargetIds() const { return plannedTargetIds_; }
+    [[nodiscard]] int activeTarget() const;
+    [[nodiscard]] QVariantList supportedTargets() const;
+    [[nodiscard]] QVariantMap activeTargetInfo() const;
+    [[nodiscard]] bool screenImageModeAvailable() const;
+    [[nodiscard]] bool characterModeAvailable() const;
+    [[nodiscard]] bool spriteModeAvailable() const;
     [[nodiscard]] int previewTarget() const { return previewTarget_; }
     [[nodiscard]] int editScope() const { return editScope_; }
     [[nodiscard]] int activeCharacterSet() const { return activeCharacterSet_; }
@@ -90,6 +118,13 @@ public:
         return !characterPanActive_ && !characterRedoHistory_.empty();
     }
     [[nodiscard]] bool canPasteCharacterPattern() const;
+    [[nodiscard]] int characterPatternWidth() const;
+    [[nodiscard]] int characterPatternHeight() const;
+    [[nodiscard]] int characterPatternsPerSet() const;
+    [[nodiscard]] int characterSetCount() const;
+    [[nodiscard]] int characterMapColumns() const;
+    [[nodiscard]] int characterMapRows() const;
+    [[nodiscard]] bool screenImageSelectionCharacterAligned() const;
     [[nodiscard]] int activeSpriteSet() const { return activeSpriteSet_; }
     [[nodiscard]] int activeSprite() const { return activeSprite_; }
     [[nodiscard]] int activeSpriteSize() const { return activeSpriteSize_; }
@@ -118,8 +153,11 @@ public:
     [[nodiscard]] QString statusMessage() const { return statusMessage_; }
     [[nodiscard]] QString errorMessage() const { return errorMessage_; }
 
+    void setProjectName(const QString& value);
+    void setTms9918aEnabled(bool value);
     void setWorkspaceMode(int value);
     void setF18aEnabled(bool value);
+    void setActiveTarget(int value);
     void setPreviewTarget(int value);
     void setEditScope(int value);
     void setActiveCharacterSet(int value);
@@ -141,6 +179,20 @@ public:
     void setPlacementWidth(int value);
     void setPlacementHeight(int value);
 
+    Q_INVOKABLE void createProject(const QString& name,
+                                   bool tms9918aEnabled,
+                                   bool f18aEnabled);
+    Q_INVOKABLE void configureProject(const QString& name,
+                                      bool tms9918aEnabled,
+                                      bool f18aEnabled);
+    Q_INVOKABLE void createProjectWithTargets(const QString& name,
+                                              bool tms9918aEnabled,
+                                              bool f18aEnabled,
+                                              const QStringList& plannedTargetIds);
+    Q_INVOKABLE void configureProjectWithTargets(const QString& name,
+                                                 bool tms9918aEnabled,
+                                                 bool f18aEnabled,
+                                                 const QStringList& plannedTargetIds);
     Q_INVOKABLE void addSpriteSet();
     Q_INVOKABLE void removeActiveSpriteSet();
     Q_INVOKABLE void selectSpritePattern(int spriteIndex, int size);
@@ -204,6 +256,17 @@ public:
     Q_INVOKABLE void redoCharacterEdit();
     Q_INVOKABLE bool copyActiveCharacterPattern();
     Q_INVOKABLE bool pasteActiveCharacterPattern();
+    Q_INVOKABLE bool extractScreenImagePatterns(int characterX,
+                                                int characterY,
+                                                int regionWidth,
+                                                int regionHeight,
+                                                int destinationPattern,
+                                                bool verticalWrap);
+    Q_INVOKABLE QString characterPatternPreview(int setIndex,
+                                                int firstPattern,
+                                                int patternWidth,
+                                                int patternHeight,
+                                                bool verticalWrap) const;
     Q_INVOKABLE void addCharacterEditor();
     Q_INVOKABLE void removeActiveCharacterEditor();
     Q_INVOKABLE void moveCharacterEditor(int fromIndex, int toIndex);
@@ -232,11 +295,14 @@ private:
         int tileX{};
         int tileY{};
     };
-    struct CharacterHistoryEntry {
+    struct CharacterPatternChange {
         int setIndex{};
         int patternIndex{};
         CharacterPattern before;
         CharacterPattern after;
+    };
+    struct CharacterHistoryEntry {
+        std::vector<CharacterPatternChange> changes;
     };
     struct SpritePlacement {
         int x{};
@@ -290,6 +356,7 @@ private:
     void recordCharacterEdit(int setIndex, int patternIndex,
                              const CharacterPattern& before,
                              const CharacterPattern& after);
+    void recordCharacterEdits(std::vector<CharacterPatternChange> changes);
     void finishCharacterPan();
     [[nodiscard]] SpritePattern& spritePattern(int setIndex,
                                                int spriteIndex,
@@ -310,11 +377,17 @@ private:
     bool activateSpriteEditorBank(int size);
     bool assignActiveSpriteToEditor();
     void syncSpriteDrawingColor();
+    void resetProjectData();
+    [[nodiscard]] bool targetEnabled(int value) const;
+    [[nodiscard]] bool activeTargetHasCapability(std::uint32_t capability) const;
     void setStatus(QString message, QString error = {});
 
     ImageInputController* imageInput_{};
+    QString projectName_{QStringLiteral("Untitled Project")};
+    bool tms9918aEnabled_{true};
     int workspaceMode_{};
     bool f18aEnabled_{true};
+    QStringList plannedTargetIds_;
     int previewTarget_{};
     int editScope_{};
     int activeCharacterSet_{};

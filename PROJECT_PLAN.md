@@ -1,6 +1,12 @@
 # RetroVDP Studio project plan
 
-Status: active roadmap, updated 2026-09-30.
+Status: active roadmap, updated 2026-10-01.
+
+Presentation checkpoint: project naming and configured targets now persist in
+the version-1 project envelope; the main window exposes project lifecycle
+commands, a Project Bar with active-target selection, a common Source tab, and
+target-filtered mode presentation. Tabbed view owns mode selection while split
+views use the Mode menu.
 
 This is the concise program-level plan. Architectural boundaries are defined
 in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and the ordered engineering
@@ -43,9 +49,15 @@ The following program is implemented and maintained rather than planned again:
 - RAW, RLE, TIFILES, V9T9, MSX, Coleco, Adam, Extended BASIC, ROM, and PNG
   export with manifest preflight and atomic writes;
 - desktop source preparation, live conversion, settings, previews, and export;
+- target-independent source drawing, selection, transforms, system-font text,
+  raster placement, clipboard exchange, and undo/redo;
 - headless CLI conversion/export with stable diagnostics and exit codes;
 - initial Character and Sprite editor surfaces, pattern editing, placement,
   clipboard exchange, undo/redo, and version-1 recipes;
+- target-described Screen Image-to-Character extraction and configurable
+  horizontal/vertical Pattern Previewer;
+- Active Target-driven Screen Image, Character, and Sprite options, including
+  descriptor-owned sprite constraints and display-mode option visibility;
 - cross-platform build, test, package, and release procedures; and
 - recorded baseline, compatibility, performance, and release evidence.
 
@@ -139,11 +151,13 @@ Use the result to approve or revise the remaining support waves.
 
 ## Immediate next work
 
-1. Establish Stage 0 registry, applicability, and shared recipe fixtures.
-2. Add stable ID values and TMS9918A/F18A display-mode descriptors.
-3. Adapt current enum APIs at the registry boundary with no output change.
-4. Add the portable-module Qt dependency check.
-5. Re-run the complete platform matrix and record the milestone result.
+1. Move image preparation geometry and palette requirements to the registered
+   display-mode descriptors.
+2. Name and isolate the PowerPaint 240x160 framing policy.
+3. Finish registry-backed target/mode presentation adapters while retaining
+   version-1 recipe compatibility.
+4. Begin Stage 2's general target-artifact and export applicability contracts.
+5. Re-run the complete platform matrix and record the descriptor milestone.
 
 ## Documentation governance
 

@@ -41,38 +41,9 @@ enum class ExitCode : int {
     Write = 6,
 };
 
-struct ModeChoice {
-    const char* name;
-    core::ConversionMode value;
-};
-
-struct TargetChoice {
-    const char* name;
-    core::TargetProfileId value;
-};
-
-constexpr std::array targetChoices{
-    TargetChoice{"tms9918a", core::TargetProfileId::Tms9918A},
-    TargetChoice{"f18a", core::TargetProfileId::F18A},
-};
-
 struct FormatChoice {
     const char* name;
     formats::ExportFormat value;
-};
-
-constexpr std::array modeChoices{
-    ModeChoice{"bitmap-9918a", core::ConversionMode::Bitmap9918},
-    ModeChoice{"greyscale-bitmap-9918a", core::ConversionMode::GreyscaleBitmap9918},
-    ModeChoice{"black-and-white-bitmap-9918a",
-               core::ConversionMode::BlackAndWhiteBitmap9918},
-    ModeChoice{"multicolor-9918", core::ConversionMode::Multicolor9918},
-    ModeChoice{"dual-multicolor-9918", core::ConversionMode::DualMulticolor9918},
-    ModeChoice{"half-multicolor-9918a", core::ConversionMode::HalfMulticolor9918},
-    ModeChoice{"bitmap-color-only-9918a", core::ConversionMode::BitmapColorOnly9918},
-    ModeChoice{"paletted-bitmap-f18a", core::ConversionMode::PalettedBitmapF18A},
-    ModeChoice{"scanline-palette-bitmap-f18a",
-               core::ConversionMode::ScanlinePaletteBitmapF18A},
 };
 
 constexpr std::array formatChoices{
@@ -421,8 +392,7 @@ int main(int argc, char* argv[])
     }
     if (!parser.isSet(recipeOption) || parser.isSet(modeOption)) {
         const QString requestedMode = parser.value(modeOption).toLower();
-        const auto mode = choiceValue<ModeChoice, modeChoices.size(), core::ConversionMode>(
-            modeChoices, requestedMode);
+        const auto mode = core::conversionMode(requestedMode.toStdString());
         if (!mode) {
             return reportFailure(wantsJson, ExitCode::Usage, QStringLiteral("unknown-mode"),
                                  QStringLiteral("Unknown conversion mode: %1")
@@ -432,9 +402,7 @@ int main(int argc, char* argv[])
     }
     if (parser.isSet(targetOption)) {
         const QString requestedTarget = parser.value(targetOption).toLower();
-        const auto target = choiceValue<TargetChoice, targetChoices.size(),
-                                        core::TargetProfileId>(
-            targetChoices, requestedTarget);
+        const auto target = core::targetProfileId(requestedTarget.toStdString());
         if (!target) {
             return reportFailure(wantsJson, ExitCode::Usage,
                                  QStringLiteral("unknown-target"),
@@ -452,7 +420,9 @@ int main(int argc, char* argv[])
         settings.targetProfile = core::effectiveTargetProfile(
             settings.targetProfile, settings.mode);
     }
-    const QString modeName = choiceName(modeChoices, settings.mode);
+    const auto& selectedMode = core::displayMode(settings.mode);
+    const QString modeName = QString::fromLatin1(
+        selectedMode.stableId.data(), static_cast<qsizetype>(selectedMode.stableId.size()));
     const auto& selectedTarget = core::targetProfile(settings.targetProfile);
     const QString targetName = QString::fromLatin1(
         selectedTarget.stableId.data(),

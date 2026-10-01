@@ -707,6 +707,124 @@ void testLiveWorkflow(TestContext& test, ImageInputController& controller)
                                           true, false);
         test.expect(drawingController.canUndoDrawing(),
                     "hard-edge shapes should participate in drawing history");
+
+        drawingController.reloadSource();
+        const QString sourceBeforeAdvancedEdits = drawingController.sourcePreview();
+        const QImage sourceBeforeAdvancedImage = QImage::fromData(
+            QByteArray::fromBase64(sourceBeforeAdvancedEdits.section(
+                QLatin1Char(','), 1).toLatin1()), "PNG");
+        drawingController.setSourceSelection(0.1, 0.1, 0.2, 0.2);
+        test.expect(drawingController.hasSourceSelection()
+                        && drawingController.sourceSelectionX() == 25
+                        && drawingController.sourceSelectionY() == 19
+                        && drawingController.sourceSelectionWidth() == 27
+                        && drawingController.sourceSelectionHeight() == 20,
+                    "source selection should use the same normalized rectangle workflow as Screen Image");
+        drawingController.invertSourceImage();
+        const QImage sourceAfterSelectionInvert = QImage::fromData(
+            QByteArray::fromBase64(drawingController.sourcePreview().section(
+                QLatin1Char(','), 1).toLatin1()), "PNG");
+        const QColor selectedBefore = sourceBeforeAdvancedImage.pixelColor(30, 25);
+        const QColor selectedAfter = sourceAfterSelectionInvert.pixelColor(30, 25);
+        test.expect(selectedAfter.red() == 255 - selectedBefore.red()
+                        && selectedAfter.green() == 255 - selectedBefore.green()
+                        && selectedAfter.blue() == 255 - selectedBefore.blue()
+                        && sourceAfterSelectionInvert.pixelColor(0, 0).rgb()
+                            == sourceBeforeAdvancedImage.pixelColor(0, 0).rgb(),
+                    "source invert should affect only the active selection");
+        drawingController.undoDrawing();
+        test.expect(drawingController.sourcePreview() == sourceBeforeAdvancedEdits,
+                    "source selection transforms should be undoable");
+
+        drawingController.clearSourceSelection();
+        drawingController.mirrorSourceImage();
+        const QImage mirroredSource = QImage::fromData(QByteArray::fromBase64(
+            drawingController.sourcePreview().section(
+                QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(mirroredSource.pixelColor(0, 0).rgb()
+                        == sourceBeforeAdvancedImage.pixelColor(
+                            sourceBeforeAdvancedImage.width() - 1, 0).rgb(),
+                    "source mirror should reverse the source canvas horizontally");
+        drawingController.undoDrawing();
+        drawingController.flipSourceImage();
+        const QImage flippedSource = QImage::fromData(QByteArray::fromBase64(
+            drawingController.sourcePreview().section(
+                QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(flippedSource.pixelColor(0, 0).rgb()
+                        == sourceBeforeAdvancedImage.pixelColor(
+                            0, sourceBeforeAdvancedImage.height() - 1).rgb(),
+                    "source flip should reverse the source canvas vertically");
+        drawingController.undoDrawing();
+
+        drawingController.setSourceSelection(0.1, 0.1, 0.2, 0.2);
+        drawingController.beginMoveSourceSelection();
+        test.expect(drawingController.sourceFloating()
+                        && drawingController.sourceFloatingMove()
+                        && drawingController.sourceFloatingWidth() == 27
+                        && drawingController.sourceFloatingHeight() == 20
+                        && !drawingController.sourceFloatingPreview().isEmpty(),
+                    "a source selection should become a movable floating image");
+        drawingController.placeSourceFloating(0.75, 0.75);
+        test.expect(!drawingController.sourceFloating()
+                        && drawingController.sourceSelectionX() != 25
+                        && drawingController.sourceSelectionY() != 19
+                        && drawingController.sourcePreview() != sourceBeforeAdvancedEdits,
+                    "placing a floating source selection should move it as one edit");
+        drawingController.undoDrawing();
+        test.expect(drawingController.sourcePreview() == sourceBeforeAdvancedEdits,
+                    "moving a source selection should be undoable as one edit");
+
+        drawingController.reloadScreenImageFonts();
+        const QVariantList sourceFonts = drawingController.sourceImageFonts();
+        bool sourceFontsAreSystemOnly = !sourceFonts.isEmpty();
+        for (const QVariant& entry : sourceFonts) {
+            const QVariantMap font = entry.toMap();
+            sourceFontsAreSystemOnly &= font.value(QStringLiteral("kind")).toString()
+                    == QStringLiteral("system")
+                && font.value(QStringLiteral("key")).toString().startsWith(
+                    QStringLiteral("system:"));
+        }
+        test.expect(sourceFontsAreSystemOnly,
+                    "source text should offer only Windows/system fonts");
+        if (!sourceFonts.isEmpty()) {
+            const QString fontKey = sourceFonts.front().toMap()
+                                        .value(QStringLiteral("key")).toString();
+            drawingController.prepareSourceText(QStringLiteral("A"), fontKey, 12);
+            test.expect(drawingController.sourceFloating()
+                            && drawingController.sourceFloatingTopLeft()
+                            && !drawingController.sourceFloatingPreview().isEmpty(),
+                        "system-font text should be prepared for placement on the source image");
+            drawingController.placeSourceFloating(0.05, 0.05);
+            test.expect(!drawingController.sourceFloating()
+                            && drawingController.sourcePreview()
+                                != sourceBeforeAdvancedEdits,
+                        "prepared system-font text should be placeable on the source image");
+            drawingController.undoDrawing();
+        }
+
+        drawingController.setSourceSelection(0.1, 0.1, 0.2, 0.2);
+        drawingController.copySourceImage();
+        drawingController.pasteSourceImage();
+        test.expect(drawingController.sourceFloating()
+                        && !drawingController.sourceFloatingMove()
+                        && drawingController.sourceFloatingWidth() == 27
+                        && drawingController.sourceFloatingHeight() == 20,
+                    "source selection copy and paste should create a floating placement");
+        drawingController.cancelSourceFloating();
+        drawingController.clearSourceSelection();
+        drawingController.setBackgroundColor(QColor(23, 45, 67));
+        const QString sourceBeforeClear = drawingController.sourcePreview();
+        drawingController.clearSourceImage();
+        const QImage clearedSource = QImage::fromData(QByteArray::fromBase64(
+            drawingController.sourcePreview().section(
+                QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(clearedSource.pixelColor(0, 0).rgb()
+                        == QColor(23, 45, 67).rgb(),
+                    "source clear should fill the canvas with the source background color");
+        drawingController.undoDrawing();
+        test.expect(drawingController.sourcePreview() == sourceBeforeClear,
+                    "clearing the source canvas should be undoable");
+
         drawingController.reloadSource();
         test.expect(!drawingController.canUndoDrawing()
                         && !drawingController.canRedoDrawing(),
@@ -1139,6 +1257,49 @@ void testApplicationPreferences(TestContext& test, ImageInputController& control
 
 void testEditorProjectRecipe(TestContext& test)
 {
+    ImageInputController fixtureImage;
+    fixtureImage.setAutoUpdate(false);
+    EditorProjectController fixtureProject(&fixtureImage);
+    const QString fixturePath = QDir(QStringLiteral(RETROVDP_FIXTURE_DIR))
+                                    .filePath(QStringLiteral("screen-image-v1.rvdp.json"));
+    const bool fixtureLoaded = fixtureProject.loadRecipe(QUrl::fromLocalFile(fixturePath));
+    test.expect(fixtureLoaded
+                    && fixtureProject.projectName() == QStringLiteral("Fixture Project")
+                    && fixtureProject.workspaceMode() == 0
+                    && fixtureProject.previewTarget() == 0
+                    && fixtureImage.targetProfile() == 0
+                    && fixtureImage.conversionMode() == 0
+                    && qFuzzyCompare(fixtureImage.gamma(), 1.25)
+                    && fixtureImage.exportFormat() == 2,
+                "GUI-facing project services should load the canonical version-1 recipe fixture");
+    fixtureProject.configureProject(QStringLiteral("F18A Campaign"), false, true);
+    const QVariantMap f18aTargetInfo = fixtureProject.activeTargetInfo();
+    test.expect(fixtureProject.projectName() == QStringLiteral("F18A Campaign")
+                    && !fixtureProject.tms9918aEnabled()
+                    && fixtureProject.f18aEnabled()
+                    && fixtureProject.activeTarget() == 1
+                    && fixtureProject.supportedTargets().size() == 1
+                    && fixtureProject.screenImageModeAvailable()
+                    && fixtureProject.characterModeAvailable()
+                    && fixtureProject.spriteModeAvailable()
+                    && fixtureProject.editScope() == 1
+                    && f18aTargetInfo.value(QStringLiteral("name")).toString()
+                        == QStringLiteral("F18A")
+                    && f18aTargetInfo.value(
+                           QStringLiteral("spritePerItemSize")).toBool()
+                    && f18aTargetInfo.value(
+                           QStringLiteral("spriteMaximumColorDepth")).toInt() == 3,
+                "project configuration should own its name, target set, active target, and mode capabilities");
+    fixtureProject.createProject(QStringLiteral("Fresh Campaign"), true, false);
+    test.expect(fixtureProject.projectName() == QStringLiteral("Fresh Campaign")
+                    && fixtureProject.tms9918aEnabled()
+                    && !fixtureProject.f18aEnabled()
+                    && fixtureProject.activeTarget() == 0
+                    && fixtureProject.editScope() == 0
+                    && fixtureProject.workspaceMode() == 0
+                    && fixtureProject.recipePath().isEmpty(),
+                "New Project should reset project state and select a configured target");
+
     ImageInputController recipeImage;
     recipeImage.setAutoUpdate(false);
     recipeImage.openUrl(QUrl::fromLocalFile(goldenSource(u"source/tiny-rgba.png")));
@@ -1146,9 +1307,11 @@ void testEditorProjectRecipe(TestContext& test)
     recipeImage.setForegroundColor(QColor(QStringLiteral("#123456")));
 
     EditorProjectController project(&recipeImage);
+    project.configureProjectWithTargets(
+        QStringLiteral("Demo Campaign"), true, true,
+        QStringList{QStringLiteral("v9938"), QStringLiteral("game-boy-ppu")});
     project.setWorkspaceMode(2);
-    project.setPreviewTarget(2);
-    project.setEditScope(1);
+    project.setActiveTarget(1);
     project.addSpriteSet();
     project.setActiveSprite(3);
     project.setSpritePlacementMode(true);
@@ -1156,11 +1319,11 @@ void testEditorProjectRecipe(TestContext& test)
     project.setPlacementHeight(200);
     project.moveSprite(3, 91, 47);
     project.setSpritePlacementMode(false);
-    project.setEditScope(0);
+    project.setActiveTarget(0);
     project.setActiveSpriteSize(16);
     project.setSpriteDrawingColorIndex(12);
     project.paintSpritePixel(1, 3, 16, 0, 0, true);
-    project.setEditScope(1);
+    project.setActiveTarget(1);
     project.setActiveSpriteSize(16);
     project.moveSprite(3, 91, 47);
     project.setActiveSpriteColorDepth(3);
@@ -1185,6 +1348,52 @@ void testEditorProjectRecipe(TestContext& test)
                     && editedRows.at(1).toMap().value(QStringLiteral("pattern")).toInt()
                         == 0,
                 "character pattern model should expose 8 bitmap/color rows and support pencil and eraser edits");
+
+    ImageInputController extractionImage;
+    extractionImage.setAutoUpdate(false);
+    extractionImage.newScreenImage();
+    extractionImage.setScreenImageForegroundColor(QColor(Qt::white));
+    extractionImage.setScreenImageBackgroundColor(QColor(Qt::black));
+    extractionImage.drawScreenImageLine(0.0, 0.0, 7.0 / 256.0,
+                                        7.0 / 192.0, 1, true);
+    extractionImage.drawScreenImageLine(8.0 / 256.0, 0.0, 15.0 / 256.0,
+                                        0.0, 1, true);
+    extractionImage.setScreenImageSelection(
+        0.0, 0.0, 15.0 / 256.0, 7.0 / 192.0);
+    EditorProjectController extractionProject(&extractionImage);
+    test.expect(extractionProject.characterPatternWidth() == 8
+                    && extractionProject.characterPatternHeight() == 8
+                    && extractionProject.characterPatternsPerSet() == 256
+                    && extractionProject.characterSetCount() == 3
+                    && extractionProject.characterMapColumns() == 32
+                    && extractionProject.characterMapRows() == 24
+                    && extractionProject.screenImageSelectionCharacterAligned(),
+                "character extraction geometry should come from the active target and recognize aligned Screen Image selections");
+    const bool extracted = extractionProject.extractScreenImagePatterns(
+        0, 0, 2, 1, 10, false);
+    const QVariantList extractedFirst = extractionProject.characterPatternRows(0, 10);
+    const QVariantList extractedSecond = extractionProject.characterPatternRows(0, 11);
+    const QString extractedPreview = extractionProject.characterPatternPreview(
+        0, 10, 2, 1, false);
+    const QImage extractedPreviewImage = QImage::fromData(QByteArray::fromBase64(
+        extractedPreview.section(QLatin1Char(','), 1).toLatin1()), "PNG");
+    test.expect(extracted && extractionProject.canUndoCharacter()
+                    && extractedFirst.at(0).toMap()
+                           .value(QStringLiteral("pattern")).toInt() != 0
+                    && extractedSecond.at(0).toMap()
+                           .value(QStringLiteral("color")).toInt() != 0xf1
+                    && extractedPreviewImage.size() == QSize(16, 8),
+                "Screen Image extraction should populate an active-set region and render it in Pattern Previewer");
+    extractionProject.undoCharacterEdit();
+    const QVariantList undoneExtractedFirst =
+        extractionProject.characterPatternRows(0, 10);
+    const QVariantList undoneExtractedSecond =
+        extractionProject.characterPatternRows(0, 11);
+    test.expect(undoneExtractedFirst.at(0).toMap()
+                        .value(QStringLiteral("pattern")).toInt() == 0
+                    && undoneExtractedSecond.at(0).toMap()
+                           .value(QStringLiteral("color")).toInt() == 0xf1,
+                "multi-pattern extraction should undo as one character edit");
 
     EditorProjectController historyProject(&recipeImage);
     historyProject.beginCharacterEdit(0, 0);
@@ -1670,6 +1879,7 @@ void testEditorProjectRecipe(TestContext& test)
 
     project.setWorkspaceMode(0);
     project.setF18aEnabled(false);
+    project.configureProjectWithTargets(project.projectName(), true, true, {});
     project.setActiveSpriteSet(0);
     project.setActiveSprite(0);
     project.setSpritePlacementMode(false);
@@ -1695,8 +1905,13 @@ void testEditorProjectRecipe(TestContext& test)
     const QVariantList restoredRows = project.characterPatternRows(2, 255);
     const QVariantList restoredEditors = project.characterEditorSlots();
     const QVariantList restoredSpritePixels = project.spritePatternPixels(1, 3, 16);
-    test.expect(loaded && project.workspaceMode() == 2 && project.f18aEnabled()
-                    && project.previewTarget() == 2 && project.editScope() == 1
+    test.expect(loaded && project.projectName() == QStringLiteral("Demo Campaign")
+                    && project.tms9918aEnabled()
+                    && project.plannedTargetIds()
+                           == QStringList{QStringLiteral("v9938"),
+                                          QStringLiteral("game-boy-ppu")}
+                    && project.workspaceMode() == 2 && project.f18aEnabled()
+                    && project.previewTarget() == 1 && project.editScope() == 1
                     && project.spriteSetNames().size() == 2
                     && project.activeSpriteSet() == 1 && project.activeSprite() == 3
                     && project.spritePlacementMode() && project.placementWidth() == 320
@@ -1765,6 +1980,7 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
 
     AppPreferencesController appPreferences(&controller);
     EditorProjectController editorProject(&controller);
+    editorProject.setActiveTarget(0);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("imageInput"), &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("appPreferences"), &appPreferences);
@@ -1804,7 +2020,7 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                            QStringLiteral("behaviorPreferencesGroup")) != nullptr
                     && window->findChild<QObject*>(
                            QStringLiteral("defaultPreferencesGroup")) != nullptr,
-                "Settings should open as a formal screen with Interface, Behavior, and Defaults sections");
+                "Preferences should open as a formal screen with Interface, Behavior, and Defaults sections");
 
     appPreferences.setPreviewLayout(2);
     appPreferences.setSidePanelMode(1);
@@ -1876,6 +2092,52 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
 
     test.expect(window->findChild<QObject*>(QStringLiteral("mainMenuBar")) != nullptr,
                 "application should expose its commands through a menu bar");
+    QObject* projectBar = window->findChild<QObject*>(QStringLiteral("projectBar"));
+    QObject* projectBarContent = window->findChild<QObject*>(
+        QStringLiteral("projectBarContent"));
+    QObject* projectBarName = window->findChild<QObject*>(QStringLiteral("projectBarName"));
+    QObject* activeTargetCombo = window->findChild<QObject*>(QStringLiteral("activeTargetCombo"));
+    QObject* projectSettingsAction = window->findChild<QObject*>(
+        QStringLiteral("projectSettingsAction"));
+    test.expect(projectBar != nullptr && projectBarName != nullptr
+                    && projectBarName->property("text").toString()
+                        == editorProject.projectName()
+                    && activeTargetCombo != nullptr
+                    && activeTargetCombo->property("count").toInt() == 2
+                    && projectBar->property("height").toReal()
+                        <= activeTargetCombo->property("implicitHeight").toReal() + 10.0
+                    && projectBarContent != nullptr
+                    && projectBarContent->property("y").toReal() >= 0.0
+                    && projectBarContent->property("y").toReal()
+                        + projectBarContent->property("height").toReal()
+                        <= projectBar->property("height").toReal()
+                    && projectSettingsAction != nullptr,
+                "the project bar should expose project identity and configured active targets");
+    const bool projectSettingsOpened = projectSettingsAction != nullptr
+        && QMetaObject::invokeMethod(projectSettingsAction, "trigger");
+    QObject* projectDialog = window->findChild<QObject*>(QStringLiteral("projectDialog"));
+    test.expect(projectSettingsOpened && projectDialog != nullptr
+                    && waitFor([&] { return projectDialog->property("visible").toBool(); })
+                    && window->findChild<QObject*>(QStringLiteral("projectNameField")) != nullptr
+                    && window->findChild<QObject*>(QStringLiteral("tms9918aProjectTarget")) != nullptr
+                    && window->findChild<QObject*>(QStringLiteral("f18aProjectTarget")) != nullptr
+                    && window->findChild<QObject*>(QStringLiteral("v9938ProjectTarget")) != nullptr
+                    && window->findChild<QObject*>(QStringLiteral("trs80ProjectTarget")) != nullptr,
+                "Project Settings should edit the project name and grouped target roadmap");
+    if (projectDialog != nullptr) QMetaObject::invokeMethod(projectDialog, "close");
+    QObject* aboutAction = window->findChild<QObject*>(QStringLiteral("aboutAction"));
+    const bool aboutOpened = aboutAction != nullptr
+        && QMetaObject::invokeMethod(aboutAction, "trigger");
+    QObject* aboutDialog = window->findChild<QObject*>(QStringLiteral("aboutDialog"));
+    QObject* aboutIcon = window->findChild<QObject*>(
+        QStringLiteral("aboutApplicationIcon"));
+    test.expect(aboutOpened && aboutDialog != nullptr
+                    && waitFor([&] { return aboutDialog->property("visible").toBool(); })
+                    && aboutIcon != nullptr
+                    && aboutIcon->property("width").toReal() == 64.0
+                    && aboutIcon->property("height").toReal() == 64.0,
+                "About should present the attribution notice with a 64 by 64 application icon");
+    if (aboutDialog != nullptr) QMetaObject::invokeMethod(aboutDialog, "close");
     const QObject* exitAction =
         window->findChild<QObject*>(QStringLiteral("exitAction"));
     const QObject* reloadAction =
@@ -1900,6 +2162,7 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
         window->findChild<QObject*>(QStringLiteral("characterEditorModeMenuItem"));
     const QObject* spriteModeItem =
         window->findChild<QObject*>(QStringLiteral("spriteEditorModeMenuItem"));
+    QObject* modeMenu = window->findChild<QObject*>(QStringLiteral("modeMenu"));
     const QObject* showSidePanelItem =
         window->findChild<QObject*>(QStringLiteral("showSidePanelMenuItem"));
     const QObject* sidePanelPlacementMenu =
@@ -1912,7 +2175,8 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                     && characterModeItem != nullptr
                     && !characterModeItem->property("checked").toBool()
                     && spriteModeItem != nullptr
-                    && !spriteModeItem->property("checked").toBool(),
+                    && !spriteModeItem->property("checked").toBool()
+                    && modeMenu != nullptr && modeMenu->property("enabled").toBool(),
                 "Mode menu should start with Screen Image exclusively selected");
     test.expect(showSidePanelItem != nullptr
                     && showSidePanelItem->property("text").toString().contains(
@@ -1924,8 +2188,8 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     test.expect(window->findChild<QObject*>(QStringLiteral("loadRecipeAction")) != nullptr
                     && window->findChild<QObject*>(QStringLiteral("saveRecipeAction")) != nullptr
                     && window->findChild<QObject*>(
-                           QStringLiteral("screenImageOutputProfilesGroup")) != nullptr,
-                "File and Screen Image controls should expose the shared recipe and output-profile workflow");
+                           QStringLiteral("screenImageActiveTargetGroup")) != nullptr,
+                "File and Screen Image controls should expose the shared recipe and active-target workflow");
 
     const auto hasDestinationShell = [](QObject* pane, const QString& paneName,
                                         const QString& expectedTitle) {
@@ -1984,6 +2248,29 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     QObject* characterPencil = characterToolbar != nullptr
         ? characterToolbar->findChild<QObject*>(
               QStringLiteral("characterPatternPencilButton"))
+        : nullptr;
+    QObject* characterExtractionButton = characterToolbar != nullptr
+        ? characterToolbar->findChild<QObject*>(
+              QStringLiteral("characterEditorWorkspaceImportSourceButton"))
+        : nullptr;
+    QObject* characterPreviewerButton = characterToolbar != nullptr
+        ? characterToolbar->findChild<QObject*>(
+              QStringLiteral("characterPatternPreviewerButton"))
+        : nullptr;
+    QObject* characterExtractionDialog = characterPane != nullptr
+        ? characterPane->findChild<QObject*>(
+              QStringLiteral("characterExtractionDialog"))
+        : nullptr;
+    QObject* characterPreviewerDialog = characterPane != nullptr
+        ? characterPane->findChild<QObject*>(
+              QStringLiteral("characterPatternPreviewDialog"))
+        : nullptr;
+    QObject* characterExtractionRegionWidth = characterPane != nullptr
+        ? characterPane->findChild<QObject*>(
+              QStringLiteral("characterExtractionRegionWidth"))
+        : nullptr;
+    QObject* characterPreviewWidth = characterPane != nullptr
+        ? characterPane->findChild<QObject*>(QStringLiteral("patternPreviewWidth"))
         : nullptr;
     QObject* characterEraser = characterToolbar != nullptr
         ? characterToolbar->findChild<QObject*>(
@@ -2149,6 +2436,15 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                     && removeCharacterEditor != nullptr
                     && !removeCharacterEditor->property("enabled").toBool()
                     && characterToolbar != nullptr
+                    && characterExtractionButton != nullptr
+                    && characterExtractionButton->property("enabled").toBool()
+                        == controller.hasConversion()
+                    && characterPreviewerButton != nullptr
+                    && characterPreviewerButton->property("visible").toBool()
+                    && characterExtractionDialog != nullptr
+                    && characterPreviewerDialog != nullptr
+                    && characterExtractionRegionWidth != nullptr
+                    && characterPreviewWidth != nullptr
                     && characterPencil != nullptr && characterEraser != nullptr
                     && characterLine != nullptr && characterKLine != nullptr
                     && characterRays != nullptr
@@ -2178,7 +2474,7 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                     && characterColors->property("implicitWidth").toInt() == 26
                     && characterDetailsTrailing != nullptr
                     && characterDetailsTrailing->property("text").toString().contains(
-                           QStringLiteral("9918A baseline"))
+                           QStringLiteral("Editing for TMS9918A"))
                     && characterControls != nullptr
                     && characterDetailsTrailing->property("y").toReal()
                         < characterControls->property("y").toReal()
@@ -2208,9 +2504,34 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                     && !characterPanDown->property("enabled").toBool()
                     && !characterPanRight->property("enabled").toBool()
                     && window->findChild<QObject*>(
-                           QStringLiteral("characterEditorSidePanelOutputProfilesGroup"))
+                           QStringLiteral("characterEditorSidePanelActiveTargetGroup"))
+                        != nullptr
+                    && window->findChild<QObject*>(
+                           QStringLiteral("characterEditorSidePanelImportFromSourceButton"))
+                        != nullptr
+                    && window->findChild<QObject*>(
+                           QStringLiteral("characterEditorSidePanelPatternPreviewerButton"))
                         != nullptr,
-                "Character Editor should expose its pattern tools in the upper toolbar, a reusable drawing tray, a 256-pattern set, and dual-profile controls");
+                "Character Editor should expose its pattern tools, reusable drawing tray, target-described pattern set, and active-target summary");
+    const bool extractionDialogInvoked = characterExtractionDialog != nullptr
+        && QMetaObject::invokeMethod(characterExtractionDialog,
+                                     "openForScreenImage");
+    test.expect(extractionDialogInvoked && waitFor([&] {
+                    return characterExtractionDialog->property("opened").toBool();
+                })
+                    && characterExtractionRegionWidth->property("value").toInt() >= 1,
+                "Character extraction should open a target-aware Screen Image region dialog");
+    if (characterExtractionDialog != nullptr)
+        QMetaObject::invokeMethod(characterExtractionDialog, "close");
+    const bool previewDialogInvoked = characterPreviewerDialog != nullptr
+        && QMetaObject::invokeMethod(characterPreviewerDialog, "openPreview");
+    test.expect(previewDialogInvoked && waitFor([&] {
+                    return characterPreviewerDialog->property("opened").toBool();
+                })
+                    && characterPreviewWidth->property("value").toInt() >= 1,
+                "Pattern Previewer should open with configurable pattern dimensions");
+    if (characterPreviewerDialog != nullptr)
+        QMetaObject::invokeMethod(characterPreviewerDialog, "close");
     const bool panToggledOn = QMetaObject::invokeMethod(characterPan, "click");
     test.expect(panToggledOn && waitFor([&] {
                     return editorProject.characterPanActive()
@@ -2405,9 +2726,11 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
         QStringLiteral("spriteTransparencySwatch"));
     QObject* spritePalettePopup = window->findChild<QObject*>(
         QStringLiteral("spritePatternPalettePopup"));
-    QObject* spriteSizeControl = visiblePane(
+    QObject* spriteGlobalSizeControl = visiblePane(
+        QStringLiteral("spriteEditorSidePanelGlobalSpriteSizeComboBox"));
+    QObject* spriteSizeControl = window->findChild<QObject*>(
         QStringLiteral("spriteEditorSidePanelActiveSpriteSizeComboBox"));
-    QObject* spriteDepthControl = visiblePane(
+    QObject* spriteDepthControl = window->findChild<QObject*>(
         QStringLiteral("spriteEditorSidePanelSpriteColorDepthComboBox"));
     test.expect(spritePane != nullptr && spriteSetView != nullptr
                     && spriteEditorTray != nullptr
@@ -2424,8 +2747,12 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                     && spriteColorSwatch != nullptr
                     && spriteTransparencySwatch != nullptr
                     && spritePalettePopup != nullptr
-                    && spriteSizeControl != nullptr && spriteDepthControl != nullptr,
-                "Sprite Editor should mirror the pattern workflow with an editor, tools, both 32-pattern banks, and chipset controls");
+                    && spriteGlobalSizeControl != nullptr
+                    && spriteSizeControl != nullptr
+                    && !spriteSizeControl->property("visible").toBool()
+                    && spriteDepthControl != nullptr
+                    && !spriteDepthControl->property("visible").toBool(),
+                "Sprite Editor should show only the active target's applicable sprite controls");
     const bool sprite16BankActivated = spriteSetView != nullptr
         && QMetaObject::invokeMethod(spriteSetView, "activateSpriteBank",
                                      Q_ARG(QVariant, QVariant(16)));
@@ -2507,7 +2834,7 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     test.expect(spriteColorPickerInvoked && waitFor([&] {
                     return spritePalettePopup->property("visible").toBool()
                         && spritePalettePopup->property("pickerTitle").toString()
-                            == QStringLiteral("TMS9918A Sprite Color")
+                            == QStringLiteral("TMS9918A sprite color")
                         && spriteColorControl->property("colorHint").toString()
                             .contains(QStringLiteral("Choose Sprite Color"))
                         && spritePalettePopup
@@ -2529,15 +2856,32 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                             == expectedSpriteColor;
                 }),
                 "choosing a 9918A sprite color should keep the toolbar swatch and sprite attribute synchronized");
-    editorProject.setEditScope(1);
-    test.expect(waitFor([&] {
+    editorProject.setActiveTarget(1);
+    const bool targetControlsSwitched = waitFor([&] {
                     return spriteSetView != nullptr && spritePalettePopup
                                ->property("maximumSelectableColorIndex").toInt() == 1
+                        && visiblePane(QStringLiteral(
+                               "spriteEditorSidePanelActiveSpriteSizeComboBox")) != nullptr
+                        && visiblePane(QStringLiteral(
+                               "spriteEditorSidePanelSpriteColorDepthComboBox")) != nullptr
+                        && !spriteGlobalSizeControl->property("visible").toBool()
                         && spriteSetView->property("sprite8Expanded").toBool()
                         && spriteSetView->property("sprite16Expanded").toBool();
-                }),
-                "F18A should expose both independent size banks while limiting pixel indexes by the active sprite color depth");
-    editorProject.setEditScope(0);
+                });
+    test.expect(targetControlsSwitched,
+                "switching the Project Bar target should replace global sprite settings with per-sprite size and color-depth controls");
+    QObject* sprite8Bank = visiblePane(QStringLiteral("sprite8PatternBank"));
+    QObject* sprite16Bank = visiblePane(QStringLiteral("sprite16PatternBank"));
+    QObject* sprite8Grid = visiblePane(QStringLiteral("sprite8PatternGrid"));
+    QObject* sprite16Grid = visiblePane(QStringLiteral("sprite16PatternGrid"));
+    test.expect(sprite8Bank != nullptr && sprite16Bank != nullptr
+                    && sprite8Grid != nullptr && sprite16Grid != nullptr
+                    && qAbs(sprite8Grid->property("cellWidth").toReal()
+                            * 2.0
+                            - sprite16Grid->property("cellWidth").toReal())
+                        <= 2.0,
+                "8 by 8 sprite pattern boxes should use one quarter the area of 16 by 16 boxes while both banks expand normally");
+    editorProject.setActiveTarget(0);
     QMetaObject::invokeMethod(spritePalettePopup, "close");
     const bool spritePlacementToggled = spriteModeButton != nullptr
         && QMetaObject::invokeMethod(spriteModeButton, "click");
@@ -2965,6 +3309,50 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     const QObject* sourcePreviewImage = sourcePane != nullptr
         ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewImage"))
         : nullptr;
+    const QObject* sourceMirrorButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewMirrorButton"))
+        : nullptr;
+    const QObject* sourceFlipButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewFlipButton"))
+        : nullptr;
+    const QObject* sourceInvertButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewInvertButton"))
+        : nullptr;
+    const QObject* sourceRemoveColorButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(
+              QStringLiteral("sourcePreviewRemoveColorButton"))
+        : nullptr;
+    const QObject* sourceTypeToolButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewTypeToolButton"))
+        : nullptr;
+    const QObject* sourceClipArtToolButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(
+              QStringLiteral("sourcePreviewClipArtToolButton"))
+        : nullptr;
+    const QObject* sourceSelectionButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(
+              QStringLiteral("sourcePreviewSelectionButton"))
+        : nullptr;
+    const QObject* sourceMoveSelectionButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(
+              QStringLiteral("sourcePreviewMoveSelectionButton"))
+        : nullptr;
+    const QObject* sourceCopyButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewCopyButton"))
+        : nullptr;
+    const QObject* sourcePasteButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewPasteButton"))
+        : nullptr;
+    const QObject* sourceClearButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewClearButton"))
+        : nullptr;
+    const QObject* sourceCharacterSnapButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(
+              QStringLiteral("sourcePreviewCharacterSnapButton"))
+        : nullptr;
+    const QObject* sourceGridButton = sourcePane != nullptr
+        ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewGridButton"))
+        : nullptr;
     const QObject* sourceZoom = sourcePane != nullptr
         ? sourcePane->findChild<QObject*>(QStringLiteral("sourcePreviewZoomControls"))
         : nullptr;
@@ -3116,6 +3504,33 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                     && shapeFillButton != nullptr
                     && shapeFillButton->property("enabled").toBool(),
                 "source drawing toolbar should expose line, K-Line, shape, brush, edge, and fill controls");
+    test.expect(sourceMirrorButton != nullptr
+                    && sourceMirrorButton->property("visible").toBool()
+                    && sourceFlipButton != nullptr
+                    && sourceFlipButton->property("visible").toBool()
+                    && sourceInvertButton != nullptr
+                    && sourceInvertButton->property("visible").toBool()
+                    && sourceRemoveColorButton != nullptr
+                    && sourceRemoveColorButton->property("visible").toBool()
+                    && sourceTypeToolButton != nullptr
+                    && sourceTypeToolButton->property("visible").toBool()
+                    && sourceClipArtToolButton != nullptr
+                    && sourceClipArtToolButton->property("visible").toBool()
+                    && sourceSelectionButton != nullptr
+                    && sourceSelectionButton->property("visible").toBool()
+                    && sourceMoveSelectionButton != nullptr
+                    && sourceMoveSelectionButton->property("visible").toBool()
+                    && sourceCopyButton != nullptr
+                    && sourceCopyButton->property("visible").toBool()
+                    && sourcePasteButton != nullptr
+                    && sourcePasteButton->property("visible").toBool()
+                    && sourceClearButton != nullptr
+                    && sourceClearButton->property("visible").toBool()
+                    && sourceCharacterSnapButton != nullptr
+                    && !sourceCharacterSnapButton->property("visible").toBool()
+                    && sourceGridButton != nullptr
+                    && !sourceGridButton->property("visible").toBool(),
+                "source drawing toolbar should expose generic image-editing tools while hiding target-only snap and grid controls");
     test.expect(convertedTools != nullptr && convertedAutoUpdate != nullptr
                     && applyScreenImageEditsButton != nullptr,
                 "Converted lower toolbar should expose automatic source conversion and explicit chipset-rule application");
@@ -3564,6 +3979,16 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
                     && screenshot.height() >= 500,
                 "fractional-scale offscreen rendering should produce a complete frame");
     screenshot.save(QDir::current().filePath(QStringLiteral("phase6-interface.png")));
+
+    appPreferences.setPreviewLayout(0);
+    test.expect(waitFor([&] {
+                    return !modeMenu->property("enabled").toBool()
+                        && window->findChild<QObject*>(QStringLiteral("sourcePreviewTab")) != nullptr
+                        && window->findChild<QObject*>(QStringLiteral("convertedPreviewTab")) != nullptr
+                        && window->findChild<QObject*>(QStringLiteral("characterEditorTab")) != nullptr
+                        && window->findChild<QObject*>(QStringLiteral("spriteEditorTab")) != nullptr;
+                }),
+                "Tabbed view should populate Source and every available mode while disabling the Mode menu");
 }
 
 } // namespace

@@ -18,6 +18,12 @@ set_target_properties(test_core_validation PROPERTIES AUTOMOC OFF)
 
 add_test(NAME core_validation COMMAND test_core_validation)
 
+add_test(NAME portable_dependency_validation
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${PROJECT_SOURCE_DIR}
+        -P ${PROJECT_SOURCE_DIR}/tools/check_portable_dependencies.cmake
+)
+
 add_executable(test_image_input
     test_image_input.cpp
 )
@@ -84,6 +90,7 @@ target_compile_definitions(test_interface_workflow
     PRIVATE
         RETROVDP_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
         RETROVDP_QML_DIR="${PROJECT_SOURCE_DIR}/app/qml"
+        RETROVDP_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
 )
 
 set_target_properties(test_interface_workflow PROPERTIES AUTOMOC OFF)
@@ -105,6 +112,7 @@ target_compile_definitions(test_cli_workflow
     PRIVATE
         RETROVDP_CLI_PATH="$<TARGET_FILE:RetroVDPStudioCli>"
         RETROVDP_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
+        RETROVDP_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
 )
 
 add_dependencies(test_cli_workflow RetroVDPStudioCli)

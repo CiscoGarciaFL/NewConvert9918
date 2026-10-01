@@ -7,6 +7,13 @@
 namespace retrovdp::core {
 namespace {
 
+RegionRoleId makeRegionRoleId(std::string_view value)
+{
+    auto id = RegionRoleId::create(value);
+    if (!id) throw std::logic_error("invalid target table role identifier");
+    return std::move(*id);
+}
+
 constexpr std::array bitmap9918Tables{
     TargetTableLayout{TargetTableRole::Pattern, 6144},
     TargetTableLayout{TargetTableRole::Color, 6144},
@@ -49,6 +56,40 @@ void setPaletteError(PaletteError* destination, PaletteError error)
 }
 
 } // namespace
+
+RegionRoleId targetTableRoleId(TargetTableRole role)
+{
+    switch (role) {
+    case TargetTableRole::Pattern: return makeRegionRoleId("pattern");
+    case TargetTableRole::Color: return makeRegionRoleId("color");
+    case TargetTableRole::Multicolor: return makeRegionRoleId("multicolor");
+    case TargetTableRole::MulticolorFrame1: return makeRegionRoleId("multicolor-frame-1");
+    case TargetTableRole::MulticolorFrame2: return makeRegionRoleId("multicolor-frame-2");
+    case TargetTableRole::FixedPattern: return makeRegionRoleId("fixed-pattern");
+    case TargetTableRole::Palette: return makeRegionRoleId("palette");
+    case TargetTableRole::ScanlinePalettes: return makeRegionRoleId("scanline-palettes");
+    }
+    throw std::out_of_range("unknown target table role");
+}
+
+std::optional<TargetTableRole> targetTableRole(const RegionRoleId& id)
+{
+    return targetTableRole(id.value());
+}
+
+std::optional<TargetTableRole> targetTableRole(std::string_view id)
+{
+    constexpr std::array roles{
+        TargetTableRole::Pattern, TargetTableRole::Color, TargetTableRole::Multicolor,
+        TargetTableRole::MulticolorFrame1, TargetTableRole::MulticolorFrame2,
+        TargetTableRole::FixedPattern, TargetTableRole::Palette,
+        TargetTableRole::ScanlinePalettes,
+    };
+    for (const auto role : roles) {
+        if (targetTableRoleId(role) == id) return role;
+    }
+    return std::nullopt;
+}
 
 std::optional<Palette> Palette::create(std::vector<RgbColor> colors, PaletteError* error)
 {

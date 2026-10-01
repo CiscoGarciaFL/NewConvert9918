@@ -6,6 +6,7 @@
 #include <cstring>
 #include <limits>
 #include <optional>
+#include <stdexcept>
 #include <string_view>
 
 namespace retrovdp::formats {
@@ -18,6 +19,13 @@ using core::TargetTableRole;
 
 constexpr std::size_t graphicsTableSize = 6144U;
 constexpr std::size_t colecoMaximumSize = 32U * 1024U;
+
+core::FormatId makeFormatId(std::string_view value)
+{
+    auto id = core::FormatId::create(value);
+    if (!id) throw std::logic_error("invalid export format identifier");
+    return std::move(*id);
+}
 
 GeneratedFileManifest failure(ExportFormat format, ExportError error, std::string message)
 {
@@ -517,6 +525,45 @@ GeneratedFileManifest extendedBasic(const ExportRequest& request, bool compresse
 }
 
 } // namespace
+
+core::FormatId exportFormatId(ExportFormat format)
+{
+    switch (format) {
+    case ExportFormat::Raw: return makeFormatId("raw");
+    case ExportFormat::Rle: return makeFormatId("rle");
+    case ExportFormat::TiFiles: return makeFormatId("tifiles");
+    case ExportFormat::V9t9: return makeFormatId("v9t9");
+    case ExportFormat::MsxScreen2: return makeFormatId("msx-sc2");
+    case ExportFormat::ColecoCvPaint: return makeFormatId("coleco-cvpaint");
+    case ExportFormat::AdamPowerPaint: return makeFormatId("adam-powerpaint");
+    case ExportFormat::AdamHgr: return makeFormatId("adam-hgr");
+    case ExportFormat::ColecoVisionRom: return makeFormatId("coleco-rom");
+    case ExportFormat::ExtendedBasicProgram: return makeFormatId("extended-basic");
+    case ExportFormat::ExtendedBasicRleProgram: return makeFormatId("extended-basic-rle");
+    case ExportFormat::Png: return makeFormatId("png");
+    }
+    throw std::out_of_range("unknown export format");
+}
+
+std::optional<ExportFormat> exportFormat(const core::FormatId& id)
+{
+    return exportFormat(id.value());
+}
+
+std::optional<ExportFormat> exportFormat(std::string_view id)
+{
+    constexpr std::array values{
+        ExportFormat::Raw, ExportFormat::Rle, ExportFormat::TiFiles,
+        ExportFormat::V9t9, ExportFormat::MsxScreen2, ExportFormat::ColecoCvPaint,
+        ExportFormat::AdamPowerPaint, ExportFormat::AdamHgr,
+        ExportFormat::ColecoVisionRom, ExportFormat::ExtendedBasicProgram,
+        ExportFormat::ExtendedBasicRleProgram, ExportFormat::Png,
+    };
+    for (const auto value : values) {
+        if (exportFormatId(value) == id) return value;
+    }
+    return std::nullopt;
+}
 
 std::vector<std::uint8_t> encodeLegacyRle(std::span<const std::uint8_t> input)
 {

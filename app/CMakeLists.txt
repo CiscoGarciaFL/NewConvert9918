@@ -53,15 +53,18 @@ qt_add_qml_module(RetroVDPStudio
     QML_FILES
         qml/Main.qml
         qml/PreferencesDialog.qml
+        qml/ProjectDialog.qml
         qml/PreviewPane.qml
         qml/PreviewWorkspace.qml
         qml/SettingsPanel.qml
         qml/EditorWorkspacePlaceholder.qml
         qml/EditorSidePanelPlaceholder.qml
         qml/SidePanelHost.qml
-        qml/OutputProfileControls.qml
+        qml/ActiveTargetSummary.qml
         qml/CharacterSetView.qml
         qml/CharacterTilingView.qml
+        qml/CharacterExtractionDialog.qml
+        qml/CharacterPatternPreviewDialog.qml
         qml/PatternEditor.qml
         qml/SpritePatternEditor.qml
         qml/SpritePlacementView.qml
@@ -69,6 +72,7 @@ qt_add_qml_module(RetroVDPStudio
         qml/ThemedFrame.qml
         qml/ThemedGroupBox.qml
     RESOURCES
+        assets/icons/RetroVDPStudio-64.png
         assets/icons/RetroVDPStudio-256.png
         assets/icons/RetroVDPStudio-watermark-512.png
 )

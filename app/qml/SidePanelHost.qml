@@ -33,7 +33,7 @@ Item {
             objectName: "characterEditorSidePanel"
             editorTitle: qsTr("Character Options")
             editorKind: 0
-            importDescription: qsTr("Character import will select a source region, choose target character dimensions, scale it, reduce its colors, and fit it to the active hardware palette before committing editable pattern data.")
+            importDescription: qsTr("Select a character-aligned Screen Image region, map its pixels to the active target palette, and write the extracted characters into the active pattern set.")
             closable: root.closable
             onCloseRequested: root.closeRequested()
         }
@@ -45,7 +45,7 @@ Item {
             objectName: "spriteEditorSidePanel"
             editorTitle: qsTr("Sprite Options")
             editorKind: 1
-            importDescription: qsTr("Sprite import will select a source region, choose sprite dimensions and transparency, scale it, reduce its colors, and fit it to the active hardware palette before committing editable sprite data.")
+            importDescription: qsTr("Sprite import will select a Screen Image region, choose sprite dimensions and transparency, reduce its colors, and fit it to the active hardware palette before committing editable sprite data.")
             closable: root.closable
             onCloseRequested: root.closeRequested()
         }

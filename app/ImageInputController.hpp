@@ -40,6 +40,17 @@ class ImageInputController final : public QObject {
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY settingsChanged)
     Q_PROPERTY(bool canUndoDrawing READ canUndoDrawing NOTIFY drawingHistoryChanged)
     Q_PROPERTY(bool canRedoDrawing READ canRedoDrawing NOTIFY drawingHistoryChanged)
+    Q_PROPERTY(bool hasSourceSelection READ hasSourceSelection NOTIFY sourceSelectionChanged)
+    Q_PROPERTY(int sourceSelectionX READ sourceSelectionX NOTIFY sourceSelectionChanged)
+    Q_PROPERTY(int sourceSelectionY READ sourceSelectionY NOTIFY sourceSelectionChanged)
+    Q_PROPERTY(int sourceSelectionWidth READ sourceSelectionWidth NOTIFY sourceSelectionChanged)
+    Q_PROPERTY(int sourceSelectionHeight READ sourceSelectionHeight NOTIFY sourceSelectionChanged)
+    Q_PROPERTY(bool sourceFloating READ sourceFloating NOTIFY sourceFloatingChanged)
+    Q_PROPERTY(bool sourceFloatingMove READ sourceFloatingMove NOTIFY sourceFloatingChanged)
+    Q_PROPERTY(int sourceFloatingWidth READ sourceFloatingWidth NOTIFY sourceFloatingChanged)
+    Q_PROPERTY(int sourceFloatingHeight READ sourceFloatingHeight NOTIFY sourceFloatingChanged)
+    Q_PROPERTY(QString sourceFloatingPreview READ sourceFloatingPreview NOTIFY sourceFloatingChanged)
+    Q_PROPERTY(bool sourceFloatingTopLeft READ sourceFloatingTopLeft NOTIFY sourceFloatingChanged)
     Q_PROPERTY(bool canUndoScreenImage READ canUndoScreenImage NOTIFY screenImageHistoryChanged)
     Q_PROPERTY(bool canRedoScreenImage READ canRedoScreenImage NOTIFY screenImageHistoryChanged)
     Q_PROPERTY(bool screenImageEdited READ screenImageEdited NOTIFY conversionChanged)
@@ -65,6 +76,7 @@ class ImageInputController final : public QObject {
     Q_PROPERTY(bool screenImageFloatingTopLeft READ screenImageFloatingTopLeft NOTIFY
                    screenImageFloatingChanged)
     Q_PROPERTY(QVariantList screenImageFonts READ screenImageFonts NOTIFY screenImageFontsChanged)
+    Q_PROPERTY(QVariantList sourceImageFonts READ sourceImageFonts NOTIFY screenImageFontsChanged)
     Q_PROPERTY(QString tiArtistLibraryPath READ tiArtistLibraryPath CONSTANT)
     Q_PROPERTY(QString tiArtistFontsPath READ tiArtistFontsPath CONSTANT)
     Q_PROPERTY(QString screenImageClipArtSourcePreview READ screenImageClipArtSourcePreview NOTIFY
@@ -76,6 +88,12 @@ class ImageInputController final : public QObject {
     Q_PROPERTY(int screenImageClipArtSourceHeight READ screenImageClipArtSourceHeight NOTIFY
                    screenImageClipArtChanged)
     Q_PROPERTY(bool scanlinePaletteAvailable READ scanlinePaletteAvailable NOTIFY conversionChanged)
+    Q_PROPERTY(bool workingPaletteEditable READ workingPaletteEditable NOTIFY settingsChanged)
+    Q_PROPERTY(bool paletteSelectionAvailable READ paletteSelectionAvailable NOTIFY settingsChanged)
+    Q_PROPERTY(bool scanlinePaletteSettingsAvailable READ scanlinePaletteSettingsAvailable NOTIFY
+                   settingsChanged)
+    Q_PROPERTY(bool multicolorFlickerAvailable READ multicolorFlickerAvailable NOTIFY
+                   settingsChanged)
     Q_PROPERTY(bool autoUpdate READ autoUpdate WRITE setAutoUpdate NOTIFY settingsChanged)
     Q_PROPERTY(bool livePreview READ livePreview WRITE setLivePreview NOTIFY settingsChanged)
     Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor NOTIFY
@@ -173,11 +191,35 @@ public:
     [[nodiscard]] bool hasImage() const { return static_cast<bool>(image_); }
     [[nodiscard]] bool canReload() const { return !sourcePath_.isEmpty(); }
     [[nodiscard]] bool hasConversion() const;
+    [[nodiscard]] const retrovdp::core::RgbImage* screenImageData() const
+    {
+        return screenImage_.get();
+    }
     [[nodiscard]] bool busy() const { return busy_; }
     [[nodiscard]] bool conversionPending() const { return conversionPending_; }
     [[nodiscard]] bool canUndo() const { return !undoStack_.empty(); }
     [[nodiscard]] bool canUndoDrawing() const { return !drawingUndoStack_.empty(); }
     [[nodiscard]] bool canRedoDrawing() const { return !drawingRedoStack_.empty(); }
+    [[nodiscard]] bool hasSourceSelection() const
+    {
+        return sourceSelectionWidth_ > 0 && sourceSelectionHeight_ > 0;
+    }
+    [[nodiscard]] int sourceSelectionX() const { return sourceSelectionX_; }
+    [[nodiscard]] int sourceSelectionY() const { return sourceSelectionY_; }
+    [[nodiscard]] int sourceSelectionWidth() const { return sourceSelectionWidth_; }
+    [[nodiscard]] int sourceSelectionHeight() const { return sourceSelectionHeight_; }
+    [[nodiscard]] bool sourceFloating() const { return static_cast<bool>(sourceFloatingImage_); }
+    [[nodiscard]] bool sourceFloatingMove() const { return sourceFloatingMove_; }
+    [[nodiscard]] int sourceFloatingWidth() const
+    {
+        return sourceFloatingImage_ ? static_cast<int>(sourceFloatingImage_->width()) : 0;
+    }
+    [[nodiscard]] int sourceFloatingHeight() const
+    {
+        return sourceFloatingImage_ ? static_cast<int>(sourceFloatingImage_->height()) : 0;
+    }
+    [[nodiscard]] QString sourceFloatingPreview() const { return sourceFloatingPreview_; }
+    [[nodiscard]] bool sourceFloatingTopLeft() const { return sourceFloatingTopLeft_; }
     [[nodiscard]] bool canUndoScreenImage() const { return !screenImageUndoStack_.empty(); }
     [[nodiscard]] bool canRedoScreenImage() const { return !screenImageRedoStack_.empty(); }
     [[nodiscard]] bool screenImageEdited() const { return screenImageEdited_; }
@@ -213,6 +255,7 @@ public:
         return screenImageFloatingTopLeft_;
     }
     [[nodiscard]] QVariantList screenImageFonts() const { return screenImageFonts_; }
+    [[nodiscard]] QVariantList sourceImageFonts() const { return sourceImageFonts_; }
     [[nodiscard]] QString tiArtistLibraryPath() const { return tiArtistLibraryPath_; }
     [[nodiscard]] QString tiArtistFontsPath() const { return tiArtistFontsPath_; }
     [[nodiscard]] QString screenImageClipArtSourcePreview() const
@@ -234,6 +277,10 @@ public:
             ? static_cast<int>(screenImageClipArtSourceImage_->height()) : 0;
     }
     [[nodiscard]] bool scanlinePaletteAvailable() const { return !palettePreview_.isEmpty(); }
+    [[nodiscard]] bool workingPaletteEditable() const;
+    [[nodiscard]] bool paletteSelectionAvailable() const;
+    [[nodiscard]] bool scanlinePaletteSettingsAvailable() const;
+    [[nodiscard]] bool multicolorFlickerAvailable() const;
     [[nodiscard]] bool autoUpdate() const { return autoUpdate_; }
     [[nodiscard]] bool livePreview() const { return livePreview_; }
     [[nodiscard]] QColor backgroundColor() const;
@@ -348,6 +395,35 @@ public:
                                     bool squareBrush = false);
     Q_INVOKABLE void undoDrawing();
     Q_INVOKABLE void redoDrawing();
+    Q_INVOKABLE void mirrorSourceImage();
+    Q_INVOKABLE void flipSourceImage();
+    Q_INVOKABLE void invertSourceImage();
+    Q_INVOKABLE void removeSourceImageColor();
+    Q_INVOKABLE void clearSourceImage();
+    Q_INVOKABLE void setSourceSelection(double fromNormalizedX,
+                                        double fromNormalizedY,
+                                        double toNormalizedX,
+                                        double toNormalizedY);
+    Q_INVOKABLE void clearSourceSelection();
+    Q_INVOKABLE void beginMoveSourceSelection();
+    Q_INVOKABLE void placeSourceFloating(double normalizedCenterX,
+                                         double normalizedCenterY);
+    Q_INVOKABLE void cancelSourceFloating();
+    Q_INVOKABLE void prepareSourceText(const QString& text,
+                                       const QString& fontKey,
+                                       int pixelSize);
+    Q_INVOKABLE QString sourceImageClipArtPreview(int width,
+                                                  int height,
+                                                  int colorMode,
+                                                  bool transparentBackground,
+                                                  bool useSelectedColors) const;
+    Q_INVOKABLE void prepareSourceImageClipArt(int width,
+                                               int height,
+                                               int colorMode,
+                                               bool transparentBackground,
+                                               bool useSelectedColors);
+    Q_INVOKABLE void copySourceImage();
+    Q_INVOKABLE void pasteSourceImage();
     Q_INVOKABLE void pickScreenImageColor(double normalizedX,
                                           double normalizedY,
                                           bool foreground);
@@ -465,6 +541,8 @@ public:
 signals:
     void sourceChanged();
     void sourceColorsChanged();
+    void sourceSelectionChanged();
+    void sourceFloatingChanged();
     void conversionChanged();
     void settingsChanged();
     void drawingHistoryChanged();
@@ -518,6 +596,19 @@ private:
     void commitDrawingTransaction(bool changed);
     void clearDrawingHistory();
     void refreshAfterDrawingHistoryChange();
+    void resetSourceSelectionState();
+    [[nodiscard]] std::shared_ptr<retrovdp::core::RgbImage>
+    copySourceRegion(int x, int y, int width, int height) const;
+    void beginSourceFloating(std::shared_ptr<retrovdp::core::RgbImage> image,
+                             bool movingSelection,
+                             bool topLeftAnchor = false);
+    void replaceDrawingLayerWithCanvas(const retrovdp::core::RgbImage& canvas);
+    void refreshAfterSourceCanvasEdit();
+    [[nodiscard]] std::shared_ptr<retrovdp::core::RgbImage>
+    renderSourceText(const QString& text,
+                     const QString& fontKey,
+                     int pixelSize,
+                     QString* error = nullptr) const;
     void beginScreenImageTransaction();
     void commitScreenImageTransaction(bool changed);
     void clearScreenImageHistory();
@@ -539,6 +630,7 @@ private:
                              int colorMode,
                              bool transparentBackground,
                              bool useSelectedColors,
+                             bool sourceColors = false,
                              QString* error = nullptr) const;
     void refreshScreenImage();
     void paintScreenImagePixel(int x,
@@ -601,6 +693,16 @@ private:
     std::shared_ptr<retrovdp::core::RgbImage> drawingBeforeImage_;
     std::vector<std::shared_ptr<retrovdp::core::RgbImage>> drawingUndoStack_;
     std::vector<std::shared_ptr<retrovdp::core::RgbImage>> drawingRedoStack_;
+    int sourceSelectionX_{};
+    int sourceSelectionY_{};
+    int sourceSelectionWidth_{};
+    int sourceSelectionHeight_{};
+    std::shared_ptr<retrovdp::core::RgbImage> sourceFloatingImage_;
+    QString sourceFloatingPreview_;
+    bool sourceFloatingMove_{};
+    bool sourceFloatingTopLeft_{};
+    int sourceFloatingSourceX_{};
+    int sourceFloatingSourceY_{};
     std::shared_ptr<retrovdp::core::RgbImage> screenImage_;
     std::shared_ptr<retrovdp::core::RgbImage> screenImageBefore_;
     std::vector<std::shared_ptr<retrovdp::core::RgbImage>> screenImageUndoStack_;
@@ -624,6 +726,7 @@ private:
     int screenImageFloatingSourceX_{};
     int screenImageFloatingSourceY_{};
     QVariantList screenImageFonts_;
+    QVariantList sourceImageFonts_;
     QString tiArtistLibraryPath_;
     QString tiArtistFontsPath_;
     std::shared_ptr<retrovdp::core::RgbImage> screenImageClipArtSourceImage_;

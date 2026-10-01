@@ -1,11 +1,13 @@
 #pragma once
 
 #include "retrovdp/core/ConversionSettings.hpp"
+#include "retrovdp/core/StableId.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <vector>
 
 namespace retrovdp::core {
@@ -52,6 +54,10 @@ enum class TargetTableRole : std::uint8_t {
     Palette,
     ScanlinePalettes,
 };
+
+[[nodiscard]] RegionRoleId targetTableRoleId(TargetTableRole role);
+[[nodiscard]] std::optional<TargetTableRole> targetTableRole(const RegionRoleId& id);
+[[nodiscard]] std::optional<TargetTableRole> targetTableRole(std::string_view id);
 
 struct TargetTableLayout {
     TargetTableRole role{TargetTableRole::Pattern};

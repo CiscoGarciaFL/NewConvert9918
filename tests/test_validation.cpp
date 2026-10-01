@@ -1536,13 +1536,29 @@ void testTargetProfiles(TestContext &test)
     test.expect(tms9918.stableId == "tms9918a"
                     && tms9918.status == TargetProfileStatus::Implemented
                     && retrovdp::core::hasCapability(
-                        tms9918.capabilities, TargetCapability::CharacterPatterns),
+                        tms9918.capabilities, TargetCapability::CharacterPatterns)
+                    && tms9918.characterPatterns.pixelWidth == 8
+                    && tms9918.characterPatterns.pixelHeight == 8
+                    && tms9918.characterPatterns.patternsPerSet == 256
+                    && tms9918.characterPatterns.setCount == 3
+                    && tms9918.characterPatterns.mapColumns == 32
+                    && tms9918.characterPatterns.mapRows == 24
+                    && tms9918.sprites.minimumPixelSize == 8
+                    && tms9918.sprites.maximumPixelSize == 16
+                    && tms9918.sprites.patternsPerSet == 32
+                    && tms9918.sprites.maximumVisibleSprites == 32
+                    && tms9918.sprites.maximumColorDepth == 1
+                    && tms9918.sprites.usesGlobalSize
+                    && !tms9918.sprites.supportsPerSpriteSize,
                 "the TMS9918A profile should expose its stable identity and capabilities");
     test.expect(f18a.stableId == "f18a"
                     && retrovdp::core::supportsConversionMode(
                         TargetProfileId::F18A, ConversionMode::Bitmap9918)
                     && retrovdp::core::supportsConversionMode(
-                        TargetProfileId::F18A, ConversionMode::PalettedBitmapF18A),
+                        TargetProfileId::F18A, ConversionMode::PalettedBitmapF18A)
+                    && f18a.sprites.maximumColorDepth == 3
+                    && !f18a.sprites.usesGlobalSize
+                    && f18a.sprites.supportsPerSpriteSize,
                 "the F18A profile should support compatible base and enhanced modes");
     test.expect(v9938.stableId == "v9938"
                     && v9938.status == TargetProfileStatus::Planned
@@ -1558,6 +1574,76 @@ void testTargetProfiles(TestContext &test)
                     TargetProfileId::V9938, ConversionMode::Bitmap9918)
                     == TargetProfileId::Tms9918A,
                 "planned profiles should fall back to the mode's implemented primary target");
+
+    retrovdp::core::StableIdError idError = retrovdp::core::StableIdError::None;
+    const auto validId = retrovdp::core::ModeId::create("bitmap-9918a", &idError);
+    test.expect(validId.has_value() && idError == retrovdp::core::StableIdError::None,
+                "stable IDs should accept lowercase, versionable identifiers");
+    test.expect(!retrovdp::core::ModeId::create("Bitmap 9918A", &idError).has_value()
+                    && idError == retrovdp::core::StableIdError::InvalidFirstCharacter,
+                "stable IDs should reject display labels and uppercase identifiers");
+    test.expect(!retrovdp::core::ModeId::create("bitmap--9918a", &idError).has_value()
+                    && idError == retrovdp::core::StableIdError::ConsecutiveSeparator,
+                "stable IDs should reject ambiguous separators");
+
+    const auto modes = retrovdp::core::displayModes();
+    test.expect(modes.size() == 9 && retrovdp::core::validateRegistry(),
+                "the target and display-mode registries should validate as one contract");
+    const auto& f18aMode = retrovdp::core::displayMode(
+        ConversionMode::PalettedBitmapF18A);
+    test.expect(f18aMode.stableId == "paletted-bitmap-f18a"
+                    && f18aMode.primaryTarget == TargetProfileId::F18A
+                    && f18aMode.geometry.width == 256
+                    && f18aMode.geometry.height == 192
+                    && f18aMode.palette.model == retrovdp::core::PaletteModel::ProgrammableRgb
+                    && f18aMode.palette.channelBits == 4
+                    && retrovdp::core::hasOption(
+                        f18aMode.options, retrovdp::core::ModeOption::PaletteSelection)
+                    && !retrovdp::core::hasOption(
+                        f18aMode.options, retrovdp::core::ModeOption::WorkingPalette),
+                "display-mode descriptors should own stable identity and hardware constraints");
+    test.expect(retrovdp::core::hasOption(
+                    retrovdp::core::displayMode(ConversionMode::Bitmap9918).options,
+                    retrovdp::core::ModeOption::WorkingPalette)
+                    && retrovdp::core::hasOption(
+                        retrovdp::core::displayMode(
+                            ConversionMode::ScanlinePaletteBitmapF18A).options,
+                        retrovdp::core::ModeOption::ScanlinePalette),
+                "display modes should describe their applicable settings without UI mode-number checks");
+    test.expect(retrovdp::core::conversionMode("bitmap-9918a")
+                    == ConversionMode::Bitmap9918
+                    && !retrovdp::core::conversionMode("unknown-mode").has_value(),
+                "display-mode identifiers should round-trip and reject unknown values");
+
+    std::array duplicateProfiles{profiles[0], profiles[0]};
+    test.expect(retrovdp::core::validateRegistry(duplicateProfiles, modes).error
+                    == retrovdp::core::RegistryError::DuplicateTargetProfile,
+                "registry validation should reject duplicate legacy target identities");
+    std::vector<retrovdp::core::TargetProfile> invalidCharacterProfiles(
+        profiles.begin(), profiles.end());
+    invalidCharacterProfiles[0].characterPatterns.pixelWidth = 0;
+    test.expect(retrovdp::core::validateRegistry(
+                    invalidCharacterProfiles, modes).error
+                    == retrovdp::core::RegistryError::InvalidCharacterPatterns,
+                "registry validation should reject invalid target character geometry");
+    std::vector<retrovdp::core::TargetProfile> invalidSpriteProfiles(
+        profiles.begin(), profiles.end());
+    invalidSpriteProfiles[0].sprites.maximumColorDepth = 0;
+    test.expect(retrovdp::core::validateRegistry(
+                    invalidSpriteProfiles, modes).error
+                    == retrovdp::core::RegistryError::InvalidSprites,
+                "registry validation should reject invalid target sprite constraints");
+    std::array invalidModes{modes[0]};
+    invalidModes[0].geometry.width = 0;
+    test.expect(retrovdp::core::validateRegistry(profiles, invalidModes).error
+                    == retrovdp::core::RegistryError::InvalidGeometry,
+                "registry validation should reject invalid display geometry");
+    std::vector<retrovdp::core::DisplayModeDescriptor> invalidPrimaryModes(
+        modes.begin(), modes.end());
+    invalidPrimaryModes[0].primaryTarget = TargetProfileId::V9938;
+    test.expect(retrovdp::core::validateRegistry(profiles, invalidPrimaryModes).error
+                    == retrovdp::core::RegistryError::PrimaryTargetDoesNotSupportMode,
+                "registry validation should reject a primary target that cannot compile its mode");
 }
 
 void testTargetData(TestContext &test)
@@ -1589,6 +1675,20 @@ void testTargetData(TestContext &test)
         ConversionMode::PalettedBitmapF18A,
         ConversionMode::ScanlinePaletteBitmapF18A,
     };
+
+    constexpr std::array roles{
+        TargetTableRole::Pattern, TargetTableRole::Color, TargetTableRole::Multicolor,
+        TargetTableRole::MulticolorFrame1, TargetTableRole::MulticolorFrame2,
+        TargetTableRole::FixedPattern, TargetTableRole::Palette,
+        TargetTableRole::ScanlinePalettes,
+    };
+    for (const auto role : roles) {
+        const auto id = retrovdp::core::targetTableRoleId(role);
+        test.expect(retrovdp::core::targetTableRole(id) == role,
+                    "target table role IDs should round-trip through the registry boundary");
+    }
+    test.expect(!retrovdp::core::targetTableRole("unknown-role").has_value(),
+                "unknown target table role IDs should be rejected");
 
     for (const auto mode : modes) {
         const auto expected = expectedTargetTables(mode);

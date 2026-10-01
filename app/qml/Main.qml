@@ -19,6 +19,7 @@ ApplicationWindow {
     property int previewLayout: appPreferences.previewLayout
     // 0 = Screen Image, 1 = Character Editor, 2 = Sprite Editor.
     property int workspaceMode: 0
+    property bool screenImageEditingActive: false
     property bool conversionPanelVisible: appPreferences.sidePanelVisible
     property int conversionPanelMode: appPreferences.sidePanelMode
 
@@ -127,6 +128,7 @@ ApplicationWindow {
 
     Dialog {
         id: aboutDialog
+        objectName: "aboutDialog"
         title: qsTr("About RetroVDP Studio")
         modal: true
         standardButtons: Dialog.Close
@@ -135,33 +137,48 @@ ApplicationWindow {
         ColumnLayout {
             width: parent.width
             spacing: 12
-            Label {
-                text: qsTr("RetroVDP Studio")
-                font.pixelSize: 24
-                font.weight: Font.DemiBold
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 14
+                Image {
+                    objectName: "aboutApplicationIcon"
+                    source: "qrc:/qt/qml/RetroVDPStudio/assets/icons/RetroVDPStudio-64.png"
+                    sourceSize.width: 64
+                    sourceSize.height: 64
+                    Layout.preferredWidth: 64
+                    Layout.preferredHeight: 64
+                    fillMode: Image.PreserveAspectFit
+                    Accessible.name: qsTr("RetroVDP Studio icon")
+                }
+                Label {
+                    text: qsTr("RetroVDP Studio")
+                    font.pixelSize: 24
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                }
             }
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: qsTr("A cross-platform graphics workspace for classic video display processors.")
+                text: qsTr("RetroVDP Studio cross-platform architecture, Qt interface, user experience, and new features are created by Cisco Garcia / CiscoGarciaFL.")
             }
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: qsTr("RetroVDP Studio is inspired by Convert9918, created by Mike Brent (Tursi) of HarmlessLion.com. RetroVDP Studio architecture, interface, and features by Cisco Garcia / CiscoGarciaFL.")
+                text: qsTr("Copyright © 2026 Cisco Garcia / CiscoGarciaFL")
             }
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
                 textFormat: Text.RichText
-                text: qsTr("<a href='https://github.com/tursilion/convert9918'>Original Convert9918 project</a><br><a href='https://github.com/CiscoGarciaFL/retrovdp-studio'>RetroVDP Studio project</a><br><a href='http://harmlesslion.com'>HarmlessLion.com</a>")
+                text: qsTr("<b>Third-party work</b><br>Separately licensed third-party components must retain their own copyright and license notices. Qt image I/O and independently licensed or independently implemented codecs provide those boundaries.<br><br><b>Inspiration</b><br>RetroVDP Studio is inspired by <a href='https://github.com/tursilion/convert9918'>Convert9918</a>'s conversion behavior, supported target systems, and file-format knowledge designed and created by Mike Brent, also known as Tursi, of <a href='http://harmlesslion.com/'>HarmlessLion.com</a>.")
                 onLinkActivated: link => Qt.openUrlExternally(link)
                 Accessible.name: qsTr("Project and attribution links")
             }
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: qsTr("Distributed under the original Convert9918 license terms with the original author's permission. See LICENSE and NOTICE.md for the complete terms and attribution.")
+                text: qsTr("See NOTICE.md for the complete attribution notice.")
                 color: palette.placeholderText
             }
         }
@@ -170,17 +187,14 @@ ApplicationWindow {
     Action {
         id: newAction
         objectName: "newAction"
-        text: qsTr("&New")
+        text: qsTr("&New Project…")
         shortcut: StandardKey.New
-        onTriggered: {
-            window.workspaceMode = 0
-            imageInput.newScreenImage()
-        }
+        onTriggered: projectDialog.openForNewProject()
     }
     Action {
         id: openAction
         objectName: "openAction"
-        text: qsTr("&Open…")
+        text: qsTr("Open &Source…")
         shortcut: "Ctrl+O"
         onTriggered: openDialog.open()
     }
@@ -189,7 +203,10 @@ ApplicationWindow {
         text: qsTr("&Paste")
         shortcut: "Ctrl+V"
         onTriggered: {
-            if (window.workspaceMode === 0 && imageInput.hasConversion)
+            if (window.workspaceMode === 0 && !window.screenImageEditingActive
+                    && imageInput.hasImage)
+                imageInput.pasteSourceImage()
+            else if (window.workspaceMode === 0 && imageInput.hasConversion)
                 imageInput.pasteScreenImage()
             else
                 imageInput.pasteClipboard()
@@ -198,24 +215,29 @@ ApplicationWindow {
 
     PreferencesDialog {
         id: preferencesDialog
+        objectName: "preferencesDialog"
         applicationWindow: window
+    }
+
+    ProjectDialog {
+        id: projectDialog
     }
 
     FileDialog {
         id: loadRecipeDialog
-        title: qsTr("Load conversion recipe")
+        title: qsTr("Open project")
         fileMode: FileDialog.OpenFile
-        nameFilters: [qsTr("RetroVDP Studio recipes (*.rvdp.json *.json)"),
+        nameFilters: [qsTr("RetroVDP Studio projects (*.rvdp.json *.json)"),
                       qsTr("All files (*)")]
         onAccepted: editorProject.loadRecipe(selectedFile)
     }
 
     FileDialog {
         id: saveRecipeDialog
-        title: qsTr("Save conversion recipe")
+        title: qsTr("Save project")
         fileMode: FileDialog.SaveFile
         defaultSuffix: "rvdp.json"
-        nameFilters: [qsTr("RetroVDP Studio recipes (*.rvdp.json)"),
+        nameFilters: [qsTr("RetroVDP Studio projects (*.rvdp.json)"),
                       qsTr("JSON files (*.json)")]
         onAccepted: editorProject.saveRecipe(selectedFile)
     }
@@ -244,6 +266,7 @@ ApplicationWindow {
     }
     Action {
         id: aboutAction
+        objectName: "aboutAction"
         text: qsTr("&About RetroVDP Studio")
         shortcut: "F1"
         onTriggered: aboutDialog.open()
@@ -254,7 +277,10 @@ ApplicationWindow {
         enabled: imageInput.canUndoScreenImage
                  || imageInput.canUndoDrawing || imageInput.canUndo
         onActivated: {
-            if (window.workspaceMode === 0 && imageInput.canUndoScreenImage)
+            if (window.workspaceMode === 0 && !window.screenImageEditingActive
+                    && imageInput.canUndoDrawing)
+                imageInput.undoDrawing()
+            else if (window.workspaceMode === 0 && imageInput.canUndoScreenImage)
                 imageInput.undoScreenImage()
             else if (imageInput.canUndoDrawing)
                 imageInput.undoDrawing()
@@ -272,22 +298,31 @@ ApplicationWindow {
     Action {
         id: loadRecipeAction
         objectName: "loadRecipeAction"
-        text: qsTr("&Load Recipe…")
+        text: qsTr("&Open Project…")
         shortcut: "Ctrl+Shift+O"
         onTriggered: loadRecipeDialog.open()
     }
     Action {
         id: saveRecipeAction
         objectName: "saveRecipeAction"
-        text: qsTr("&Save Recipe…")
+        text: qsTr("&Save Project…")
         shortcut: "Ctrl+Shift+S"
         onTriggered: saveRecipeDialog.open()
+    }
+    Action {
+        id: projectSettingsAction
+        objectName: "projectSettingsAction"
+        text: qsTr("Project &Settings…")
+        onTriggered: projectDialog.openForProjectSettings()
     }
     Shortcut {
         sequence: "Ctrl+Y"
         enabled: imageInput.canRedoScreenImage || imageInput.canRedoDrawing
         onActivated: {
-            if (window.workspaceMode === 0 && imageInput.canRedoScreenImage)
+            if (window.workspaceMode === 0 && !window.screenImageEditingActive
+                    && imageInput.canRedoDrawing)
+                imageInput.redoDrawing()
+            else if (window.workspaceMode === 0 && imageInput.canRedoScreenImage)
                 imageInput.redoScreenImage()
             else
                 imageInput.redoDrawing()
@@ -295,8 +330,14 @@ ApplicationWindow {
     }
     Shortcut {
         sequence: "Ctrl+C"
-        enabled: window.workspaceMode === 0 && imageInput.hasConversion
-        onActivated: imageInput.copyScreenImage()
+        enabled: window.workspaceMode === 0
+                 && (imageInput.hasConversion || imageInput.hasImage)
+        onActivated: {
+            if (!window.screenImageEditingActive && imageInput.hasImage)
+                imageInput.copySourceImage()
+            else
+                imageInput.copyScreenImage()
+        }
     }
     Shortcut { sequence: "Ctrl+0"; onActivated: imageInput.resetSettings() }
 
@@ -304,11 +345,16 @@ ApplicationWindow {
         objectName: "mainMenuBar"
 
         Menu {
+            objectName: "fileMenu"
             title: qsTr("&File")
             MenuItem {
                 objectName: "newMenuItem"
                 action: newAction
             }
+            MenuItem { action: loadRecipeAction }
+            MenuItem { action: saveRecipeAction }
+            MenuItem { action: projectSettingsAction }
+            MenuSeparator {}
             MenuItem { action: openAction }
             MenuItem {
                 objectName: "reloadMenuItem"
@@ -316,10 +362,8 @@ ApplicationWindow {
             }
             MenuItem { action: pasteAction }
             MenuSeparator {}
-            MenuItem { action: loadRecipeAction }
-            MenuItem { action: saveRecipeAction }
-            MenuSeparator {}
             MenuItem { action: exportAction }
+            MenuItem { action: preferencesAction }
             MenuSeparator { objectName: "exitMenuSeparator" }
             MenuItem {
                 objectName: "exitMenuItem"
@@ -328,33 +372,7 @@ ApplicationWindow {
         }
 
         Menu {
-            objectName: "modeMenu"
-            title: qsTr("&Mode")
-
-            MenuItem {
-                objectName: "screenImageModeMenuItem"
-                text: qsTr("&Screen Image")
-                checkable: true
-                checked: window.workspaceMode === 0
-                onTriggered: window.workspaceMode = 0
-            }
-            MenuItem {
-                objectName: "characterEditorModeMenuItem"
-                text: qsTr("&Character Editor")
-                checkable: true
-                checked: window.workspaceMode === 1
-                onTriggered: window.workspaceMode = 1
-            }
-            MenuItem {
-                objectName: "spriteEditorModeMenuItem"
-                text: qsTr("S&prite Editor")
-                checkable: true
-                checked: window.workspaceMode === 2
-                onTriggered: window.workspaceMode = 2
-            }
-        }
-
-        Menu {
+            objectName: "viewMenu"
             title: qsTr("&View")
 
             MenuItem {
@@ -411,41 +429,121 @@ ApplicationWindow {
         }
 
         Menu {
-            title: qsTr("&Settings")
-            MenuItem { action: preferencesAction }
+            objectName: "modeMenu"
+            title: qsTr("&Mode")
+            enabled: window.previewLayout !== 0
+
+            MenuItem {
+                objectName: "screenImageModeMenuItem"
+                text: qsTr("&Screen Image")
+                enabled: editorProject.screenImageModeAvailable
+                checkable: true
+                checked: window.workspaceMode === 0
+                onTriggered: window.workspaceMode = 0
+            }
+            MenuItem {
+                objectName: "characterEditorModeMenuItem"
+                text: qsTr("&Character Editor")
+                enabled: editorProject.characterModeAvailable
+                checkable: true
+                checked: window.workspaceMode === 1
+                onTriggered: window.workspaceMode = 1
+            }
+            MenuItem {
+                objectName: "spriteEditorModeMenuItem"
+                text: qsTr("S&prite Editor")
+                enabled: editorProject.spriteModeAvailable
+                checkable: true
+                checked: window.workspaceMode === 2
+                onTriggered: window.workspaceMode = 2
+            }
         }
 
         Menu {
             title: qsTr("&Help")
+            objectName: "helpMenu"
             MenuItem { action: aboutAction }
         }
     }
 
-    RowLayout {
+    ColumnLayout {
         anchors.fill: parent
         anchors.margins: 12
-        spacing: 12
-
-        PreviewWorkspace {
-            id: previews
-            objectName: "previewWorkspace"
-            layoutMode: window.previewLayout
-            workspaceMode: window.workspaceMode
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-        }
+        spacing: 8
 
         ThemedFrame {
-            objectName: "adjacentConversionPanel"
-            visible: window.conversionPanelVisible && window.conversionPanelMode === 0
-            Layout.preferredWidth: 350
-            Layout.maximumWidth: 420
-            Layout.fillHeight: true
+            objectName: "projectBar"
+            Layout.fillWidth: true
+            Layout.preferredHeight: activeTargetCombo.implicitHeight + 8
+            padding: 0
 
-            SidePanelHost {
+            RowLayout {
+                objectName: "projectBarContent"
                 anchors.fill: parent
+                anchors.margins: 4
+                spacing: 12
+
+                Label {
+                    text: qsTr("Project:")
+                    color: palette.placeholderText
+                }
+                Label {
+                    objectName: "projectBarName"
+                    text: editorProject.projectName
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
+                Label {
+                    text: qsTr("Active target:")
+                    color: palette.placeholderText
+                }
+                ComboBox {
+                    id: activeTargetCombo
+                    objectName: "activeTargetCombo"
+                    Layout.preferredWidth: 190
+                    model: editorProject.supportedTargets
+                    textRole: "name"
+                    valueRole: "value"
+                    currentIndex: indexOfValue(editorProject.activeTarget)
+                    onActivated: editorProject.activeTarget = currentValue
+                    Accessible.name: qsTr("Active project target")
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 12
+
+            PreviewWorkspace {
+                id: previews
+                objectName: "previewWorkspace"
+                layoutMode: window.previewLayout
                 workspaceMode: window.workspaceMode
-                onExportRequested: exportDialog.open()
+                screenImageModeAvailable: editorProject.screenImageModeAvailable
+                characterModeAvailable: editorProject.characterModeAvailable
+                spriteModeAvailable: editorProject.spriteModeAvailable
+                onModeRequested: mode => window.workspaceMode = mode
+                onEditingSurfaceActivated: screenImage =>
+                    window.screenImageEditingActive = screenImage
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+            }
+
+            ThemedFrame {
+                objectName: "adjacentConversionPanel"
+                visible: window.conversionPanelVisible && window.conversionPanelMode === 0
+                Layout.preferredWidth: 350
+                Layout.maximumWidth: 420
+                Layout.fillHeight: true
+
+                SidePanelHost {
+                    anchors.fill: parent
+                    workspaceMode: window.workspaceMode
+                    onExportRequested: exportDialog.open()
+                }
             }
         }
     }
@@ -454,6 +552,7 @@ ApplicationWindow {
         id: overlayExpandRail
         objectName: "overlayExpandRail"
         anchors.top: parent.top
+        anchors.topMargin: 60
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         width: 38

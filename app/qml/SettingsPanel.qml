@@ -27,7 +27,7 @@ ScrollView {
             Layout.fillWidth: true
 
             Label {
-                text: qsTr("Image Settings")
+                text: qsTr("Screen Image Options")
                 font.pixelSize: 20
                 font.weight: Font.DemiBold
                 Layout.fillWidth: true
@@ -69,13 +69,13 @@ ScrollView {
         }
 
         ThemedGroupBox {
-            objectName: "screenImageOutputProfilesGroup"
-            title: qsTr("Output Profiles")
+            objectName: "screenImageActiveTargetGroup"
+            title: qsTr("Active Target")
             Layout.fillWidth: true
 
-            OutputProfileControls {
+            ActiveTargetSummary {
                 anchors.fill: parent
-                objectPrefix: "screenImageOutputProfiles"
+                detailKind: 0
             }
         }
 
@@ -165,17 +165,6 @@ ScrollView {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    Label { text: qsTr("Target VDP") }
-                    ComboBox {
-                        objectName: "targetProfileCombo"
-                        Layout.fillWidth: true
-                        model: imageInput.targetProfileNames
-                        currentIndex: imageInput.targetProfile
-                        onActivated: imageInput.targetProfile = currentIndex
-                        Accessible.name: qsTr("Target video display processor")
-                        activeFocusOnTab: true
-                    }
-
                     Label { text: qsTr("Target mode") }
                     ComboBox {
                         objectName: "targetModeCombo"
@@ -519,8 +508,12 @@ ScrollView {
                         activeFocusOnTab: true
                         Accessible.name: qsTr("Luma emphasis")
                     }
-                    Label { text: qsTr("Flicker limit: %1%").arg(imageInput.maximumMulticolorDifference) }
+                    Label {
+                        visible: imageInput.multicolorFlickerAvailable
+                        text: qsTr("Flicker limit: %1%").arg(imageInput.maximumMulticolorDifference)
+                    }
                     Slider {
+                        visible: imageInput.multicolorFlickerAvailable
                         Layout.fillWidth: true
                         from: 0
                         to: 100
@@ -542,20 +535,22 @@ ScrollView {
                         activeFocusOnTab: true
                         Accessible.name: qsTr("Ordered dither darkening")
                     }
-                    Label { text: qsTr("F18A palette selection") }
+                    Label {
+                        visible: imageInput.paletteSelectionAvailable
+                        text: qsTr("Target palette selection")
+                    }
                     ComboBox {
                         objectName: "paletteSelectionCombo"
+                        visible: imageInput.paletteSelectionAvailable
                         Layout.fillWidth: true
                         model: [qsTr("Median Cut"), qsTr("Popularity")]
                         currentIndex: imageInput.paletteSelectionMode
-                        enabled: imageInput.conversionMode === 7
-                                 || imageInput.conversionMode === 8
                         onActivated: imageInput.paletteSelectionMode = currentIndex
-                        Accessible.name: qsTr("F18A palette selection algorithm")
+                        Accessible.name: qsTr("Target palette selection algorithm")
                     }
                     RowLayout {
+                        visible: imageInput.scanlinePaletteSettingsAvailable
                         Layout.fillWidth: true
-                        enabled: imageInput.conversionMode === 8
                         Label {
                             text: qsTr("Shared scanline colors")
                             Layout.fillWidth: true
@@ -572,9 +567,9 @@ ScrollView {
                     }
                     RowLayout {
                         objectName: "scanlineRegionsRow"
+                        visible: imageInput.scanlinePaletteSettingsAvailable
                         Layout.fillWidth: true
-                        enabled: imageInput.conversionMode === 8
-                                 && imageInput.scanlineStaticColorCount > 0
+                        enabled: imageInput.scanlineStaticColorCount > 0
                         Label { text: qsTr("Regions") }
                         CheckBox {
                             objectName: "scanlineRegion1CheckBox"
@@ -621,7 +616,7 @@ ScrollView {
 
         ColumnLayout {
             Layout.fillWidth: true
-            visible: imageInput.conversionMode <= 6
+            visible: imageInput.workingPaletteEditable
             spacing: 4
 
             ToolButton {

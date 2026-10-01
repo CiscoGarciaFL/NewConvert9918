@@ -48,6 +48,8 @@ constexpr std::size_t maximumDrawingHistoryEntries = 64;
 constexpr std::size_t maximumDrawingHistoryBytes = 128U * 1024U * 1024U;
 constexpr auto screenImageSelectionMimeType =
     "application/x-retrovdp-screen-image-selection";
+constexpr auto sourceImageSelectionMimeType =
+    "application/x-retrovdp-source-image-selection";
 
 void trimDrawingHistory(std::vector<std::shared_ptr<core::RgbImage>>& history)
 {
@@ -302,25 +304,8 @@ std::shared_ptr<core::RgbImage> coreImage(const QImage& image)
 
 QString modeName(core::ConversionMode mode)
 {
-    switch (mode) {
-    case core::ConversionMode::Bitmap9918: return QStringLiteral("Bitmap 9918A");
-    case core::ConversionMode::GreyscaleBitmap9918:
-        return QStringLiteral("Greyscale Bitmap 9918A");
-    case core::ConversionMode::BlackAndWhiteBitmap9918:
-        return QStringLiteral("Black-and-White Bitmap 9918A");
-    case core::ConversionMode::Multicolor9918: return QStringLiteral("Multicolor 9918");
-    case core::ConversionMode::DualMulticolor9918:
-        return QStringLiteral("Dual Multicolor 9918");
-    case core::ConversionMode::HalfMulticolor9918:
-        return QStringLiteral("Half Multicolor 9918A");
-    case core::ConversionMode::BitmapColorOnly9918:
-        return QStringLiteral("Bitmap Color Only 9918A");
-    case core::ConversionMode::PalettedBitmapF18A:
-        return QStringLiteral("Paletted Bitmap F18A");
-    case core::ConversionMode::ScanlinePaletteBitmapF18A:
-        return QStringLiteral("Scanline Palette Bitmap F18A");
-    }
-    return QStringLiteral("Unknown mode");
+    const auto name = core::displayMode(mode).displayName;
+    return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
 }
 
 formats::ExportFormat exportFormatForIndex(int index)
@@ -1381,10 +1366,18 @@ void ImageInputController::swapSourceColors(double normalizedX, double normalize
     beginDrawingTransaction();
     if (!drawingLayer_) return;
     sourceStrokeTouched_ = false;
-    for (std::uint32_t y = 0; y < framedSource_->height(); ++y) {
-        const auto sourceRow = framedSource_->row(y);
-        auto layerRow = drawingLayer_->row(y);
-        for (std::uint32_t x = 0; x < framedSource_->width(); ++x) {
+    const int firstX = hasSourceSelection() ? sourceSelectionX_ : 0;
+    const int firstY = hasSourceSelection() ? sourceSelectionY_ : 0;
+    const int lastX = hasSourceSelection()
+        ? sourceSelectionX_ + sourceSelectionWidth_
+        : static_cast<int>(framedSource_->width());
+    const int lastY = hasSourceSelection()
+        ? sourceSelectionY_ + sourceSelectionHeight_
+        : static_cast<int>(framedSource_->height());
+    for (int y = firstY; y < lastY; ++y) {
+        const auto sourceRow = framedSource_->row(static_cast<std::uint32_t>(y));
+        auto layerRow = drawingLayer_->row(static_cast<std::uint32_t>(y));
+        for (int x = firstX; x < lastX; ++x) {
             const std::size_t sourceOffset = static_cast<std::size_t>(x) * sourceChannels;
             const core::RgbColor color{sourceRow[sourceOffset],
                                        sourceRow[sourceOffset + 1U],
@@ -1590,6 +1583,7 @@ void ImageInputController::commitDrawingTransaction(bool changed)
 
 void ImageInputController::undoDrawing()
 {
+    cancelSourceFloating();
     if (sourceStrokeActive_) endSourceStroke();
     if (!drawingLayer_ || drawingUndoStack_.empty()) return;
     drawingRedoStack_.push_back(drawingLayer_);
@@ -1601,6 +1595,7 @@ void ImageInputController::undoDrawing()
 
 void ImageInputController::redoDrawing()
 {
+    cancelSourceFloating();
     if (sourceStrokeActive_) endSourceStroke();
     if (!drawingLayer_ || drawingRedoStack_.empty()) return;
     drawingUndoStack_.push_back(drawingLayer_);
@@ -1616,6 +1611,7 @@ void ImageInputController::clearDrawingHistory()
     drawingBeforeImage_.reset();
     drawingUndoStack_.clear();
     drawingRedoStack_.clear();
+    resetSourceSelectionState();
     if (hadHistory) emit drawingHistoryChanged();
 }
 
@@ -1628,6 +1624,388 @@ void ImageInputController::refreshAfterDrawingHistoryChange()
     refreshSourceColorChoices();
     scheduleConversion();
     emit drawingHistoryChanged();
+}
+
+bool ImageInputController::workingPaletteEditable() const
+{
+    return core::hasOption(core::displayMode(settings_.mode).options,
+        core::ModeOption::WorkingPalette);
+}
+
+bool ImageInputController::paletteSelectionAvailable() const
+{
+    return core::hasOption(core::displayMode(settings_.mode).options,
+        core::ModeOption::PaletteSelection);
+}
+
+bool ImageInputController::scanlinePaletteSettingsAvailable() const
+{
+    return core::hasOption(core::displayMode(settings_.mode).options,
+        core::ModeOption::ScanlinePalette);
+}
+
+bool ImageInputController::multicolorFlickerAvailable() const
+{
+    return core::hasOption(core::displayMode(settings_.mode).options,
+        core::ModeOption::MulticolorFlickerLimit);
+}
+
+void ImageInputController::resetSourceSelectionState()
+{
+    const bool hadSelection = hasSourceSelection();
+    const bool hadFloating = sourceFloating();
+    sourceSelectionX_ = 0;
+    sourceSelectionY_ = 0;
+    sourceSelectionWidth_ = 0;
+    sourceSelectionHeight_ = 0;
+    sourceFloatingImage_.reset();
+    sourceFloatingPreview_.clear();
+    sourceFloatingMove_ = false;
+    sourceFloatingTopLeft_ = false;
+    sourceFloatingSourceX_ = 0;
+    sourceFloatingSourceY_ = 0;
+    if (hadSelection) emit sourceSelectionChanged();
+    if (hadFloating) emit sourceFloatingChanged();
+}
+
+std::shared_ptr<core::RgbImage> ImageInputController::copySourceRegion(
+    int x, int y, int width, int height) const
+{
+    if (!framedSource_ || width <= 0 || height <= 0 || x < 0 || y < 0
+        || x + width > static_cast<int>(framedSource_->width())
+        || y + height > static_cast<int>(framedSource_->height())) {
+        return {};
+    }
+    auto region = core::RgbImage::createTightlyPacked(
+        static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height),
+        framedSource_->pixelFormat());
+    if (!region) return {};
+    const std::size_t channels = core::bytesPerPixel(framedSource_->pixelFormat());
+    const std::size_t rowBytes = static_cast<std::size_t>(width) * channels;
+    for (int rowIndex = 0; rowIndex < height; ++rowIndex) {
+        const auto sourceRow = framedSource_->row(
+            static_cast<std::uint32_t>(y + rowIndex));
+        auto destinationRow = region->row(static_cast<std::uint32_t>(rowIndex));
+        std::copy_n(sourceRow.begin() + static_cast<std::ptrdiff_t>(x) * channels,
+                    rowBytes, destinationRow.begin());
+    }
+    return std::make_shared<core::RgbImage>(std::move(*region));
+}
+
+void ImageInputController::beginSourceFloating(
+    std::shared_ptr<core::RgbImage> image, bool movingSelection, bool topLeftAnchor)
+{
+    if (!image) return;
+    sourceFloatingImage_ = std::move(image);
+    sourceFloatingPreview_ = dataUrl(*sourceFloatingImage_);
+    sourceFloatingMove_ = movingSelection;
+    sourceFloatingTopLeft_ = topLeftAnchor;
+    sourceFloatingSourceX_ = movingSelection ? sourceSelectionX_ : 0;
+    sourceFloatingSourceY_ = movingSelection ? sourceSelectionY_ : 0;
+    errorMessage_.clear();
+    statusMessage_ = movingSelection
+        ? tr("Move source selection ready. Click the source image to place it; Escape cancels.")
+        : tr("Source placement ready. Click the source image to place it; Escape cancels.");
+    emit sourceFloatingChanged();
+    emit statusChanged();
+}
+
+void ImageInputController::replaceDrawingLayerWithCanvas(
+    const core::RgbImage& canvas)
+{
+    auto layer = core::RgbImage::createTightlyPacked(
+        canvas.width(), canvas.height(), core::PixelFormat::Rgba8888);
+    if (!layer) return;
+    const std::size_t sourceChannels = core::bytesPerPixel(canvas.pixelFormat());
+    for (std::uint32_t y = 0; y < canvas.height(); ++y) {
+        const auto sourceRow = canvas.row(y);
+        auto destinationRow = layer->row(y);
+        for (std::uint32_t x = 0; x < canvas.width(); ++x) {
+            const std::size_t sourceOffset = static_cast<std::size_t>(x) * sourceChannels;
+            const std::size_t destinationOffset = static_cast<std::size_t>(x) * 4U;
+            std::copy_n(sourceRow.begin() + static_cast<std::ptrdiff_t>(sourceOffset),
+                        3, destinationRow.begin()
+                            + static_cast<std::ptrdiff_t>(destinationOffset));
+            destinationRow[destinationOffset + 3U] = 255U;
+        }
+    }
+    drawingLayer_ = std::make_shared<core::RgbImage>(std::move(*layer));
+}
+
+void ImageInputController::refreshAfterSourceCanvasEdit()
+{
+    refreshSourcePreview();
+    refreshSourceColorChoices();
+    scheduleConversion();
+}
+
+void ImageInputController::mirrorSourceImage()
+{
+    if (!framedSource_) return;
+    if (sourceStrokeActive_) endSourceStroke();
+    core::RgbImage canvas = *framedSource_;
+    const std::size_t channels = core::bytesPerPixel(canvas.pixelFormat());
+    for (std::uint32_t y = 0; y < canvas.height(); ++y) {
+        auto row = canvas.row(y);
+        for (std::uint32_t x = 0; x < canvas.width() / 2U; ++x) {
+            const std::uint32_t opposite = canvas.width() - 1U - x;
+            for (std::size_t channel = 0; channel < channels; ++channel) {
+                std::swap(row[static_cast<std::size_t>(x) * channels + channel],
+                          row[static_cast<std::size_t>(opposite) * channels + channel]);
+            }
+        }
+    }
+    beginDrawingTransaction();
+    replaceDrawingLayerWithCanvas(canvas);
+    commitDrawingTransaction(true);
+    refreshAfterSourceCanvasEdit();
+}
+
+void ImageInputController::flipSourceImage()
+{
+    if (!framedSource_) return;
+    if (sourceStrokeActive_) endSourceStroke();
+    core::RgbImage canvas = *framedSource_;
+    for (std::uint32_t y = 0; y < canvas.height() / 2U; ++y) {
+        auto top = canvas.row(y);
+        auto bottom = canvas.row(canvas.height() - 1U - y);
+        std::swap_ranges(top.begin(), top.end(), bottom.begin());
+    }
+    beginDrawingTransaction();
+    replaceDrawingLayerWithCanvas(canvas);
+    commitDrawingTransaction(true);
+    refreshAfterSourceCanvasEdit();
+}
+
+void ImageInputController::invertSourceImage()
+{
+    if (!framedSource_) return;
+    if (sourceStrokeActive_) endSourceStroke();
+    core::RgbImage canvas = *framedSource_;
+    const std::size_t channels = core::bytesPerPixel(canvas.pixelFormat());
+    const int firstX = hasSourceSelection() ? sourceSelectionX_ : 0;
+    const int firstY = hasSourceSelection() ? sourceSelectionY_ : 0;
+    const int lastX = hasSourceSelection()
+        ? sourceSelectionX_ + sourceSelectionWidth_ : static_cast<int>(canvas.width());
+    const int lastY = hasSourceSelection()
+        ? sourceSelectionY_ + sourceSelectionHeight_ : static_cast<int>(canvas.height());
+    for (int y = firstY; y < lastY; ++y) {
+        auto row = canvas.row(static_cast<std::uint32_t>(y));
+        for (int x = firstX; x < lastX; ++x) {
+            const std::size_t offset = static_cast<std::size_t>(x) * channels;
+            row[offset] = static_cast<std::uint8_t>(255U - row[offset]);
+            row[offset + 1U] = static_cast<std::uint8_t>(255U - row[offset + 1U]);
+            row[offset + 2U] = static_cast<std::uint8_t>(255U - row[offset + 2U]);
+        }
+    }
+    beginDrawingTransaction();
+    replaceDrawingLayerWithCanvas(canvas);
+    commitDrawingTransaction(true);
+    refreshAfterSourceCanvasEdit();
+}
+
+void ImageInputController::removeSourceImageColor()
+{
+    if (!framedSource_) return;
+    if (sourceStrokeActive_) endSourceStroke();
+    core::RgbImage canvas = *framedSource_;
+    bool changed = false;
+    const std::size_t channels = core::bytesPerPixel(canvas.pixelFormat());
+    const int firstX = hasSourceSelection() ? sourceSelectionX_ : 0;
+    const int firstY = hasSourceSelection() ? sourceSelectionY_ : 0;
+    const int lastX = hasSourceSelection()
+        ? sourceSelectionX_ + sourceSelectionWidth_ : static_cast<int>(canvas.width());
+    const int lastY = hasSourceSelection()
+        ? sourceSelectionY_ + sourceSelectionHeight_ : static_cast<int>(canvas.height());
+    for (int y = firstY; y < lastY; ++y) {
+        auto row = canvas.row(static_cast<std::uint32_t>(y));
+        for (int x = firstX; x < lastX; ++x) {
+            const std::size_t offset = static_cast<std::size_t>(x) * channels;
+            const auto gray = static_cast<std::uint8_t>((
+                77U * row[offset] + 150U * row[offset + 1U]
+                + 29U * row[offset + 2U] + 128U) >> 8U);
+            changed = changed || row[offset] != gray
+                || row[offset + 1U] != gray || row[offset + 2U] != gray;
+            row[offset] = gray;
+            row[offset + 1U] = gray;
+            row[offset + 2U] = gray;
+        }
+    }
+    if (!changed) return;
+    beginDrawingTransaction();
+    replaceDrawingLayerWithCanvas(canvas);
+    commitDrawingTransaction(true);
+    refreshAfterSourceCanvasEdit();
+}
+
+void ImageInputController::clearSourceImage()
+{
+    if (!framedSource_) return;
+    core::RgbImage canvas = *framedSource_;
+    const std::size_t channels = core::bytesPerPixel(canvas.pixelFormat());
+    for (std::uint32_t y = 0; y < canvas.height(); ++y) {
+        auto row = canvas.row(y);
+        for (std::uint32_t x = 0; x < canvas.width(); ++x) {
+            const std::size_t offset = static_cast<std::size_t>(x) * channels;
+            row[offset] = backgroundColor_.red;
+            row[offset + 1U] = backgroundColor_.green;
+            row[offset + 2U] = backgroundColor_.blue;
+            if (channels == 4U) row[offset + 3U] = 255U;
+        }
+    }
+    beginDrawingTransaction();
+    replaceDrawingLayerWithCanvas(canvas);
+    commitDrawingTransaction(true);
+    refreshAfterSourceCanvasEdit();
+}
+
+void ImageInputController::setSourceSelection(double fromNormalizedX,
+                                              double fromNormalizedY,
+                                              double toNormalizedX,
+                                              double toNormalizedY)
+{
+    if (!framedSource_) return;
+    cancelSourceFloating();
+    const int canvasWidth = static_cast<int>(framedSource_->width());
+    const int canvasHeight = static_cast<int>(framedSource_->height());
+    const auto pixel = [](double normalized, int extent) {
+        return std::clamp(static_cast<int>(std::floor(
+                              std::clamp(normalized, 0.0, 1.0) * extent)),
+                          0, extent - 1);
+    };
+    const int firstX = pixel(fromNormalizedX, canvasWidth);
+    const int firstY = pixel(fromNormalizedY, canvasHeight);
+    const int secondX = pixel(toNormalizedX, canvasWidth);
+    const int secondY = pixel(toNormalizedY, canvasHeight);
+    sourceSelectionX_ = std::min(firstX, secondX);
+    sourceSelectionY_ = std::min(firstY, secondY);
+    sourceSelectionWidth_ = std::abs(secondX - firstX) + 1;
+    sourceSelectionHeight_ = std::abs(secondY - firstY) + 1;
+    statusMessage_ = tr("Selected %1×%2 source pixels.")
+                         .arg(sourceSelectionWidth_)
+                         .arg(sourceSelectionHeight_);
+    emit sourceSelectionChanged();
+    emit statusChanged();
+}
+
+void ImageInputController::clearSourceSelection()
+{
+    const bool hadSelection = hasSourceSelection();
+    cancelSourceFloating();
+    sourceSelectionX_ = 0;
+    sourceSelectionY_ = 0;
+    sourceSelectionWidth_ = 0;
+    sourceSelectionHeight_ = 0;
+    if (hadSelection) emit sourceSelectionChanged();
+}
+
+void ImageInputController::beginMoveSourceSelection()
+{
+    if (!framedSource_ || !hasSourceSelection()) {
+        errorMessage_ = tr("Select an area of the source image before moving it.");
+        emit statusChanged();
+        return;
+    }
+    auto region = copySourceRegion(sourceSelectionX_, sourceSelectionY_,
+                                   sourceSelectionWidth_, sourceSelectionHeight_);
+    if (!region) {
+        errorMessage_ = tr("The selected source-image area could not be moved.");
+        emit statusChanged();
+        return;
+    }
+    beginSourceFloating(std::move(region), true);
+}
+
+void ImageInputController::placeSourceFloating(double normalizedCenterX,
+                                               double normalizedCenterY)
+{
+    if (!framedSource_ || !sourceFloatingImage_) return;
+    const int canvasWidth = static_cast<int>(framedSource_->width());
+    const int canvasHeight = static_cast<int>(framedSource_->height());
+    const int floatingWidth = static_cast<int>(sourceFloatingImage_->width());
+    const int floatingHeight = static_cast<int>(sourceFloatingImage_->height());
+    const double anchorX = std::clamp(normalizedCenterX, 0.0, 1.0) * canvasWidth;
+    const double anchorY = std::clamp(normalizedCenterY, 0.0, 1.0) * canvasHeight;
+    const int destinationX = std::clamp(
+        qRound(anchorX - (sourceFloatingTopLeft_ ? 0.0 : floatingWidth / 2.0)),
+        0, std::max(0, canvasWidth - floatingWidth));
+    const int destinationY = std::clamp(
+        qRound(anchorY - (sourceFloatingTopLeft_ ? 0.0 : floatingHeight / 2.0)),
+        0, std::max(0, canvasHeight - floatingHeight));
+    if (sourceFloatingMove_ && destinationX == sourceFloatingSourceX_
+        && destinationY == sourceFloatingSourceY_) {
+        cancelSourceFloating();
+        return;
+    }
+
+    core::RgbImage canvas = *framedSource_;
+    const auto floatingImage = sourceFloatingImage_;
+    const bool movingSelection = sourceFloatingMove_;
+    const std::size_t destinationChannels = core::bytesPerPixel(canvas.pixelFormat());
+    if (movingSelection) {
+        for (int y = 0; y < floatingHeight; ++y) {
+            auto row = canvas.row(static_cast<std::uint32_t>(sourceFloatingSourceY_ + y));
+            for (int x = 0; x < floatingWidth; ++x) {
+                const std::size_t offset = static_cast<std::size_t>(
+                    sourceFloatingSourceX_ + x) * destinationChannels;
+                row[offset] = backgroundColor_.red;
+                row[offset + 1U] = backgroundColor_.green;
+                row[offset + 2U] = backgroundColor_.blue;
+                if (destinationChannels == 4U) row[offset + 3U] = 255U;
+            }
+        }
+    }
+    const std::size_t sourceChannels = core::bytesPerPixel(floatingImage->pixelFormat());
+    for (int y = 0; y < floatingHeight; ++y) {
+        const auto sourceRow = floatingImage->row(static_cast<std::uint32_t>(y));
+        auto destinationRow = canvas.row(static_cast<std::uint32_t>(destinationY + y));
+        for (int x = 0; x < floatingWidth; ++x) {
+            const std::size_t sourceOffset = static_cast<std::size_t>(x) * sourceChannels;
+            const std::size_t destinationOffset = static_cast<std::size_t>(
+                destinationX + x) * destinationChannels;
+            const int alpha = sourceChannels == 4U ? sourceRow[sourceOffset + 3U] : 255;
+            if (alpha == 0) continue;
+            for (std::size_t channel = 0; channel < 3U; ++channel) {
+                destinationRow[destinationOffset + channel] = alpha == 255
+                    ? sourceRow[sourceOffset + channel]
+                    : static_cast<std::uint8_t>((sourceRow[sourceOffset + channel] * alpha
+                        + destinationRow[destinationOffset + channel] * (255 - alpha)
+                        + 127) / 255);
+            }
+            if (destinationChannels == 4U) destinationRow[destinationOffset + 3U] = 255U;
+        }
+    }
+
+    beginDrawingTransaction();
+    replaceDrawingLayerWithCanvas(canvas);
+    commitDrawingTransaction(true);
+    sourceSelectionX_ = destinationX;
+    sourceSelectionY_ = destinationY;
+    sourceSelectionWidth_ = floatingWidth;
+    sourceSelectionHeight_ = floatingHeight;
+    sourceFloatingImage_.reset();
+    sourceFloatingPreview_.clear();
+    sourceFloatingMove_ = false;
+    sourceFloatingTopLeft_ = false;
+    sourceFloatingSourceX_ = 0;
+    sourceFloatingSourceY_ = 0;
+    emit sourceFloatingChanged();
+    emit sourceSelectionChanged();
+    refreshAfterSourceCanvasEdit();
+}
+
+void ImageInputController::cancelSourceFloating()
+{
+    if (!sourceFloatingImage_) return;
+    sourceFloatingImage_.reset();
+    sourceFloatingPreview_.clear();
+    sourceFloatingMove_ = false;
+    sourceFloatingTopLeft_ = false;
+    sourceFloatingSourceX_ = 0;
+    sourceFloatingSourceY_ = 0;
+    statusMessage_ = tr("Source-image placement canceled.");
+    emit sourceFloatingChanged();
+    emit statusChanged();
 }
 
 void ImageInputController::paintDrawingPixel(int x,
@@ -2656,6 +3034,7 @@ void ImageInputController::reloadScreenImageFonts()
             {QStringLiteral("preview"), QString{}},
         });
     }
+    sourceImageFonts_ = fonts;
 
     QDirIterator iterator(tiArtistFontsPath_, QDir::Files, QDirIterator::Subdirectories);
     QVariantList artistFonts;
@@ -2769,6 +3148,48 @@ std::shared_ptr<core::RgbImage> ImageInputController::renderScreenImageText(
     return image;
 }
 
+std::shared_ptr<core::RgbImage> ImageInputController::renderSourceText(
+    const QString& text, const QString& fontKey, int pixelSize, QString* error) const
+{
+    if (text.isEmpty()) {
+        if (error) *error = tr("Enter text before placing it on the source image.");
+        return {};
+    }
+    if (!fontKey.startsWith(QStringLiteral("system:"))) {
+        if (error) *error = tr("Source-image text supports installed system fonts only.");
+        return {};
+    }
+    pixelSize = std::clamp(pixelSize, 1, 192);
+    QFont font(fontKey.sliced(7));
+    font.setPixelSize(pixelSize);
+    const QFontMetrics metrics(font);
+    const QStringList lines = text.split(QLatin1Char('\n'));
+    int width = 1;
+    for (const QString& line : lines)
+        width = std::max(width, metrics.horizontalAdvance(line));
+    const int height = std::max(1, static_cast<int>(lines.size()) * metrics.lineSpacing());
+    QImage rendered(width, height, QImage::Format_RGBA8888);
+    rendered.fill(Qt::transparent);
+    QPainter painter(&rendered);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+    painter.setFont(font);
+    painter.setPen(foregroundColor());
+    for (int lineIndex = 0; lineIndex < lines.size(); ++lineIndex) {
+        painter.drawText(0, lineIndex * metrics.lineSpacing() + metrics.ascent(),
+                         lines[lineIndex]);
+    }
+    const int maximumWidth = framedSource_ ? static_cast<int>(framedSource_->width()) : 256;
+    const int maximumHeight = framedSource_ ? static_cast<int>(framedSource_->height()) : 192;
+    if (rendered.isNull() || rendered.width() > maximumWidth
+        || rendered.height() > maximumHeight) {
+        if (error) *error = tr("The rendered text is larger than the source canvas.");
+        return {};
+    }
+    auto image = coreImage(rendered);
+    if (!image && error) *error = tr("The source text could not be rendered as pixels.");
+    return image;
+}
+
 void ImageInputController::prepareScreenImageText(const QString& text,
                                                   const QString& fontKey,
                                                   int pixelSize)
@@ -2783,6 +3204,23 @@ void ImageInputController::prepareScreenImageText(const QString& text,
     }
     beginScreenImageFloating(std::move(rendered), false, true);
     statusMessage_ = tr("Text ready. Click its starting point on the Screen Image; Escape cancels.");
+    emit statusChanged();
+}
+
+void ImageInputController::prepareSourceText(const QString& text,
+                                             const QString& fontKey,
+                                             int pixelSize)
+{
+    if (!framedSource_) return;
+    QString renderError;
+    auto rendered = renderSourceText(text, fontKey, pixelSize, &renderError);
+    if (!rendered) {
+        errorMessage_ = renderError;
+        emit statusChanged();
+        return;
+    }
+    beginSourceFloating(std::move(rendered), false, true);
+    statusMessage_ = tr("Text ready. Click its starting point on the source image; Escape cancels.");
     emit statusChanged();
 }
 
@@ -2811,7 +3249,7 @@ void ImageInputController::loadScreenImageClipArt(const QUrl& url)
 
 std::shared_ptr<core::RgbImage> ImageInputController::renderScreenImageClipArt(
     int width, int height, int colorMode, bool transparentBackground,
-    bool useSelectedColors, QString* error) const
+    bool useSelectedColors, bool sourceColors, QString* error) const
 {
     if (!screenImageClipArtSourceImage_) {
         if (error) *error = tr("Choose a Slide/ClipArt image first.");
@@ -2830,8 +3268,10 @@ std::shared_ptr<core::RgbImage> ImageInputController::renderScreenImageClipArt(
         return {};
     }
     const QColor keyColor = image.pixelColor(0, 0);
-    const QColor foreground = screenImageForegroundColor();
-    const QColor background = screenImageBackgroundColor();
+    const QColor foreground = sourceColors ? foregroundColor()
+                                           : screenImageForegroundColor();
+    const QColor background = sourceColors ? backgroundColor()
+                                           : screenImageBackgroundColor();
     for (int y = 0; y < image.height(); ++y) {
         for (int x = 0; x < image.width(); ++x) {
             const QColor source = image.pixelColor(x, y);
@@ -2883,7 +3323,7 @@ QString ImageInputController::screenImageClipArtPreview(
     bool useSelectedColors) const
 {
     const auto preview = renderScreenImageClipArt(
-        width, height, colorMode, transparentBackground, useSelectedColors);
+        width, height, colorMode, transparentBackground, useSelectedColors, false);
     return preview ? dataUrl(*preview) : QString{};
 }
 
@@ -2895,7 +3335,7 @@ void ImageInputController::prepareScreenImageClipArt(
     QString renderError;
     auto rendered = renderScreenImageClipArt(
         width, height, colorMode, transparentBackground, useSelectedColors,
-        &renderError);
+        false, &renderError);
     if (!rendered) {
         errorMessage_ = renderError;
         emit statusChanged();
@@ -2904,6 +3344,104 @@ void ImageInputController::prepareScreenImageClipArt(
     beginScreenImageFloating(std::move(rendered), false);
     statusMessage_ = tr("Slide/ClipArt ready. Click the Screen Image to place it; Escape cancels.");
     emit statusChanged();
+}
+
+QString ImageInputController::sourceImageClipArtPreview(
+    int width, int height, int colorMode, bool transparentBackground,
+    bool useSelectedColors) const
+{
+    const auto preview = renderScreenImageClipArt(
+        width, height, colorMode, transparentBackground, useSelectedColors, true);
+    return preview ? dataUrl(*preview) : QString{};
+}
+
+void ImageInputController::prepareSourceImageClipArt(
+    int width, int height, int colorMode, bool transparentBackground,
+    bool useSelectedColors)
+{
+    if (!framedSource_) return;
+    QString renderError;
+    auto rendered = renderScreenImageClipArt(
+        width, height, colorMode, transparentBackground, useSelectedColors,
+        true, &renderError);
+    if (!rendered) {
+        errorMessage_ = renderError;
+        emit statusChanged();
+        return;
+    }
+    beginSourceFloating(std::move(rendered), false);
+    statusMessage_ = tr("ClipArt ready. Click the source image to place it; Escape cancels.");
+    emit statusChanged();
+}
+
+void ImageInputController::copySourceImage()
+{
+    if (!framedSource_) return;
+    auto* clipboard = QGuiApplication::clipboard();
+    if (clipboard == nullptr) return;
+    if (hasSourceSelection()) {
+        const auto region = copySourceRegion(
+            sourceSelectionX_, sourceSelectionY_,
+            sourceSelectionWidth_, sourceSelectionHeight_);
+        if (!region) return;
+        auto* mimeData = new QMimeData;
+        mimeData->setImageData(imageio::toQImage(*region));
+        mimeData->setData(sourceImageSelectionMimeType, QByteArrayLiteral("1"));
+        clipboard->setMimeData(mimeData);
+        statusMessage_ = tr("Source-image selection copied to the clipboard.");
+    } else {
+        clipboard->setImage(imageio::toQImage(*framedSource_));
+        statusMessage_ = tr("Source image copied to the clipboard.");
+    }
+    errorMessage_.clear();
+    emit statusChanged();
+}
+
+void ImageInputController::pasteSourceImage()
+{
+    if (!framedSource_) return;
+    const QClipboard* clipboard = QGuiApplication::clipboard();
+    if (clipboard == nullptr || clipboard->mimeData() == nullptr
+        || !clipboard->mimeData()->hasImage()) {
+        errorMessage_ = tr("The clipboard does not contain an image.");
+        emit statusChanged();
+        return;
+    }
+    const bool selectionClipboard = clipboard->mimeData()->hasFormat(
+        sourceImageSelectionMimeType)
+        || clipboard->mimeData()->hasFormat(screenImageSelectionMimeType);
+    auto loaded = imageio::loadClipboardImage(clipboard->image());
+    if (!loaded) {
+        errorMessage_ = loaded.error;
+        emit statusChanged();
+        return;
+    }
+    if (selectionClipboard) {
+        beginSourceFloating(
+            std::make_shared<core::RgbImage>(std::move(*loaded.image)), false);
+        return;
+    }
+    const core::ImageTransformOptions options{
+        .targetWidth = framedSource_->width(),
+        .targetHeight = framedSource_->height(),
+        .filter = core::ScalingFilter::Bilinear,
+        .fillMode = core::ImageFillMode::Fit,
+        .backgroundRed = backgroundColor_.red,
+        .backgroundGreen = backgroundColor_.green,
+        .backgroundBlue = backgroundColor_.blue,
+    };
+    auto transformed = core::transformImage(*loaded.image, options);
+    if (!transformed) {
+        errorMessage_ = tr("The clipboard image could not be fitted to the source canvas.");
+        emit statusChanged();
+        return;
+    }
+    beginDrawingTransaction();
+    replaceDrawingLayerWithCanvas(*transformed.image);
+    commitDrawingTransaction(true);
+    clearSourceSelection();
+    errorMessage_.clear();
+    refreshAfterSourceCanvasEdit();
 }
 
 void ImageInputController::copyScreenImage()

@@ -46,8 +46,45 @@ ThemedFrame {
     readonly property color backgroundPaintColor: screenImageTools
                                                   ? imageInput.screenImageBackgroundColor
                                                   : imageInput.backgroundColor
+    readonly property bool hasSelection: screenImageTools
+                                         ? imageInput.hasScreenImageSelection
+                                         : imageInput.hasSourceSelection
+    readonly property int selectionX: screenImageTools
+                                      ? imageInput.screenImageSelectionX
+                                      : imageInput.sourceSelectionX
+    readonly property int selectionY: screenImageTools
+                                      ? imageInput.screenImageSelectionY
+                                      : imageInput.sourceSelectionY
+    readonly property int selectionWidth: screenImageTools
+                                          ? imageInput.screenImageSelectionWidth
+                                          : imageInput.sourceSelectionWidth
+    readonly property int selectionHeight: screenImageTools
+                                           ? imageInput.screenImageSelectionHeight
+                                           : imageInput.sourceSelectionHeight
+    readonly property bool floating: screenImageTools
+                                     ? imageInput.screenImageFloating
+                                     : imageInput.sourceFloating
+    readonly property bool floatingMove: screenImageTools
+                                         ? imageInput.screenImageFloatingMove
+                                         : imageInput.sourceFloatingMove
+    readonly property int floatingWidth: screenImageTools
+                                         ? imageInput.screenImageFloatingWidth
+                                         : imageInput.sourceFloatingWidth
+    readonly property int floatingHeight: screenImageTools
+                                          ? imageInput.screenImageFloatingHeight
+                                          : imageInput.sourceFloatingHeight
+    readonly property string floatingPreview: screenImageTools
+                                              ? imageInput.screenImageFloatingPreview
+                                              : imageInput.sourceFloatingPreview
+    readonly property bool floatingTopLeft: screenImageTools
+                                           ? imageInput.screenImageFloatingTopLeft
+                                           : imageInput.sourceFloatingTopLeft
+    readonly property var availableFonts: screenImageTools
+                                          ? imageInput.screenImageFonts
+                                          : imageInput.sourceImageFonts
     signal fileDropped(url fileUrl)
     signal colorPointPicked(real normalizedX, real normalizedY, bool foreground)
+    signal editingSurfaceActivated(bool screenImage)
 
     property bool fitToView: true
     property real manualZoom: 1.0
@@ -70,6 +107,7 @@ ThemedFrame {
     }
 
     function chooseActiveColor(color) {
+        root.editingSurfaceActivated(root.screenImageTools)
         if (root.screenImageTools) {
             if (root.activeColor === 0)
                 imageInput.screenImageForegroundColor = color
@@ -94,16 +132,20 @@ ThemedFrame {
     }
 
     function finishKLine() {
+        if (root.editingTools)
+            root.editingSurfaceActivated(root.screenImageTools)
         finishMultiLine()
     }
 
     function selectDrawingTool(tool) {
+        root.editingSurfaceActivated(root.screenImageTools)
         if ((root.drawingTool === 6 || root.drawingTool === 7)
                 && tool !== root.drawingTool)
             root.finishMultiLine()
-        if (root.screenImageTools && imageInput.screenImageFloating
-                && tool !== 10)
-            imageInput.cancelScreenImageFloating()
+        if (root.floating && tool !== 10) {
+            if (root.screenImageTools) imageInput.cancelScreenImageFloating()
+            else imageInput.cancelSourceFloating()
+        }
         root.drawingTool = tool
         root.pickingColor = false
     }
@@ -111,16 +153,14 @@ ThemedFrame {
     function positionFloatingAtSelectionOrCenter() {
         const imageWidth = Math.max(1, preview.sourceSize.width)
         const imageHeight = Math.max(1, preview.sourceSize.height)
-        if (imageInput.hasScreenImageSelection) {
+        if (root.hasSelection) {
             drawingMouseArea.floatingCenterX =
-                (imageInput.screenImageSelectionX
-                 + (imageInput.screenImageFloatingTopLeft
-                    ? 0 : imageInput.screenImageSelectionWidth / 2))
+                (root.selectionX
+                 + (root.floatingTopLeft ? 0 : root.selectionWidth / 2))
                 * preview.width / imageWidth
             drawingMouseArea.floatingCenterY =
-                (imageInput.screenImageSelectionY
-                 + (imageInput.screenImageFloatingTopLeft
-                    ? 0 : imageInput.screenImageSelectionHeight / 2))
+                (root.selectionY
+                 + (root.floatingTopLeft ? 0 : root.selectionHeight / 2))
                 * preview.height / imageHeight
         } else {
             drawingMouseArea.floatingCenterX = preview.width / 2
@@ -133,9 +173,12 @@ ThemedFrame {
         if (!root.screenImageTools || !root.snapDrawingToCharacterBounds
                 || tool < 3)
             return root.drawingDiameter
-        // A brush wider than the cell cannot remain inside a single snapped
-        // 8x8 bound. Soft brushes reserve one blended fringe pixel per side.
-        return Math.min(root.drawingDiameter, root.hardDrawingEdges ? 8 : 7)
+        // A brush wider than the target character cell cannot remain inside it.
+        const cellSize = Math.min(editorProject.characterPatternWidth,
+                                  editorProject.characterPatternHeight)
+        return Math.min(root.drawingDiameter,
+                        root.hardDrawingEdges ? cellSize
+                                              : Math.max(1, cellSize - 1))
     }
 
     function characterSnapInset(tool) {
@@ -153,9 +196,11 @@ ThemedFrame {
                                              localY * imageHeight
                                              / Math.max(1, preview.height)))
         const inset = characterSnapInset(tool)
-        return Qt.point((Math.floor(sourceX / 8) * 8 + inset)
+        const cellWidth = editorProject.characterPatternWidth
+        const cellHeight = editorProject.characterPatternHeight
+        return Qt.point((Math.floor(sourceX / cellWidth) * cellWidth + inset)
                             * preview.width / imageWidth,
-                        (Math.floor(sourceY / 8) * 8 + inset)
+                        (Math.floor(sourceY / cellHeight) * cellHeight + inset)
                             * preview.height / imageHeight)
     }
 
@@ -169,12 +214,41 @@ ThemedFrame {
                                              localY * imageHeight
                                              / Math.max(1, preview.height)))
         const inset = characterSnapInset(tool)
+        const cellWidth = editorProject.characterPatternWidth
+        const cellHeight = editorProject.characterPatternHeight
         return Qt.point(Math.min(imageWidth - inset,
-                                 (Math.floor(sourceX / 8) + 1) * 8 - inset)
+                                 (Math.floor(sourceX / cellWidth) + 1)
+                                 * cellWidth - inset)
                             * preview.width / imageWidth,
                         Math.min(imageHeight - inset,
-                                 (Math.floor(sourceY / 8) + 1) * 8 - inset)
+                                 (Math.floor(sourceY / cellHeight) + 1)
+                                 * cellHeight - inset)
                             * preview.height / imageHeight)
+    }
+
+    function characterSelectionPoint(localX, localY, endPoint) {
+        if (!root.screenImageTools || !root.snapDrawingToCharacterBounds)
+            return Qt.point(localX, localY)
+        const imageWidth = Math.max(1, preview.sourceSize.width)
+        const imageHeight = Math.max(1, preview.sourceSize.height)
+        const sourceX = Math.max(0, Math.min(imageWidth - 0.001,
+                                             localX * imageWidth
+                                             / Math.max(1, preview.width)))
+        const sourceY = Math.max(0, Math.min(imageHeight - 0.001,
+                                             localY * imageHeight
+                                             / Math.max(1, preview.height)))
+        const cellWidth = editorProject.characterPatternWidth
+        const cellHeight = editorProject.characterPatternHeight
+        const pixelX = endPoint
+            ? Math.min(imageWidth - 1,
+                       (Math.floor(sourceX / cellWidth) + 1) * cellWidth - 1)
+            : Math.floor(sourceX / cellWidth) * cellWidth
+        const pixelY = endPoint
+            ? Math.min(imageHeight - 1,
+                       (Math.floor(sourceY / cellHeight) + 1) * cellHeight - 1)
+            : Math.floor(sourceY / cellHeight) * cellHeight
+        return Qt.point(pixelX * preview.width / imageWidth,
+                        pixelY * preview.height / imageHeight)
     }
 
     function drawingStartPoint(localX, localY, tool) {
@@ -202,6 +276,17 @@ ThemedFrame {
                 root.drawingTool = imageInput.hasScreenImageSelection ? 9 : 0
             }
         }
+        function onSourceFloatingChanged() {
+            if (!root.sourceTools)
+                return
+            if (imageInput.sourceFloating) {
+                root.drawingTool = 10
+                root.pickingColor = false
+                root.positionFloatingAtSelectionOrCenter()
+            } else if (root.drawingTool === 10) {
+                root.drawingTool = imageInput.hasSourceSelection ? 9 : 0
+            }
+        }
     }
 
     Dialog {
@@ -214,10 +299,15 @@ ThemedFrame {
         onAccepted: {
             if (fontCombo.currentIndex < 0)
                 return
-            imageInput.prepareScreenImageText(
-                typeText.text,
-                imageInput.screenImageFonts[fontCombo.currentIndex].key,
-                typeSize.value)
+            if (root.screenImageTools) {
+                imageInput.prepareScreenImageText(
+                    typeText.text, root.availableFonts[fontCombo.currentIndex].key,
+                    typeSize.value)
+            } else {
+                imageInput.prepareSourceText(
+                    typeText.text, root.availableFonts[fontCombo.currentIndex].key,
+                    typeSize.value)
+            }
         }
 
         ColumnLayout {
@@ -242,7 +332,7 @@ ThemedFrame {
                     id: fontCombo
                     objectName: root.objectName + "TypeFontComboBox"
                     Layout.fillWidth: true
-                    model: imageInput.screenImageFonts
+                    model: root.availableFonts
                     textRole: "name"
                     valueRole: "key"
                     popup.height: Math.min(420, popup.contentItem.implicitHeight)
@@ -309,9 +399,9 @@ ThemedFrame {
                     text: typeText.text.length > 0 ? typeText.text : qsTr("Text preview")
                     color: root.foregroundPaintColor
                     font.family: fontCombo.currentIndex >= 0
-                                 && imageInput.screenImageFonts[fontCombo.currentIndex].kind
+                                 && root.availableFonts[fontCombo.currentIndex].kind
                                     === "system"
-                                 ? imageInput.screenImageFonts[fontCombo.currentIndex].family
+                                 ? root.availableFonts[fontCombo.currentIndex].family
                                  : "monospace"
                     font.pixelSize: Math.min(typeSize.value, 48)
                     elide: Text.ElideRight
@@ -320,6 +410,7 @@ ThemedFrame {
             }
 
             RowLayout {
+                visible: root.screenImageTools
                 Layout.fillWidth: true
                 Label {
                     Layout.fillWidth: true
@@ -353,11 +444,16 @@ ThemedFrame {
     FileDialog {
         id: clipArtFileDialog
         title: qsTr("Choose Slide/ClipArt")
-        nameFilters: [
-            qsTr("Images (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp *.pcx)"),
-            qsTr("TI and retro art (*.tiap *.tiac *.tiam *_P *_C *_M *.sc2 *.pc *.pp *.hgr *.hgrh)"),
-            qsTr("All files (*)")
-        ]
+        nameFilters: root.screenImageTools
+                     ? [
+                         qsTr("Images (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp *.pcx)"),
+                         qsTr("TI and retro art (*.tiap *.tiac *.tiam *_P *_C *_M *.sc2 *.pc *.pp *.hgr *.hgrh)"),
+                         qsTr("All files (*)")
+                       ]
+                     : [
+                         qsTr("Images (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp *.pcx)"),
+                         qsTr("All files (*)")
+                       ]
         onAccepted: imageInput.loadScreenImageClipArt(selectedFile)
     }
 
@@ -383,14 +479,26 @@ ThemedFrame {
             refreshPreview()
         }
         function refreshPreview() {
-            processedPreview = imageInput.screenImageClipArtPreview(
-                clipWidth.value, clipHeight.value, clipColorMode.currentIndex,
-                clipTransparent.checked, clipUseColors.checked)
+            processedPreview = root.screenImageTools
+                ? imageInput.screenImageClipArtPreview(
+                    clipWidth.value, clipHeight.value, clipColorMode.currentIndex,
+                    clipTransparent.checked, clipUseColors.checked)
+                : imageInput.sourceImageClipArtPreview(
+                    clipWidth.value, clipHeight.value, clipColorMode.currentIndex,
+                    clipTransparent.checked, clipUseColors.checked)
         }
         onOpened: refreshPreview()
-        onAccepted: imageInput.prepareScreenImageClipArt(
-            clipWidth.value, clipHeight.value, clipColorMode.currentIndex,
-            clipTransparent.checked, clipUseColors.checked)
+        onAccepted: {
+            if (root.screenImageTools) {
+                imageInput.prepareScreenImageClipArt(
+                    clipWidth.value, clipHeight.value, clipColorMode.currentIndex,
+                    clipTransparent.checked, clipUseColors.checked)
+            } else {
+                imageInput.prepareSourceImageClipArt(
+                    clipWidth.value, clipHeight.value, clipColorMode.currentIndex,
+                    clipTransparent.checked, clipUseColors.checked)
+            }
+        }
 
         Connections {
             target: imageInput
@@ -399,6 +507,10 @@ ThemedFrame {
             }
             function onScreenImageColorsChanged() {
                 if (clipArtDialog.opened)
+                    clipArtDialog.refreshPreview()
+            }
+            function onSettingsChanged() {
+                if (root.sourceTools && clipArtDialog.opened)
                     clipArtDialog.refreshPreview()
             }
         }
@@ -1412,81 +1524,99 @@ ThemedFrame {
                     }
                 }
                 ToolSeparator {
-                    visible: root.screenImageTools
+                    visible: root.editingTools
                     width: visible ? 5 : 0
                     height: 26
                 }
                 ToolButton {
                     objectName: root.objectName + "MirrorButton"
-                    visible: root.screenImageTools
+                    visible: root.editingTools
                     implicitWidth: 26
                     implicitHeight: 26
                     text: qsTr("↔")
                     enabled: root.editableContentAvailable
-                    Accessible.name: qsTr("Mirror Screen Image horizontally")
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Mirror Screen Image horizontally")
+                                     : qsTr("Mirror source image horizontally")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
                     onClicked: {
                         root.finishKLine()
-                        imageInput.mirrorScreenImage()
+                        if (root.screenImageTools) imageInput.mirrorScreenImage()
+                        else imageInput.mirrorSourceImage()
                     }
                 }
                 ToolButton {
                     objectName: root.objectName + "FlipButton"
-                    visible: root.screenImageTools
+                    visible: root.editingTools
                     implicitWidth: 26
                     implicitHeight: 26
                     text: qsTr("↕")
                     enabled: root.editableContentAvailable
-                    Accessible.name: qsTr("Flip Screen Image vertically")
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Flip Screen Image vertically")
+                                     : qsTr("Flip source image vertically")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
                     onClicked: {
                         root.finishKLine()
-                        imageInput.flipScreenImage()
+                        if (root.screenImageTools) imageInput.flipScreenImage()
+                        else imageInput.flipSourceImage()
                     }
                 }
                 ToolButton {
                     objectName: root.objectName + "InvertButton"
-                    visible: root.screenImageTools
+                    visible: root.editingTools
                     implicitWidth: 26
                     implicitHeight: 26
                     text: qsTr("◐")
                     enabled: root.editableContentAvailable
-                    Accessible.name: qsTr("Invert Screen Image colors")
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Invert Screen Image colors")
+                                     : qsTr("Invert source image colors")
                     ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Invert colors inside the selection, or the whole Screen Image when no selection is active")
+                    ToolTip.text: root.screenImageTools
+                                  ? qsTr("Invert colors inside the selection, or the whole Screen Image when no selection is active")
+                                  : qsTr("Invert colors inside the selection, or the whole source image when no selection is active")
                     onClicked: {
                         root.finishKLine()
-                        imageInput.invertScreenImage()
+                        if (root.screenImageTools) imageInput.invertScreenImage()
+                        else imageInput.invertSourceImage()
                     }
                 }
                 ToolButton {
                     objectName: root.objectName + "RemoveColorButton"
-                    visible: root.screenImageTools
+                    visible: root.editingTools
                     implicitWidth: 26
                     implicitHeight: 26
                     text: qsTr("G")
                     font.bold: true
                     enabled: root.editableContentAvailable
-                    Accessible.name: qsTr("Remove color from Screen Image")
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Remove color from Screen Image")
+                                     : qsTr("Remove color from source image")
                     ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Convert the selection to grayscale, or the whole Screen Image when no selection is active")
+                    ToolTip.text: root.screenImageTools
+                                  ? qsTr("Convert the selection to grayscale, or the whole Screen Image when no selection is active")
+                                  : qsTr("Convert the selection to grayscale, or the whole source image when no selection is active")
                     onClicked: {
                         root.finishKLine()
-                        imageInput.removeScreenImageColor()
+                        if (root.screenImageTools) imageInput.removeScreenImageColor()
+                        else imageInput.removeSourceImageColor()
                     }
                 }
                 ToolButton {
                     id: typeToolButton
                     objectName: root.objectName + "TypeToolButton"
-                    visible: root.screenImageTools
+                    visible: root.editingTools
                     implicitWidth: 26
                     implicitHeight: 26
                     text: qsTr("T")
                     enabled: root.editableContentAvailable
                     font.bold: true
-                    Accessible.name: qsTr("Place text on the Screen Image")
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Place text on the Screen Image")
+                                     : qsTr("Place system-font text on the source image")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
                     onClicked: {
@@ -1499,7 +1629,7 @@ ThemedFrame {
                 ToolButton {
                     id: clipArtToolButton
                     objectName: root.objectName + "ClipArtToolButton"
-                    visible: root.screenImageTools
+                    visible: root.editingTools
                     implicitWidth: 26
                     implicitHeight: 26
                     text: qsTr("▧")
@@ -1515,14 +1645,16 @@ ThemedFrame {
                 ToolButton {
                     id: selectionButton
                     objectName: root.objectName + "SelectionButton"
-                    visible: root.screenImageTools
+                    visible: root.editingTools
                     implicitWidth: 26
                     implicitHeight: 26
                     text: qsTr("▱")
                     checkable: true
                     checked: root.drawingTool === 9
                     enabled: root.editableContentAvailable
-                    Accessible.name: qsTr("Select a rectangular Screen Image area")
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Select a rectangular Screen Image area")
+                                     : qsTr("Select a rectangular source-image area")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name + qsTr("; Escape clears the selection")
                     onClicked: root.selectDrawingTool(9)
@@ -1530,23 +1662,27 @@ ThemedFrame {
                 ToolButton {
                     id: moveSelectionButton
                     objectName: root.objectName + "MoveSelectionButton"
-                    visible: root.screenImageTools
+                    visible: root.editingTools
                     implicitWidth: 26
                     implicitHeight: 26
                     text: qsTr("✥")
                     checkable: true
-                    checked: root.drawingTool === 10
-                             && imageInput.screenImageFloatingMove
+                    checked: root.drawingTool === 10 && root.floatingMove
                     enabled: root.editableContentAvailable
-                             && imageInput.hasScreenImageSelection
-                    Accessible.name: qsTr("Move the selected Screen Image area")
+                             && root.hasSelection
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Move the selected Screen Image area")
+                                     : qsTr("Move the selected source-image area")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
                                  + qsTr("; click to place or press Escape to cancel")
                     onClicked: {
                         root.finishKLine()
-                        imageInput.beginMoveScreenImageSelection()
-                        if (imageInput.screenImageFloating) {
+                        if (root.screenImageTools)
+                            imageInput.beginMoveScreenImageSelection()
+                        else
+                            imageInput.beginMoveSourceSelection()
+                        if (root.floating) {
                             root.drawingTool = 10
                             root.pickingColor = false
                             root.positionFloatingAtSelectionOrCenter()
@@ -1555,33 +1691,39 @@ ThemedFrame {
                 }
                 ToolButton {
                     objectName: root.objectName + "CopyButton"
-                    visible: root.screenImageTools
+                    visible: root.editingTools
                     implicitWidth: 26
                     implicitHeight: 26
                     text: qsTr("⧉")
                     enabled: root.editableContentAvailable
-                    Accessible.name: qsTr("Copy Screen Image")
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Copy Screen Image")
+                                     : qsTr("Copy source image")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name + qsTr(" (Ctrl+C)")
                     onClicked: {
                         root.finishKLine()
-                        imageInput.copyScreenImage()
+                        if (root.screenImageTools) imageInput.copyScreenImage()
+                        else imageInput.copySourceImage()
                     }
                 }
                 ToolButton {
                     objectName: root.objectName + "PasteButton"
-                    visible: root.screenImageTools
+                    visible: root.editingTools
                     implicitWidth: 26
                     implicitHeight: 26
                     text: qsTr("▣")
                     enabled: root.editableContentAvailable
-                    Accessible.name: qsTr("Paste image into Screen Image")
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Paste image into Screen Image")
+                                     : qsTr("Paste image into source canvas")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name + qsTr(" (Ctrl+V)")
                     onClicked: {
                         root.finishKLine()
-                        imageInput.pasteScreenImage()
-                        if (imageInput.screenImageFloating) {
+                        if (root.screenImageTools) imageInput.pasteScreenImage()
+                        else imageInput.pasteSourceImage()
+                        if (root.floating) {
                             root.drawingTool = 10
                             root.pickingColor = false
                             root.positionFloatingAtSelectionOrCenter()
@@ -1590,17 +1732,20 @@ ThemedFrame {
                 }
                 ToolButton {
                     objectName: root.objectName + "ClearButton"
-                    visible: root.screenImageTools
+                    visible: root.editingTools
                     implicitWidth: 26
                     implicitHeight: 26
                     text: qsTr("✦")
                     enabled: root.editableContentAvailable
-                    Accessible.name: qsTr("Clear Screen Image with the background color")
+                    Accessible.name: root.screenImageTools
+                                     ? qsTr("Clear Screen Image with the background color")
+                                     : qsTr("Clear source canvas with the background color")
                     ToolTip.visible: hovered
                     ToolTip.text: Accessible.name
                     onClicked: {
                         root.finishKLine()
-                        imageInput.clearScreenImage()
+                        if (root.screenImageTools) imageInput.clearScreenImage()
+                        else imageInput.clearSourceImage()
                     }
                 }
             }
@@ -2057,15 +2202,14 @@ ThemedFrame {
                         objectName: root.objectName + "SelectionOverlay"
                         anchors.fill: parent
                         z: 3
-                        visible: root.screenImageTools
-                                 && ((imageInput.hasScreenImageSelection
-                                      && !imageInput.screenImageFloating)
+                        visible: root.editingTools
+                                 && ((root.hasSelection && !root.floating)
                                      || drawingMouseArea.selectionDragging)
                         antialiasing: false
-                        property int selectionX: imageInput.screenImageSelectionX
-                        property int selectionY: imageInput.screenImageSelectionY
-                        property int selectionWidth: imageInput.screenImageSelectionWidth
-                        property int selectionHeight: imageInput.screenImageSelectionHeight
+                        property int selectionX: root.selectionX
+                        property int selectionY: root.selectionY
+                        property int selectionWidth: root.selectionWidth
+                        property int selectionHeight: root.selectionHeight
                         property bool dragging: drawingMouseArea.selectionDragging
                         onSelectionXChanged: requestPaint()
                         onSelectionYChanged: requestPaint()
@@ -2106,7 +2250,7 @@ ThemedFrame {
                                                 - drawingMouseArea.selectionStartY))
                                 paintOutline(context, left, top,
                                              selectionWidth, selectionHeight)
-                            } else if (imageInput.hasScreenImageSelection) {
+                            } else if (root.hasSelection) {
                                 paintOutline(
                                     context,
                                     selectionX * width / preview.sourceSize.width,
@@ -2121,28 +2265,27 @@ ThemedFrame {
                         id: floatingPlacementOverlay
                         objectName: root.objectName + "FloatingPlacementOverlay"
                         z: 4
-                        visible: root.screenImageTools
-                                 && imageInput.screenImageFloating
+                        visible: root.editingTools && root.floating
                                  && preview.sourceSize.width > 0
                                  && preview.sourceSize.height > 0
                         width: visible ? Math.max(
-                            1, imageInput.screenImageFloatingWidth
+                            1, root.floatingWidth
                                * preview.width / preview.sourceSize.width) : 1
                         height: visible ? Math.max(
-                            1, imageInput.screenImageFloatingHeight
+                            1, root.floatingHeight
                                * preview.height / preview.sourceSize.height) : 1
                         x: Math.max(0, Math.min(preview.width - width,
                                               drawingMouseArea.floatingCenterX
-                                              - (imageInput.screenImageFloatingTopLeft
+                                              - (root.floatingTopLeft
                                                  ? 0 : width / 2)))
                         y: Math.max(0, Math.min(preview.height - height,
                                               drawingMouseArea.floatingCenterY
-                                              - (imageInput.screenImageFloatingTopLeft
+                                              - (root.floatingTopLeft
                                                  ? 0 : height / 2)))
 
                         Image {
                             anchors.fill: parent
-                            source: imageInput.screenImageFloatingPreview
+                            source: root.floatingPreview
                             fillMode: Image.Stretch
                             smooth: false
                             opacity: 0.88
@@ -2173,12 +2316,11 @@ ThemedFrame {
                         anchors.fill: parent
                         enabled: root.editingTools && root.editableContentAvailable
                                  && (root.drawingTool !== 0
-                                     || (root.screenImageTools
-                                         && imageInput.screenImageFloating))
+                                     || root.floating)
                         acceptedButtons: Qt.LeftButton
                         hoverEnabled: true
                         preventStealing: true
-                        cursorShape: imageInput.screenImageFloating
+                        cursorShape: root.floating
                                      ? Qt.SizeAllCursor : Qt.CrossCursor
                         property int dragTool: 0
                         property bool selectionDragging: false
@@ -2186,10 +2328,14 @@ ThemedFrame {
                         property real selectionStartY: 0
                         property real selectionCurrentX: 0
                         property real selectionCurrentY: 0
+                        property real selectionAnchorStartX: 0
+                        property real selectionAnchorStartY: 0
+                        property real selectionAnchorEndX: 0
+                        property real selectionAnchorEndY: 0
                         property real floatingCenterX: width / 2
                         property real floatingCenterY: height / 2
                         function updateFloatingPointer(localX, localY) {
-                            if (imageInput.screenImageFloatingTopLeft
+                            if (root.floatingTopLeft
                                     && root.snapDrawingToCharacterBounds
                                     && preview.sourceSize.width > 0
                                     && preview.sourceSize.height > 0) {
@@ -2211,46 +2357,78 @@ ThemedFrame {
                             }
                         }
                         focus: strokeOverlay.polylineActive
-                               || imageInput.screenImageFloating
-                               || (root.screenImageTools
-                                   && imageInput.hasScreenImageSelection)
+                               || root.floating || root.hasSelection
                         Keys.onEscapePressed: event => {
-                            if (root.screenImageTools
-                                    && imageInput.screenImageFloating) {
-                                imageInput.cancelScreenImageFloating()
-                                root.drawingTool = imageInput.hasScreenImageSelection
-                                                   ? 9 : 0
+                            if (root.floating) {
+                                if (root.screenImageTools)
+                                    imageInput.cancelScreenImageFloating()
+                                else
+                                    imageInput.cancelSourceFloating()
+                                root.drawingTool = root.hasSelection ? 9 : 0
                                 dragTool = 0
                                 event.accepted = true
                             } else if (strokeOverlay.polylineActive) {
                                 root.finishKLine()
                                 dragTool = 0
                                 event.accepted = true
-                            } else if (root.screenImageTools
-                                       && imageInput.hasScreenImageSelection) {
-                                imageInput.clearScreenImageSelection()
+                            } else if (root.hasSelection) {
+                                if (root.screenImageTools)
+                                    imageInput.clearScreenImageSelection()
+                                else
+                                    imageInput.clearSourceSelection()
                                 event.accepted = true
                             }
                         }
+                        function beginSelectionPointer(localX, localY) {
+                            const start = root.characterSelectionPoint(
+                                localX, localY, false)
+                            const end = root.characterSelectionPoint(
+                                localX, localY, true)
+                            selectionAnchorStartX = start.x
+                            selectionAnchorStartY = start.y
+                            selectionAnchorEndX = end.x
+                            selectionAnchorEndY = end.y
+                            selectionStartX = start.x
+                            selectionStartY = start.y
+                            selectionCurrentX = end.x
+                            selectionCurrentY = end.y
+                        }
+                        function updateSelectionPointer(localX, localY) {
+                            const start = root.characterSelectionPoint(
+                                localX, localY, false)
+                            const end = root.characterSelectionPoint(
+                                localX, localY, true)
+                            selectionStartX = start.x < selectionAnchorStartX
+                                ? selectionAnchorEndX : selectionAnchorStartX
+                            selectionCurrentX = start.x < selectionAnchorStartX
+                                ? start.x : end.x
+                            selectionStartY = start.y < selectionAnchorStartY
+                                ? selectionAnchorEndY : selectionAnchorStartY
+                            selectionCurrentY = start.y < selectionAnchorStartY
+                                ? start.y : end.y
+                        }
                         onPressed: mouse => {
+                            root.editingSurfaceActivated(root.screenImageTools)
                             updateFloatingPointer(mouse.x, mouse.y)
-                            if (root.screenImageTools
-                                    && imageInput.screenImageFloating) {
-                                imageInput.placeScreenImageFloating(
-                                    floatingCenterX / Math.max(1, width),
-                                    floatingCenterY / Math.max(1, height))
+                            if (root.floating) {
+                                if (root.screenImageTools) {
+                                    imageInput.placeScreenImageFloating(
+                                        floatingCenterX / Math.max(1, width),
+                                        floatingCenterY / Math.max(1, height))
+                                } else {
+                                    imageInput.placeSourceFloating(
+                                        floatingCenterX / Math.max(1, width),
+                                        floatingCenterY / Math.max(1, height))
+                                }
                                 root.drawingTool = 9
                                 dragTool = 0
                                 return
                             }
                             dragTool = root.drawingTool
-                            if (dragTool === 9 && root.screenImageTools) {
+                            if (dragTool === 9 && root.editingTools) {
                                 forceActiveFocus()
                                 selectionDragging = true
-                                selectionStartX = mouse.x
-                                selectionStartY = mouse.y
-                                selectionCurrentX = mouse.x
-                                selectionCurrentY = mouse.y
+                                beginSelectionPointer(mouse.x, mouse.y)
                                 selectionOverlay.requestPaint()
                             } else if (dragTool <= 2) {
                                 strokeOverlay.beginStroke(mouse.x, mouse.y)
@@ -2363,8 +2541,7 @@ ThemedFrame {
                             }
                             if (pressed) {
                                 if (dragTool === 9 && selectionDragging) {
-                                    selectionCurrentX = mouse.x
-                                    selectionCurrentY = mouse.y
+                                    updateSelectionPointer(mouse.x, mouse.y)
                                     selectionOverlay.requestPaint()
                                 } else if (dragTool <= 2) {
                                     strokeOverlay.extendStroke(mouse.x, mouse.y)
@@ -2394,13 +2571,20 @@ ThemedFrame {
                         }
                         onReleased: mouse => {
                             if (dragTool === 9 && selectionDragging) {
-                                selectionCurrentX = mouse.x
-                                selectionCurrentY = mouse.y
-                                imageInput.setScreenImageSelection(
-                                    selectionStartX / Math.max(1, width),
-                                    selectionStartY / Math.max(1, height),
-                                    selectionCurrentX / Math.max(1, width),
-                                    selectionCurrentY / Math.max(1, height))
+                                updateSelectionPointer(mouse.x, mouse.y)
+                                if (root.screenImageTools) {
+                                    imageInput.setScreenImageSelection(
+                                        selectionStartX / Math.max(1, width),
+                                        selectionStartY / Math.max(1, height),
+                                        selectionCurrentX / Math.max(1, width),
+                                        selectionCurrentY / Math.max(1, height))
+                                } else {
+                                    imageInput.setSourceSelection(
+                                        selectionStartX / Math.max(1, width),
+                                        selectionStartY / Math.max(1, height),
+                                        selectionCurrentX / Math.max(1, width),
+                                        selectionCurrentY / Math.max(1, height))
+                                }
                                 selectionDragging = false
                                 selectionOverlay.requestPaint()
                                 forceActiveFocus()

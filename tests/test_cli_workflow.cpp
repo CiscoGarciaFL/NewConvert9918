@@ -169,6 +169,27 @@ int main(int argc, char* argv[])
                         == QStringLiteral("raw"),
                 "CLI should migrate a versioned recipe saved under the retired identity");
 
+    const QString canonicalRecipe = QDir(QStringLiteral(RETROVDP_FIXTURE_DIR))
+                                        .filePath(QStringLiteral("screen-image-v1.rvdp.json"));
+    const QString canonicalOutput = output.filePath(QStringLiteral("canonical-output"));
+    const RunResult canonicalRun = runCli({
+        QStringLiteral("--recipe"), canonicalRecipe,
+        QStringLiteral("--input"), source,
+        QStringLiteral("--output"), canonicalOutput,
+        QStringLiteral("--json"),
+    });
+    const QJsonObject canonicalJson = jsonResult(canonicalRun);
+    test.expect(canonicalRun.completed && canonicalRun.exitCode == 0
+                    && canonicalJson.value(QStringLiteral("preset"))
+                        == QStringLiteral("recipe")
+                    && canonicalJson.value(QStringLiteral("mode"))
+                        == QStringLiteral("bitmap-9918a")
+                    && canonicalJson.value(QStringLiteral("target"))
+                        == QStringLiteral("tms9918a")
+                    && canonicalJson.value(QStringLiteral("format"))
+                        == QStringLiteral("raw"),
+                "CLI should execute the canonical version-1 recipe fixture");
+
     const RunResult badMode = runCli({
         QStringLiteral("--input"), source,
         QStringLiteral("--output"), output.path(),
