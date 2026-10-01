@@ -88,25 +88,51 @@ undo/redo path. Starting a new
 drawing change after an undo clears the redo branch. Ctrl+Z prefers drawing undo
 when drawing history is available, and Ctrl+Y redoes a drawing change.
 
+Source preparation also shares the target-independent Screen Image editing
+tools: rectangular selection, selection move, copy/paste placement, horizontal
+mirror, vertical flip, selection-scoped invert and grayscale, canvas clear,
+system-font text, and raster Slide/ClipArt placement. Floating text, pasted
+selections, and ClipArt use the same placement overlay and Escape-to-cancel
+interaction as Screen Image, and every committed canvas edit participates in
+the source drawing history. Source text deliberately exposes only fonts
+installed through the operating system. Hardware character snapping, target
+grids, TI Artist fonts, chipset-rule application, conversion modes, and native
+target formats remain Screen Image or target-editor concerns and do not appear
+as Source preparation features.
+
 The **Automatically update conversion** switch belongs to the Screen Image
 pane's lower tool area because it controls when that output is regenerated, rather
 than how the source image is prepared.
 
 ## Workspace modes and Side Panel
 
-The main window keeps Source as a common preparation and reference pane. The
-right-hand destination pane is selected through a top-level **Mode** menu with
-three mutually exclusive checked entries:
+The main window keeps **Source** as the common preparation and reference pane
+for every target and creation mode. A Project Bar directly below the menu bar
+shows the project name on the left and the active target on the right. The
+target selector contains only the targets enabled in Project Settings.
+
+In horizontal and vertical layouts, the right-hand destination pane is
+selected through a top-level **Mode** menu with three mutually exclusive
+checked entries:
 
 1. **Screen Image** — the existing complete-image conversion preview;
 2. **Character Editor** — direct TMS9918A/F18A character-pattern editing; and
 3. **Sprite Editor** — direct TMS9918A/F18A sprite-pattern editing.
 
-The old Converted title becomes **Screen Image**. In tabbed layout, the second
-tab follows the selected mode; in split layouts, the right pane changes its
-title and content. Switching modes is non-destructive: each destination retains
-its document, selection, tools, undo history, and viewport state. Source remains
+The old Converted title becomes **Screen Image**. Tabbed layout presents
+**Source**, **Screen Image**, **Character Editor**, and **Sprite Editor** as
+separate tabs and disables the Mode menu because the tabs perform the
+selection. Unsupported mode tabs remain visible but disabled. In split
+layouts, the right pane changes its title and content and the Mode menu is
+enabled. Switching modes is non-destructive: each destination retains its
+document, selection, tools, undo history, and viewport state. Source remains
 available in every mode and does not get replaced by an editor document.
+
+The File menu owns project lifecycle commands: **New Project**, **Open
+Project**, **Save Project**, and **Project Settings**. Project Settings is a
+dialog containing the project name and supported-target choices. Preferences
+also belongs to File; there is no separate Settings menu. The top-level order
+is File, View, Mode, Help.
 
 All three destination workspaces share the same visual shell: the same title
 treatment, an upper tool-ribbon area, a bordered canvas/preview viewport, and a
@@ -122,11 +148,13 @@ Character Editor presents **Character Options**, and Sprite Editor presents
 that are not meaningful for the active mode, such as exporting a screen image
 while an editor is active, are disabled rather than acting on hidden state.
 
-Character and sprite acquisition from Source is an explicit **Import from
-Source** operation. Its Side Panel workflow selects a source region and previews
-scaling, target dimensions, color reduction, palette fitting, and—where
-applicable—transparency before committing editable hardware data. Subsequent
-source changes must not silently overwrite committed character or sprite work.
+Character acquisition is an explicit **Extract from Screen Image** operation.
+Its Side Panel workflow recognizes a character-aligned Screen Image selection,
+uses target-owned pattern and map geometry, maps each selected row to the active
+hardware palette, and commits the region into the active pattern set as one
+undoable edit. Sprite acquisition will likewise operate from Screen Image when
+implemented. Subsequent Screen Image changes must not silently overwrite
+committed character or sprite work.
 
 This remains a focused preparation layer rather than a general raster editor.
 Foreground/background colors now drive pencil, eraser, shape outlines, and the
@@ -178,15 +206,18 @@ two-bank view is not presented as a new TMS9918A display mode.
 
 ## Hardware profiles
 
-Every design project chooses a target profile. Switching profiles runs a
+Every design project declares one or more supported target profiles and has one
+active target. Switching profiles runs a
 non-destructive compatibility analysis before it changes the active target.
 The profile is a shared document setting, not a separate Screen Image,
-Character, or Sprite workspace. A single **Target Hardware** selector appears
-consistently in each mode's Side Panel, while the canvas keeps the same artwork
-and rerenders it using the selected chip and enabled capabilities. Mode-specific
-options expose only valid combinations. Switching from F18A to TMS9918A must
-preview and report required reductions before committing; it must not silently
-discard enhanced color, attributes, layers, or sprite data.
+Character, or Sprite workspace. The Project Bar is the authoritative target
+selector. Screen Image, Character, and Sprite option panels show a read-only
+summary of the active target and derive their controls from its descriptors.
+The canvas keeps the same artwork and rerenders it using the selected chip and
+enabled capabilities. Mode-specific options expose only valid combinations. Switching
+from F18A to TMS9918A must preview and report required reductions before
+committing; it must not silently discard enhanced color, attributes, layers,
+or sprite data.
 
 ### Original TMS9918A profile
 
@@ -265,9 +296,22 @@ The initial foundation now presents the dual output profiles in every Side
 Panel, three persistent 256-slot Character sets, repeatable 32-slot Sprite
 sets, and a Sprite placement workspace whose box size and all 32 coordinates
 are project state. Sprite sets are suitable for alternate images or animation
-frames. Pixel extraction and hardware-table generation attach to these models
-later; disabled import commands explicitly indicate that boundary rather than
-claiming that placeholder data was generated.
+frames. Character extraction from Screen Image is implemented; sprite
+extraction and complete hardware-table generation attach to these models later.
+
+### Character extraction and Pattern Previewer
+
+The Character Editor can extract a rectangular Screen Image region into the
+active set. A character-bound Screen Image selection initializes the extraction
+rectangle automatically, while the popup also permits direct X/Y and
+pattern-width/pattern-height adjustment. Destination pattern index and
+horizontal-wrap versus vertical-wrap order are explicit, capacity is checked
+before committing, and all changed patterns share one undo entry.
+
+The **Pattern Previewer** displays an arbitrary region of any Character set.
+The user chooses the first pattern, preview width and height, and horizontal or
+vertical wrapping. The preview uses the active target's character descriptor
+and current hardware palette; it does not change pattern data.
 
 The broader project model may eventually expose these major pages:
 

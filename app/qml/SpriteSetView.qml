@@ -152,8 +152,10 @@ Item {
             enabled: visible
             model: 32
             clip: true
-            cellWidth: Math.max(48, Math.floor(width / 8))
-            cellHeight: Math.max(48, cellWidth)
+            cellWidth: bank.spriteSize === 8
+                       ? Math.max(24, Math.floor(width / 16))
+                       : Math.max(48, Math.floor(width / 8))
+            cellHeight: cellWidth
             ScrollBar.vertical: ScrollBar {}
 
             delegate: Rectangle {
@@ -354,7 +356,7 @@ Item {
                     implicitWidth: 26
                     implicitHeight: 26
                     text: "−"
-                    enabled: editorProject.editScope === 1
+                    enabled: editorProject.activeTargetInfo.spritePerItemSize
                              ? editorTray.totalEditorCount > 1
                              : editorTray.editorCount > 1
                     Accessible.name: editorProject.spritePlacementMode
@@ -386,9 +388,11 @@ Item {
 
             Label {
                 Layout.fillWidth: true
-                text: editorProject.editScope === 1
-                      ? qsTr("F18A: each sprite may select its own bank")
-                      : qsTr("TMS9918A: the global size selects one bank")
+                text: editorProject.activeTargetInfo.spritePerItemSize
+                      ? qsTr("%1: each sprite selects its own pattern size")
+                            .arg(editorProject.activeTargetInfo.name)
+                      : qsTr("%1: the global size selects the active pattern bank")
+                            .arg(editorProject.activeTargetInfo.name)
                 color: palette.placeholderText
                 font.pixelSize: 11
             }
@@ -418,14 +422,18 @@ Item {
             orientation: Qt.Vertical
 
             SpriteBank {
-                objectName: "spritePatternGrid"
+                objectName: "sprite8PatternBank"
                 SplitView.preferredHeight: expanded ? parent.height / 2 : 28
-                SplitView.minimumHeight: expanded ? 80 : 28
+                SplitView.minimumHeight: expanded
+                                         ? 31 + (2 * Math.max(
+                                             24, Math.floor(width / 16)))
+                                         : 28
                 SplitView.maximumHeight: expanded ? 16777215 : 28
                 spriteSize: 8
                 title: qsTr("8×8 sprite patterns · 32")
             }
             SpriteBank {
+                objectName: "sprite16PatternBank"
                 SplitView.preferredHeight: expanded ? parent.height / 2 : 28
                 SplitView.minimumHeight: expanded ? 80 : 28
                 SplitView.maximumHeight: expanded ? 16777215 : 28

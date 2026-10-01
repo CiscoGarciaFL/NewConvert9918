@@ -329,6 +329,26 @@ void testAllTargetLayouts(TestContext& test)
     }
 }
 
+void testStableFormatIds(TestContext& test)
+{
+    constexpr std::array values{
+        formats::ExportFormat::Raw, formats::ExportFormat::Rle,
+        formats::ExportFormat::TiFiles, formats::ExportFormat::V9t9,
+        formats::ExportFormat::MsxScreen2, formats::ExportFormat::ColecoCvPaint,
+        formats::ExportFormat::AdamPowerPaint, formats::ExportFormat::AdamHgr,
+        formats::ExportFormat::ColecoVisionRom,
+        formats::ExportFormat::ExtendedBasicProgram,
+        formats::ExportFormat::ExtendedBasicRleProgram, formats::ExportFormat::Png,
+    };
+    for (const auto value : values) {
+        const auto id = formats::exportFormatId(value);
+        test.expect(formats::exportFormat(id) == value,
+                    "export format IDs should round-trip through the registry boundary");
+    }
+    test.expect(!formats::exportFormat("unknown-format").has_value(),
+                "unknown export format IDs should be rejected");
+}
+
 } // namespace
 
 int main()
@@ -342,6 +362,7 @@ int main()
     testTemplateFormats(test, target);
     testValidation(test, target);
     testAllTargetLayouts(test);
+    testStableFormatIds(test);
     if (test.failures != 0) {
         std::cerr << test.failures << " export-format test(s) failed\n";
         return 1;

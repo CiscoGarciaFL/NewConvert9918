@@ -82,18 +82,30 @@ PreviewPane {
         }
     }
 
+    CharacterExtractionDialog {
+        id: characterExtractionDialog
+        objectName: root.editorKind === 0 ? "characterExtractionDialog" : ""
+    }
+
+    CharacterPatternPreviewDialog {
+        id: characterPatternPreviewDialog
+        objectName: root.editorKind === 0 ? "characterPatternPreviewDialog" : ""
+    }
+
     imageSource: ""
     details: editorKind === 0
-             ? qsTr("Set %1 of 3 · Pattern %2 of 256")
+             ? qsTr("Set %1 of %2 · Pattern %3 of %4")
                    .arg(editorProject.activeCharacterSet + 1)
+                   .arg(editorProject.characterSetCount)
                    .arg(editorProject.activeCharacterPattern + 1)
-             : qsTr("Sprite set %1 of %2 · Sprite %3 of 32")
+                   .arg(editorProject.characterPatternsPerSet)
+             : qsTr("Sprite set %1 of %2 · Sprite %3 of %4")
                    .arg(editorProject.activeSpriteSet + 1)
                    .arg(editorProject.spriteSetNames.length)
                    .arg(editorProject.activeSprite + 1)
-    detailsTrailingText: editorProject.editScope === 1
-                         ? qsTr("Editing F18A enhancements")
-                         : qsTr("Editing shared 9918A baseline")
+                   .arg(editorProject.activeTargetInfo.spritePatternsPerSet)
+    detailsTrailingText: qsTr("Editing for %1")
+                             .arg(editorProject.activeTargetInfo.name)
     emptyText: root.description + "\n\n" + root.importDescription
     zoomInteractive: (root.editorKind === 0 && editorProject.characterTilingMode)
                      || (root.editorKind === 1 && editorProject.spritePlacementMode)
@@ -110,19 +122,19 @@ PreviewPane {
                             : "spritePatternPalettePopup"
                 property string pickerTitle:
                     root.editorKind === 0
-                    ? (editorProject.editScope === 1
-                       ? qsTr("F18A palette · choose %1")
-                             .arg(root.activeColorSide === 0
-                                  ? qsTr("foreground") : qsTr("background"))
-                       : qsTr("TMS9918A palette · choose %1")
-                             .arg(root.activeColorSide === 0
-                                  ? qsTr("foreground") : qsTr("background")))
-                    : (editorProject.editScope === 1
-                       ? qsTr("F18A Sprite Pixel Index · %1 bpp")
-                             .arg(editorProject.activeSpriteColorDepth)
-                       : qsTr("TMS9918A Sprite Color"))
+                    ? qsTr("%1 palette · choose %2")
+                          .arg(editorProject.activeTargetInfo.name)
+                          .arg(root.activeColorSide === 0
+                               ? qsTr("foreground") : qsTr("background"))
+                    : editorProject.activeTargetInfo.spriteMaximumColorDepth > 1
+                      ? qsTr("%1 sprite pixel index · %2 bpp")
+                            .arg(editorProject.activeTargetInfo.name)
+                            .arg(editorProject.activeSpriteColorDepth)
+                      : qsTr("%1 sprite color")
+                            .arg(editorProject.activeTargetInfo.name)
                 readonly property int maximumSelectableColorIndex:
-                    root.editorKind === 1 && editorProject.editScope === 1
+                    root.editorKind === 1
+                    && editorProject.activeTargetInfo.spriteMaximumColorDepth > 1
                     ? (1 << editorProject.activeSpriteColorDepth) - 1 : 15
                 parent: root
                 x: Math.max(0, Math.min(root.width - width,
@@ -153,7 +165,7 @@ PreviewPane {
                     Label {
                         visible: root.editorKind === 1
                         Layout.fillWidth: true
-                        text: editorProject.editScope === 1
+                        text: editorProject.activeTargetInfo.spriteMaximumColorDepth > 1
                               ? qsTr("Choose index 1–%1. Increase color depth in Sprite Options for more indexes.")
                                     .arg((1 << editorProject.activeSpriteColorDepth) - 1)
                               : qsTr("Choose one opaque color for the active sprite. Index 0 is transparent.")
@@ -215,14 +227,14 @@ PreviewPane {
                                               ? (root.editorKind === 0
                                                  ? qsTr("Color %1")
                                                        .arg(root.hexNibble(index))
-                                                 : editorProject.editScope === 1
+                                                 : editorProject.activeTargetInfo.spriteMaximumColorDepth > 1
                                                    ? qsTr("Pixel index %1")
                                                          .arg(root.hexNibble(index))
                                                    : qsTr("Sprite color %1")
                                                          .arg(root.hexNibble(index)))
                                                : (index === 0
                                                   ? qsTr("Transparent pixels are drawn with Eraser")
-                                                  : qsTr("Increase F18A color depth in Sprite Options to enable this pixel index"))
+                                                  : qsTr("Increase the active target color depth in Sprite Options to enable this pixel index"))
                             }
                         }
                     }
@@ -233,10 +245,31 @@ PreviewPane {
                 objectName: root.objectName + "ImportSourceButton"
                 implicitHeight: 26
                 text: qsTr("↳")
-                enabled: false
-                Accessible.name: qsTr("Import from Source")
+                enabled: root.editorKind === 0 && imageInput.hasConversion
+                Accessible.name: root.editorKind === 0
+                                 ? qsTr("Extract patterns from Screen Image")
+                                 : qsTr("Import sprites from Screen Image")
                 ToolTip.visible: hovered
-                ToolTip.text: qsTr("Source-to-pattern extraction will connect here next")
+                ToolTip.text: root.editorKind === 0
+                              ? Accessible.name
+                              : qsTr("Sprite extraction is not implemented yet")
+                onClicked: {
+                    if (root.editorKind === 0)
+                        characterExtractionDialog.openForScreenImage()
+                }
+            }
+            ToolButton {
+                objectName: root.editorKind === 0
+                            ? "characterPatternPreviewerButton" : ""
+                visible: root.editorKind === 0
+                implicitWidth: visible ? 26 : 0
+                implicitHeight: 26
+                text: qsTr("▦")
+                enabled: visible
+                Accessible.name: qsTr("Open Pattern Previewer")
+                ToolTip.visible: hovered
+                ToolTip.text: Accessible.name
+                onClicked: characterPatternPreviewDialog.openPreview()
             }
             ToolSeparator { height: 26 }
             ToolButton {

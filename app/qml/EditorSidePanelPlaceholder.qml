@@ -13,6 +13,18 @@ ScrollView {
     clip: true
     contentWidth: availableWidth
 
+    CharacterExtractionDialog {
+        id: characterExtractionDialog
+        objectName: root.editorKind === 0
+                    ? "characterSidePanelExtractionDialog" : ""
+    }
+
+    CharacterPatternPreviewDialog {
+        id: characterPatternPreviewDialog
+        objectName: root.editorKind === 0
+                    ? "characterSidePanelPatternPreviewDialog" : ""
+    }
+
     ColumnLayout {
         width: root.availableWidth
         spacing: 12
@@ -40,45 +52,20 @@ ScrollView {
         }
 
         ThemedGroupBox {
-            objectName: root.objectName + "OutputProfilesGroup"
-            title: qsTr("Output Profiles")
+            objectName: root.objectName + "ActiveTargetGroup"
+            title: qsTr("Active Target")
             Layout.fillWidth: true
 
-            OutputProfileControls {
+            ActiveTargetSummary {
                 anchors.fill: parent
-                objectPrefix: root.objectName + "OutputProfiles"
+                detailKind: root.editorKind + 1
             }
         }
 
         ThemedGroupBox {
-            objectName: root.objectName + "EditScopeGroup"
-            title: qsTr("Editing Scope")
-            Layout.fillWidth: true
-
-            ColumnLayout {
-                anchors.fill: parent
-                RadioButton {
-                    text: qsTr("Shared TMS9918A baseline")
-                    checked: editorProject.editScope === 0
-                    onClicked: editorProject.editScope = 0
-                }
-                RadioButton {
-                    text: qsTr("F18A enhancements")
-                    enabled: editorProject.f18aEnabled
-                    checked: editorProject.editScope === 1
-                    onClicked: editorProject.editScope = 1
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: qsTr("Baseline edits feed both outputs. F18A-only edits are stored as non-destructive overrides.")
-                    wrapMode: Text.WordWrap
-                    color: palette.placeholderText
-                }
-            }
-        }
-
-        ThemedGroupBox {
-            title: qsTr("Import from Source")
+            title: root.editorKind === 0
+                   ? qsTr("Extract from Screen Image")
+                   : qsTr("Import from Screen Image")
             Layout.fillWidth: true
 
             ColumnLayout {
@@ -93,11 +80,24 @@ ScrollView {
                     objectName: root.objectName + "ImportFromSourceButton"
                     Layout.fillWidth: true
                     text: root.editorKind === 0
-                          ? qsTr("Load Screen Image into pattern sets")
+                          ? qsTr("Extract into active pattern set…")
                           : qsTr("Populate sprite placement from Screen Image")
-                    enabled: false
+                    enabled: root.editorKind === 0 && imageInput.hasConversion
                     ToolTip.visible: hovered
-                    ToolTip.text: qsTr("The repeatable recipe and set destination are ready; pixel extraction is the next implementation layer")
+                    ToolTip.text: root.editorKind === 0
+                                  ? qsTr("Choose a character region, destination pattern, and wrapping order")
+                                  : qsTr("Sprite extraction is not implemented yet")
+                    onClicked: {
+                        if (root.editorKind === 0)
+                            characterExtractionDialog.openForScreenImage()
+                    }
+                }
+                Button {
+                    objectName: root.objectName + "PatternPreviewerButton"
+                    visible: root.editorKind === 0
+                    Layout.fillWidth: true
+                    text: qsTr("Pattern Previewer…")
+                    onClicked: characterPatternPreviewDialog.openPreview()
                 }
             }
         }
@@ -112,10 +112,14 @@ ScrollView {
                 Label {
                     Layout.fillWidth: true
                     text: root.editorKind === 0
-                          ? qsTr("Three simultaneously available sets, each containing 256 pattern slots. Active: Set %1, pattern %2.")
+                          ? qsTr("%1 sets with %2 pattern slots each. Active: Set %3, pattern %4.")
+                                .arg(editorProject.characterSetCount)
+                                .arg(editorProject.characterPatternsPerSet)
                                 .arg(editorProject.activeCharacterSet + 1)
                                 .arg(editorProject.activeCharacterPattern)
-                          : qsTr("Each set contains 32 8×8 patterns, 32 16×16 patterns, and 32 independently placed sprites. Active: Set %1, sprite %2.")
+                          : qsTr("Each set contains %1 pattern slots and supports up to %2 placed sprites. Active: Set %3, sprite %4.")
+                                .arg(editorProject.activeTargetInfo.spritePatternsPerSet)
+                                .arg(editorProject.activeTargetInfo.spriteMaximumVisible)
                                 .arg(editorProject.activeSpriteSet + 1)
                                 .arg(editorProject.activeSprite)
                     wrapMode: Text.WordWrap
@@ -124,30 +128,66 @@ ScrollView {
                     visible: root.editorKind === 1
                     columns: 2
                     Layout.fillWidth: true
-                    Label { text: qsTr("9918A global size") }
+                    Label {
+                        visible: editorProject.activeTargetInfo.spriteUsesGlobalSize
+                        text: qsTr("Global pattern size")
+                    }
                     ComboBox {
                         objectName: root.objectName + "GlobalSpriteSizeComboBox"
-                        model: [qsTr("8×8"), qsTr("16×16")]
-                        currentIndex: editorProject.spriteGlobalSize === 16 ? 1 : 0
-                        onActivated: index =>
-                            editorProject.spriteGlobalSize = index === 1 ? 16 : 8
+                        visible: editorProject.activeTargetInfo.spriteUsesGlobalSize
+                        model: editorProject.activeTargetInfo.spriteSizes
+                        currentIndex: indexOfValue(editorProject.spriteGlobalSize)
+                        delegate: ItemDelegate {
+                            required property var modelData
+                            width: parent ? parent.width : implicitWidth
+                            text: qsTr("%1×%1").arg(modelData)
+                        }
+                        contentItem: Label {
+                            text: qsTr("%1×%1").arg(editorProject.spriteGlobalSize)
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onActivated: editorProject.spriteGlobalSize = currentValue
                     }
-                    Label { text: qsTr("Active F18A size") }
+                    Label {
+                        visible: editorProject.activeTargetInfo.spritePerItemSize
+                        text: qsTr("Active sprite size")
+                    }
                     ComboBox {
                         objectName: root.objectName + "ActiveSpriteSizeComboBox"
-                        model: [qsTr("8×8"), qsTr("16×16")]
-                        enabled: editorProject.editScope === 1
-                        currentIndex: editorProject.activeSpriteSize === 16 ? 1 : 0
-                        onActivated: index =>
-                            editorProject.activeSpriteSize = index === 1 ? 16 : 8
+                        visible: editorProject.activeTargetInfo.spritePerItemSize
+                        model: editorProject.activeTargetInfo.spriteSizes
+                        currentIndex: indexOfValue(editorProject.activeSpriteSize)
+                        delegate: ItemDelegate {
+                            required property var modelData
+                            width: parent ? parent.width : implicitWidth
+                            text: qsTr("%1×%1").arg(modelData)
+                        }
+                        contentItem: Label {
+                            text: qsTr("%1×%1").arg(editorProject.activeSpriteSize)
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onActivated: editorProject.activeSpriteSize = currentValue
                     }
-                    Label { text: qsTr("F18A color depth") }
+                    Label {
+                        visible: editorProject.activeTargetInfo.spriteMaximumColorDepth > 1
+                        text: qsTr("Active sprite color depth")
+                    }
                     ComboBox {
                         objectName: root.objectName + "SpriteColorDepthComboBox"
-                        model: [qsTr("1 bpp · 2 indexes"),
-                                qsTr("2 bpp · 4 indexes"),
-                                qsTr("3 bpp · 8 indexes")]
-                        enabled: editorProject.editScope === 1
+                        visible: editorProject.activeTargetInfo.spriteMaximumColorDepth > 1
+                        model: editorProject.activeTargetInfo.spriteMaximumColorDepth
+                        delegate: ItemDelegate {
+                            required property int index
+                            width: parent ? parent.width : implicitWidth
+                            text: qsTr("%1 bpp · %2 indexes")
+                                    .arg(index + 1).arg(1 << (index + 1))
+                        }
+                        contentItem: Label {
+                            text: qsTr("%1 bpp · %2 indexes")
+                                    .arg(editorProject.activeSpriteColorDepth)
+                                    .arg(1 << editorProject.activeSpriteColorDepth)
+                            verticalAlignment: Text.AlignVCenter
+                        }
                         currentIndex: editorProject.activeSpriteColorDepth - 1
                         onActivated: index =>
                             editorProject.activeSpriteColorDepth = index + 1
@@ -174,9 +214,9 @@ ScrollView {
                 Label {
                     visible: root.editorKind === 1
                     Layout.fillWidth: true
-                    text: editorProject.editScope === 0
-                          ? qsTr("The TMS9918A uses one global sprite size and one visible color per sprite. Both pattern banks remain editable, but the selected global bank is used for placement and export.")
-                          : qsTr("F18A enhancements may choose 8×8 or 16×16 and 1/2/3-bpp color independently for each sprite. Unchanged pixels continue to inherit the shared baseline.")
+                    text: editorProject.activeTargetInfo.spritePerItemSize
+                          ? qsTr("This target stores size and color depth per sprite. Target-specific edits are kept separate from compatible base data.")
+                          : qsTr("This target applies one global sprite size. Each sprite uses one opaque hardware color plus transparency.")
                     wrapMode: Text.WordWrap
                     color: palette.placeholderText
                 }

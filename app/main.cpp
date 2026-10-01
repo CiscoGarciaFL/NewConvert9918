@@ -57,7 +57,7 @@ QPixmap createSplashPixmap()
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
 
     const QPixmap sourceLogo(QStringLiteral(
-        ":/qt/qml/retrovdp-studio/assets/icons/RetroVDPStudio-256.png"));
+        ":/qt/qml/RetroVDPStudio/assets/icons/RetroVDPStudio-256.png"));
     const QPixmap logo = sourceLogo.scaled(
         224, 224, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     painter.drawPixmap((splashWidth - logo.width()) / 2, 24, logo);
@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
     application.setOrganizationName(QStringLiteral("CiscoGarciaFL"));
     importLegacySettings();
     application.setWindowIcon(QIcon(QStringLiteral(
-        ":/qt/qml/retrovdp-studio/assets/icons/RetroVDPStudio-256.png")));
+        ":/qt/qml/RetroVDPStudio/assets/icons/RetroVDPStudio-256.png")));
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
     QElapsedTimer splashLifetime;

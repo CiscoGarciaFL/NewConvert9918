@@ -1,6 +1,25 @@
 # Architecture implementation plan
 
-Status: active migration plan, 2026-09-30.
+Status: active migration plan, 2026-10-01.
+
+Implementation checkpoint (2026-09-30): the first compatibility seam is now
+implemented. The repository has validated stable ID value types, TMS9918A and
+F18A display-mode, character-pattern, sprite, and mode-option descriptors,
+target/mode registry validation, enum adapters
+for target modes, export formats, and memory-region roles, a canonical recipe
+fixture exercised by both GUI-facing and CLI workflows, and a CTest guard that
+prevents Qt dependencies from entering portable core/format modules. Existing
+converter entry points and version-1 recipe fields remain compatibility APIs.
+The first project-session presentation seam is also active: project name and
+configured targets are persisted additively, active-target selection lives in
+the Project Bar, Source is common to all modes, and tabbed versus split layouts
+own mode selection according to the accepted interface contract.
+Screen Image, Character, and Sprite option panels now consume that one active
+target and render only descriptor-approved controls.
+The shared Source surface now owns target-independent raster preparation tools,
+selection and floating placement state, and system-font text; target grids,
+hardware font formats, conversion rules, and native output formats remain on
+target-owned surfaces.
 
 This plan turns the accepted architecture in [ARCHITECTURE.md](ARCHITECTURE.md)
 into small, releasable changes. It supersedes architecture sequencing embedded
@@ -98,8 +117,8 @@ Work packages:
 
 1. Introduce validated `TargetId`, `ModeId`, `FormatId`, and `RegionRoleId`
    values with hash/equality support and bounded parsing.
-2. Add `TargetKind`, rational pixel aspect, mode geometry, palette model,
-   memory-region, and supported-asset descriptors.
+2. Add `TargetKind`, rational pixel aspect, mode geometry, character-pattern
+   geometry, palette model, memory-region, and supported-asset descriptors.
 3. Build an immutable target registry that validates duplicate IDs and
    descriptor contradictions.
 4. Register TMS9918A and F18A descriptors using current facts. Keep V9938
@@ -341,14 +360,9 @@ Every stage must retain:
 
 ## Immediate next increment
 
-The next implementation change should be Stage 0 plus the smallest portion of
-Stage 1:
-
-1. add registry and recipe characterization fixtures;
-2. add stable ID value types;
-3. introduce display-mode descriptors for the two implemented target families;
-4. adapt existing enums at the registry boundary; and
-5. keep every converter, QML property, and golden byte unchanged.
-
-That increment creates the first durable seam without mixing it with controller
-or project-model extraction.
+Continue Stage 1 by moving image preparation to the registered mode geometry
+and palette constraints. Preserve PowerPaint's 240x160 framing as a named
+preparation policy, keep numeric version-1 recipe fields readable, and remove
+the remaining GUI/CLI target-list duplication only after parity tests cover the
+new registry-backed presentation adapters. This completes the descriptor seam
+before Stage 2 generalizes target artifacts and export applicability.

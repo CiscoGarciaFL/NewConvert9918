@@ -4,8 +4,10 @@
 #include "retrovdp/core/TargetData.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace retrovdp::formats {
@@ -24,6 +26,10 @@ enum class ExportFormat : std::uint8_t {
     ExtendedBasicRleProgram,
     Png,
 };
+
+[[nodiscard]] core::FormatId exportFormatId(ExportFormat format);
+[[nodiscard]] std::optional<ExportFormat> exportFormat(const core::FormatId& id);
+[[nodiscard]] std::optional<ExportFormat> exportFormat(std::string_view id);
 
 enum class ExportError : std::uint8_t {
     None,

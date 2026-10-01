@@ -8,7 +8,7 @@ Dialog {
 
     required property ApplicationWindow applicationWindow
 
-    title: qsTr("Settings")
+    title: qsTr("Preferences")
     modal: true
     standardButtons: Dialog.Close
     width: Math.min(applicationWindow.width - 48, 680)

@@ -9,6 +9,11 @@ Item {
     property int layoutMode: 1
     // 0 = Screen Image, 1 = Character Editor, 2 = Sprite Editor.
     property int workspaceMode: 0
+    property bool screenImageModeAvailable: true
+    property bool characterModeAvailable: true
+    property bool spriteModeAvailable: true
+    signal modeRequested(int mode)
+    signal editingSurfaceActivated(bool screenImage)
     readonly property string destinationTitle: workspaceMode === 1
                                                ? qsTr("Character Editor")
                                                : workspaceMode === 2
@@ -26,6 +31,8 @@ Item {
         onFileDropped: fileUrl => imageInput.openUrl(fileUrl)
         onColorPointPicked: (normalizedX, normalizedY, foreground) =>
             imageInput.pickColor(normalizedX, normalizedY, foreground)
+        onEditingSurfaceActivated: screenImage =>
+            root.editingSurfaceActivated(screenImage)
     }
 
     component ScreenImagePane: PreviewPane {
@@ -42,13 +49,15 @@ Item {
         showTitle: root.layoutMode !== 0
         onColorPointPicked: (normalizedX, normalizedY, foreground) =>
             imageInput.pickScreenImageColor(normalizedX, normalizedY, foreground)
+        onEditingSurfaceActivated: screenImage =>
+            root.editingSurfaceActivated(screenImage)
     }
 
     component CharacterEditorPane: EditorWorkspacePlaceholder {
         objectName: "characterEditorWorkspace"
         title: qsTr("Character Editor")
         description: qsTr("Create and edit character patterns under the active target VDP's rules.")
-        importDescription: qsTr("Source-image selection, scaling, color reduction, and palette fitting will feed this editor.")
+        importDescription: qsTr("Extract a character-aligned Screen Image region into the active pattern set, then inspect its arrangement with Pattern Previewer.")
         editorKind: 0
         showTitle: root.layoutMode !== 0
     }
@@ -57,7 +66,7 @@ Item {
         objectName: "spriteEditorWorkspace"
         title: qsTr("Sprite Editor")
         description: qsTr("Create and edit sprite patterns under the active target VDP's rules.")
-        importDescription: qsTr("Source-image selection, scaling, transparency, color reduction, and palette fitting will feed this editor.")
+        importDescription: qsTr("Screen Image selection, scaling, transparency, color reduction, and palette fitting will feed this editor.")
         editorKind: 1
         showTitle: root.layoutMode !== 0
     }
@@ -106,11 +115,31 @@ Item {
                     objectName: "sourcePreviewTab"
                     text: qsTr("Source")
                     Accessible.name: qsTr("Show source image")
+                    onClicked: root.editingSurfaceActivated(false)
                 }
                 TabButton {
                     objectName: "convertedPreviewTab"
-                    text: root.destinationTitle
-                    Accessible.name: qsTr("Show %1").arg(root.destinationTitle)
+                    text: qsTr("Screen Image")
+                    enabled: root.screenImageModeAvailable
+                    Accessible.name: qsTr("Show Screen Image mode")
+                    onClicked: {
+                        root.modeRequested(0)
+                        root.editingSurfaceActivated(true)
+                    }
+                }
+                TabButton {
+                    objectName: "characterEditorTab"
+                    text: qsTr("Character Editor")
+                    enabled: root.characterModeAvailable
+                    Accessible.name: qsTr("Show Character Editor mode")
+                    onClicked: root.modeRequested(1)
+                }
+                TabButton {
+                    objectName: "spriteEditorTab"
+                    text: qsTr("Sprite Editor")
+                    enabled: root.spriteModeAvailable
+                    Accessible.name: qsTr("Show Sprite Editor mode")
+                    onClicked: root.modeRequested(2)
                 }
             }
 
@@ -124,7 +153,15 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                 }
-                DestinationPane {
+                ScreenImagePane {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                }
+                CharacterEditorPane {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                }
+                SpriteEditorPane {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                 }

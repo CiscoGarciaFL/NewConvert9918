@@ -2,12 +2,16 @@
 
 #include "ImageInputController.hpp"
 
+#include "retrovdp/imageio/ImageLoader.hpp"
+
+#include <QBuffer>
 #include <QColor>
 #include <QClipboard>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -16,6 +20,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <utility>
 
 namespace {
 
@@ -44,13 +49,6 @@ QString previewName(int target)
     case 2: return QStringLiteral("compare");
     default: return QStringLiteral("tms9918a");
     }
-}
-
-int previewValue(const QString& name)
-{
-    if (name == QStringLiteral("f18a")) return 1;
-    if (name == QStringLiteral("compare")) return 2;
-    return 0;
 }
 
 int snapCharacterTileCoordinate(int value, int maximum)
@@ -86,10 +84,170 @@ EditorProjectController::EditorProjectController(ImageInputController* imageInpu
     spriteEditorSlots_.push_back({false, 0, 0, 8});
     connect(imageInput_, &ImageInputController::settingsChanged,
             this, &EditorProjectController::projectChanged);
+    connect(imageInput_, &ImageInputController::conversionChanged,
+            this, &EditorProjectController::projectChanged);
+    connect(imageInput_, &ImageInputController::screenImageSelectionChanged,
+            this, &EditorProjectController::projectChanged);
     if (QClipboard* clipboard = QGuiApplication::clipboard()) {
         connect(clipboard, &QClipboard::dataChanged,
                 this, &EditorProjectController::projectChanged);
     }
+}
+
+QString imageDataUrl(const QImage& image)
+{
+    QByteArray encoded;
+    QBuffer buffer(&encoded);
+    if (!buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "PNG")) return {};
+    return QStringLiteral("data:image/png;base64,")
+        + QString::fromLatin1(encoded.toBase64());
+}
+
+int colorDistanceSquared(const QColor& left, const QColor& right)
+{
+    const int red = left.red() - right.red();
+    const int green = left.green() - right.green();
+    const int blue = left.blue() - right.blue();
+    return red * red + green * green + blue * blue;
+}
+
+int EditorProjectController::activeTarget() const
+{
+    return imageInput_->targetProfile();
+}
+
+QVariantList EditorProjectController::supportedTargets() const
+{
+    QVariantList result;
+    const auto append = [&result](retrovdp::core::TargetProfileId id) {
+        const auto& profile = retrovdp::core::targetProfile(id);
+        result.push_back(QVariantMap{
+            {QStringLiteral("name"), QString::fromLatin1(profile.displayName)},
+            {QStringLiteral("value"), static_cast<int>(id)},
+        });
+    };
+    if (tms9918aEnabled_) append(retrovdp::core::TargetProfileId::Tms9918A);
+    if (f18aEnabled_) append(retrovdp::core::TargetProfileId::F18A);
+    return result;
+}
+
+QVariantMap EditorProjectController::activeTargetInfo() const
+{
+    const auto& profile = retrovdp::core::targetProfile(
+        static_cast<retrovdp::core::TargetProfileId>(activeTarget()));
+    const auto has = [&profile](retrovdp::core::TargetCapability capability) {
+        return retrovdp::core::hasCapability(profile.capabilities, capability);
+    };
+    const bool fixedPalette = has(retrovdp::core::TargetCapability::FixedPalette);
+    const bool programmablePalette =
+        has(retrovdp::core::TargetCapability::ProgrammablePalette);
+    QString paletteDescription;
+    if (fixedPalette && programmablePalette)
+        paletteDescription = QStringLiteral("Fixed and programmable");
+    else if (programmablePalette)
+        paletteDescription = QStringLiteral("Programmable");
+    else
+        paletteDescription = QStringLiteral("Fixed");
+
+    QVariantList spriteSizes;
+    if (has(retrovdp::core::TargetCapability::Sprites)) {
+        spriteSizes.push_back(static_cast<int>(profile.sprites.minimumPixelSize));
+        if (profile.sprites.maximumPixelSize != profile.sprites.minimumPixelSize)
+            spriteSizes.push_back(static_cast<int>(profile.sprites.maximumPixelSize));
+    }
+
+    return {
+        {QStringLiteral("name"), QString::fromLatin1(profile.displayName)},
+        {QStringLiteral("id"), QString::fromStdString(profile.stableId.value())},
+        {QStringLiteral("implemented"),
+         profile.status == retrovdp::core::TargetProfileStatus::Implemented},
+        {QStringLiteral("vramKiB"), static_cast<int>(profile.nominalVramBytes / 1024U)},
+        {QStringLiteral("paletteDescription"), paletteDescription},
+        {QStringLiteral("programmablePalette"), programmablePalette},
+        {QStringLiteral("enhancedColor"),
+         has(retrovdp::core::TargetCapability::EnhancedColor)},
+        {QStringLiteral("conversionModeCount"),
+         static_cast<int>(profile.conversionModes.size())},
+        {QStringLiteral("characterPatterns"),
+         has(retrovdp::core::TargetCapability::CharacterPatterns)},
+        {QStringLiteral("characterPixelWidth"),
+         static_cast<int>(profile.characterPatterns.pixelWidth)},
+        {QStringLiteral("characterPixelHeight"),
+         static_cast<int>(profile.characterPatterns.pixelHeight)},
+        {QStringLiteral("characterPatternsPerSet"),
+         static_cast<int>(profile.characterPatterns.patternsPerSet)},
+        {QStringLiteral("characterSetCount"),
+         static_cast<int>(profile.characterPatterns.setCount)},
+        {QStringLiteral("characterMapColumns"),
+         static_cast<int>(profile.characterPatterns.mapColumns)},
+        {QStringLiteral("characterMapRows"),
+         static_cast<int>(profile.characterPatterns.mapRows)},
+        {QStringLiteral("sprites"),
+         has(retrovdp::core::TargetCapability::Sprites)},
+        {QStringLiteral("spriteSizes"), spriteSizes},
+        {QStringLiteral("spriteMinimumSize"),
+         static_cast<int>(profile.sprites.minimumPixelSize)},
+        {QStringLiteral("spriteMaximumSize"),
+         static_cast<int>(profile.sprites.maximumPixelSize)},
+        {QStringLiteral("spritePatternsPerSet"),
+         static_cast<int>(profile.sprites.patternsPerSet)},
+        {QStringLiteral("spriteMaximumVisible"),
+         static_cast<int>(profile.sprites.maximumVisibleSprites)},
+        {QStringLiteral("spriteMaximumColorDepth"),
+         static_cast<int>(profile.sprites.maximumColorDepth)},
+        {QStringLiteral("spriteUsesGlobalSize"), profile.sprites.usesGlobalSize},
+        {QStringLiteral("spritePerItemSize"), profile.sprites.supportsPerSpriteSize},
+    };
+}
+
+bool EditorProjectController::activeTargetHasCapability(std::uint32_t capability) const
+{
+    const auto requested = static_cast<retrovdp::core::TargetCapability>(capability);
+    return retrovdp::core::hasCapability(
+        retrovdp::core::targetProfile(
+            static_cast<retrovdp::core::TargetProfileId>(activeTarget())).capabilities,
+        requested);
+}
+
+bool EditorProjectController::screenImageModeAvailable() const
+{
+    return activeTargetHasCapability(static_cast<std::uint32_t>(
+        retrovdp::core::TargetCapability::BitmapConversion));
+}
+
+bool EditorProjectController::characterModeAvailable() const
+{
+    return activeTargetHasCapability(static_cast<std::uint32_t>(
+        retrovdp::core::TargetCapability::CharacterPatterns));
+}
+
+bool EditorProjectController::spriteModeAvailable() const
+{
+    return activeTargetHasCapability(static_cast<std::uint32_t>(
+        retrovdp::core::TargetCapability::Sprites));
+}
+
+bool EditorProjectController::targetEnabled(int value) const
+{
+    return (value == 0 && tms9918aEnabled_) || (value == 1 && f18aEnabled_);
+}
+
+void EditorProjectController::setProjectName(const QString& value)
+{
+    const QString normalized = value.trimmed().isEmpty()
+        ? QStringLiteral("Untitled Project") : value.trimmed();
+    if (projectName_ == normalized) return;
+    projectName_ = normalized;
+    emit projectChanged();
+}
+
+void EditorProjectController::setTms9918aEnabled(bool value)
+{
+    if (!value && !f18aEnabled_) return;
+    if (tms9918aEnabled_ == value) return;
+    tms9918aEnabled_ = value;
+    if (!targetEnabled(activeTarget())) setActiveTarget(1);
+    emit projectChanged();
 }
 
 QVariantList EditorProjectController::characterSetNames() const
@@ -149,6 +307,60 @@ QVariantList EditorProjectController::characterEditorSlots() const
 bool EditorProjectController::canPasteCharacterPattern() const
 {
     return characterPatternFromClipboard().has_value();
+}
+
+int EditorProjectController::characterPatternWidth() const
+{
+    return retrovdp::core::targetProfile(
+               static_cast<retrovdp::core::TargetProfileId>(activeTarget()))
+        .characterPatterns.pixelWidth;
+}
+
+int EditorProjectController::characterPatternHeight() const
+{
+    return retrovdp::core::targetProfile(
+               static_cast<retrovdp::core::TargetProfileId>(activeTarget()))
+        .characterPatterns.pixelHeight;
+}
+
+int EditorProjectController::characterPatternsPerSet() const
+{
+    return retrovdp::core::targetProfile(
+               static_cast<retrovdp::core::TargetProfileId>(activeTarget()))
+        .characterPatterns.patternsPerSet;
+}
+
+int EditorProjectController::characterSetCount() const
+{
+    return retrovdp::core::targetProfile(
+               static_cast<retrovdp::core::TargetProfileId>(activeTarget()))
+        .characterPatterns.setCount;
+}
+
+int EditorProjectController::characterMapColumns() const
+{
+    return retrovdp::core::targetProfile(
+               static_cast<retrovdp::core::TargetProfileId>(activeTarget()))
+        .characterPatterns.mapColumns;
+}
+
+int EditorProjectController::characterMapRows() const
+{
+    return retrovdp::core::targetProfile(
+               static_cast<retrovdp::core::TargetProfileId>(activeTarget()))
+        .characterPatterns.mapRows;
+}
+
+bool EditorProjectController::screenImageSelectionCharacterAligned() const
+{
+    if (!imageInput_->hasScreenImageSelection()) return false;
+    const int width = characterPatternWidth();
+    const int height = characterPatternHeight();
+    return width > 0 && height > 0
+        && imageInput_->screenImageSelectionX() % width == 0
+        && imageInput_->screenImageSelectionY() % height == 0
+        && imageInput_->screenImageSelectionWidth() % width == 0
+        && imageInput_->screenImageSelectionHeight() % height == 0;
 }
 
 QVariantList EditorProjectController::spriteSetNames() const
@@ -242,6 +454,7 @@ void EditorProjectController::setWorkspaceMode(int value)
 
 void EditorProjectController::setF18aEnabled(bool value)
 {
+    if (!value && !tms9918aEnabled_) return;
     if (f18aEnabled_ == value) return;
     f18aEnabled_ = value;
     if (!value) {
@@ -251,7 +464,125 @@ void EditorProjectController::setF18aEnabled(bool value)
         activateSpriteEditorBank(spriteGlobalSize_);
         syncSpriteDrawingColor();
     }
+    if (!targetEnabled(activeTarget())) setActiveTarget(0);
     emit projectChanged();
+}
+
+void EditorProjectController::setActiveTarget(int value)
+{
+    if (!targetEnabled(value)) return;
+    const bool targetChanged = activeTarget() != value;
+    if (targetChanged) imageInput_->setTargetProfile(value);
+    const auto& profile = retrovdp::core::targetProfile(
+        static_cast<retrovdp::core::TargetProfileId>(value));
+    const int targetScope = retrovdp::core::hasCapability(
+        profile.capabilities, retrovdp::core::TargetCapability::EnhancedColor) ? 1 : 0;
+    setEditScope(targetScope);
+    const bool previewChanged = previewTarget_ != value;
+    previewTarget_ = value;
+    if (workspaceMode_ == 0 && !screenImageModeAvailable()) setWorkspaceMode(1);
+    if (workspaceMode_ == 1 && !characterModeAvailable()) setWorkspaceMode(2);
+    if (workspaceMode_ == 2 && !spriteModeAvailable()) setWorkspaceMode(0);
+    if (targetChanged || previewChanged) emit projectChanged();
+}
+
+void EditorProjectController::configureProject(const QString& name,
+                                               bool tms9918aEnabled,
+                                               bool f18aEnabled)
+{
+    configureProjectWithTargets(name, tms9918aEnabled, f18aEnabled,
+                                plannedTargetIds_);
+}
+
+void EditorProjectController::configureProjectWithTargets(
+    const QString& name,
+    bool tms9918aEnabled,
+    bool f18aEnabled,
+    const QStringList& plannedTargetIds)
+{
+    if (!tms9918aEnabled && !f18aEnabled) tms9918aEnabled = true;
+    projectName_ = name.trimmed().isEmpty()
+        ? QStringLiteral("Untitled Project") : name.trimmed();
+    tms9918aEnabled_ = tms9918aEnabled;
+    f18aEnabled_ = f18aEnabled;
+    plannedTargetIds_.clear();
+    for (const QString& value : plannedTargetIds) {
+        const QString id = value.trimmed();
+        if (!id.isEmpty() && id != QStringLiteral("tms9918a")
+            && id != QStringLiteral("f18a")
+            && !plannedTargetIds_.contains(id)) {
+            plannedTargetIds_.push_back(id);
+        }
+    }
+    if (!f18aEnabled_) {
+        previewTarget_ = 0;
+        editScope_ = 0;
+    }
+    if (!targetEnabled(activeTarget()))
+        setActiveTarget(tms9918aEnabled_ ? 0 : 1);
+    else
+        setActiveTarget(activeTarget());
+    emit projectChanged();
+}
+
+void EditorProjectController::resetProjectData()
+{
+    workspaceMode_ = 0;
+    previewTarget_ = 0;
+    editScope_ = 0;
+    for (int index = 0; index < static_cast<int>(characterSets_.size()); ++index)
+        characterSets_[static_cast<std::size_t>(index)] = makeCharacterSet(index + 1);
+    activeCharacterSet_ = 0;
+    activeCharacterPattern_ = 0;
+    characterForegroundColorIndex_ = 15;
+    characterBackgroundColorIndex_ = 1;
+    characterEditorSlots_ = {{true, 0, 0, 0, 0}};
+    activeCharacterEditor_ = 0;
+    characterTilingMode_ = false;
+    characterPanActive_ = false;
+    characterEditActive_ = false;
+    characterUndoHistory_.clear();
+    characterRedoHistory_.clear();
+    ++characterRevision_;
+
+    spriteSets_.clear();
+    spriteSets_.push_back(makeSpriteSet(1));
+    spriteEditorSlots_ = {{false, 0, 0, 8}};
+    activeSpriteSet_ = 0;
+    activeSprite_ = 0;
+    activeSpriteSize_ = 8;
+    spriteGlobalSize_ = 8;
+    spriteDrawingColorIndex_ = 15;
+    activeSpriteEditor_ = 0;
+    spritePlacementMode_ = false;
+    spritePanActive_ = false;
+    spriteEditActive_ = false;
+    spriteUndoHistory_.clear();
+    spriteRedoHistory_.clear();
+    placementWidth_ = 256;
+    placementHeight_ = 192;
+    ++spriteRevision_;
+    recipePath_.clear();
+    imageInput_->newScreenImage();
+}
+
+void EditorProjectController::createProject(const QString& name,
+                                            bool tms9918aEnabled,
+                                            bool f18aEnabled)
+{
+    createProjectWithTargets(name, tms9918aEnabled, f18aEnabled, {});
+}
+
+void EditorProjectController::createProjectWithTargets(
+    const QString& name,
+    bool tms9918aEnabled,
+    bool f18aEnabled,
+    const QStringList& plannedTargetIds)
+{
+    resetProjectData();
+    configureProjectWithTargets(name, tms9918aEnabled, f18aEnabled,
+                                plannedTargetIds);
+    setStatus(QStringLiteral("Created project %1").arg(projectName_));
 }
 
 void EditorProjectController::setPreviewTarget(int value)
@@ -849,8 +1180,10 @@ void EditorProjectController::undoCharacterEdit()
     if (characterUndoHistory_.empty()) return;
     const CharacterHistoryEntry entry = characterUndoHistory_.back();
     characterUndoHistory_.pop_back();
-    characterSets_[static_cast<std::size_t>(entry.setIndex)]
-        .patterns[static_cast<std::size_t>(entry.patternIndex)] = entry.before;
+    for (const auto& change : entry.changes) {
+        characterSets_[static_cast<std::size_t>(change.setIndex)]
+            .patterns[static_cast<std::size_t>(change.patternIndex)] = change.before;
+    }
     characterRedoHistory_.push_back(entry);
     ++characterRevision_;
     emit projectChanged();
@@ -863,8 +1196,10 @@ void EditorProjectController::redoCharacterEdit()
     if (characterRedoHistory_.empty()) return;
     const CharacterHistoryEntry entry = characterRedoHistory_.back();
     characterRedoHistory_.pop_back();
-    characterSets_[static_cast<std::size_t>(entry.setIndex)]
-        .patterns[static_cast<std::size_t>(entry.patternIndex)] = entry.after;
+    for (const auto& change : entry.changes) {
+        characterSets_[static_cast<std::size_t>(change.setIndex)]
+            .patterns[static_cast<std::size_t>(change.patternIndex)] = change.after;
+    }
     characterUndoHistory_.push_back(entry);
     ++characterRevision_;
     emit projectChanged();
@@ -947,6 +1282,199 @@ bool EditorProjectController::pasteActiveCharacterPattern()
                   .arg(slot.patternIndex, 2, 16, QLatin1Char('0'))
                   .toUpper());
     return true;
+}
+
+bool EditorProjectController::extractScreenImagePatterns(
+    int characterX, int characterY, int regionWidth, int regionHeight,
+    int destinationPattern, bool verticalWrap)
+{
+    const auto* screenImage = imageInput_->screenImageData();
+    if (screenImage == nullptr) {
+        setStatus({}, QStringLiteral("Create a Screen Image before extracting patterns."));
+        return false;
+    }
+    if (characterPanActive_) finishCharacterPan();
+    endCharacterEdit();
+
+    const int patternWidth = characterPatternWidth();
+    const int patternHeight = characterPatternHeight();
+    const int patternCapacity = std::min(characterPatternsPerSet(), 256);
+    const int setCount = std::min(characterSetCount(),
+                                  static_cast<int>(characterSets_.size()));
+    if (patternWidth != 8 || patternHeight != 8 || setCount <= 0) {
+        setStatus({}, QStringLiteral(
+            "The active target's character geometry is not yet supported by the editor model."));
+        return false;
+    }
+    characterX = std::clamp(characterX, 0, characterMapColumns() - 1);
+    characterY = std::clamp(characterY, 0, characterMapRows() - 1);
+    regionWidth = std::clamp(regionWidth, 1, characterMapColumns() - characterX);
+    regionHeight = std::clamp(regionHeight, 1, characterMapRows() - characterY);
+    destinationPattern = std::clamp(destinationPattern, 0, patternCapacity - 1);
+    const int patternCount = regionWidth * regionHeight;
+    if (destinationPattern + patternCount > patternCapacity) {
+        setStatus({}, QStringLiteral(
+            "The selected %1-pattern region does not fit after destination pattern %2.")
+                          .arg(patternCount)
+                          .arg(destinationPattern));
+        return false;
+    }
+
+    const QImage source = retrovdp::imageio::toQImage(*screenImage)
+                              .convertToFormat(QImage::Format_RGBA8888);
+    if (source.isNull()
+        || (characterX + regionWidth) * patternWidth > source.width()
+        || (characterY + regionHeight) * patternHeight > source.height()) {
+        setStatus({}, QStringLiteral(
+            "The selected character region lies outside the Screen Image."));
+        return false;
+    }
+
+    const QVariantList paletteValues = characterPaletteColors();
+    std::array<QColor, 16> palette{};
+    for (int index = 0; index < static_cast<int>(palette.size()); ++index) {
+        palette[static_cast<std::size_t>(index)] = index < paletteValues.size()
+            ? paletteValues.at(index).value<QColor>() : QColor(Qt::black);
+    }
+
+    std::vector<CharacterPatternChange> changes;
+    changes.reserve(static_cast<std::size_t>(patternCount));
+    auto& set = characterSets_[static_cast<std::size_t>(activeCharacterSet_)];
+    for (int sourceRow = 0; sourceRow < regionHeight; ++sourceRow) {
+        for (int sourceColumn = 0; sourceColumn < regionWidth; ++sourceColumn) {
+            const int sequence = verticalWrap
+                ? sourceColumn * regionHeight + sourceRow
+                : sourceRow * regionWidth + sourceColumn;
+            const int patternIndex = destinationPattern + sequence;
+            CharacterPattern extracted;
+            for (int pixelRow = 0; pixelRow < patternHeight; ++pixelRow) {
+                std::array<int, 16> counts{};
+                std::array<QColor, 8> sourceColors{};
+                for (int pixelColumn = 0; pixelColumn < patternWidth; ++pixelColumn) {
+                    const QColor color = source.pixelColor(
+                        (characterX + sourceColumn) * patternWidth + pixelColumn,
+                        (characterY + sourceRow) * patternHeight + pixelRow);
+                    sourceColors[static_cast<std::size_t>(pixelColumn)] = color;
+                    int nearest = 1;
+                    int nearestDistance = colorDistanceSquared(color, palette[1]);
+                    for (int paletteIndex = 2; paletteIndex < 16; ++paletteIndex) {
+                        const int distance = colorDistanceSquared(
+                            color, palette[static_cast<std::size_t>(paletteIndex)]);
+                        if (distance < nearestDistance) {
+                            nearest = paletteIndex;
+                            nearestDistance = distance;
+                        }
+                    }
+                    ++counts[static_cast<std::size_t>(nearest)];
+                }
+                int background = 1;
+                for (int index = 2; index < 16; ++index) {
+                    if (counts[static_cast<std::size_t>(index)]
+                        > counts[static_cast<std::size_t>(background)]) {
+                        background = index;
+                    }
+                }
+                int foreground = background == characterForegroundColorIndex_
+                    ? (background == 15 ? 1 : 15) : characterForegroundColorIndex_;
+                for (int index = 1; index < 16; ++index) {
+                    if (index != background
+                        && counts[static_cast<std::size_t>(index)]
+                            > counts[static_cast<std::size_t>(foreground)]) {
+                        foreground = index;
+                    }
+                }
+                std::uint8_t bitmap{};
+                for (int pixelColumn = 0; pixelColumn < patternWidth; ++pixelColumn) {
+                    const QColor color = sourceColors[static_cast<std::size_t>(pixelColumn)];
+                    if (colorDistanceSquared(
+                            color, palette[static_cast<std::size_t>(foreground)])
+                        <= colorDistanceSquared(
+                            color, palette[static_cast<std::size_t>(background)])) {
+                        bitmap |= static_cast<std::uint8_t>(0x80U >> pixelColumn);
+                    }
+                }
+                extracted.bitmap[static_cast<std::size_t>(pixelRow)] = bitmap;
+                extracted.colors[static_cast<std::size_t>(pixelRow)] =
+                    static_cast<std::uint8_t>((foreground << 4) | background);
+            }
+
+            auto& destination = set.patterns[static_cast<std::size_t>(patternIndex)];
+            if (!sameCharacterPattern(destination, extracted)) {
+                changes.push_back({activeCharacterSet_, patternIndex,
+                                   destination, extracted});
+                destination = extracted;
+            }
+        }
+    }
+
+    if (!changes.empty()) {
+        recordCharacterEdits(std::move(changes));
+        ++characterRevision_;
+    }
+    activeCharacterPattern_ = destinationPattern;
+    if (!characterEditorSlots_.empty()) {
+        auto& slot = characterEditorSlots_[static_cast<std::size_t>(activeCharacterEditor_)];
+        slot.loaded = true;
+        slot.setIndex = activeCharacterSet_;
+        slot.patternIndex = destinationPattern;
+    }
+    emit projectChanged();
+    setStatus(QStringLiteral(
+        "Extracted %1 Screen Image patterns into Set %2 beginning at pattern %3 (%4 wrap).")
+                  .arg(patternCount)
+                  .arg(activeCharacterSet_ + 1)
+                  .arg(destinationPattern)
+                  .arg(verticalWrap ? QStringLiteral("vertical")
+                                    : QStringLiteral("horizontal")));
+    return true;
+}
+
+QString EditorProjectController::characterPatternPreview(
+    int setIndex, int firstPattern, int patternWidth, int patternHeight,
+    bool verticalWrap) const
+{
+    const int tileWidth = characterPatternWidth();
+    const int tileHeight = characterPatternHeight();
+    const int capacity = std::min(characterPatternsPerSet(), 256);
+    if (tileWidth != 8 || tileHeight != 8 || setIndex < 0
+        || setIndex >= static_cast<int>(characterSets_.size()) || capacity <= 0) {
+        return {};
+    }
+    firstPattern = std::clamp(firstPattern, 0, capacity - 1);
+    patternWidth = std::clamp(patternWidth, 1, characterMapColumns());
+    patternHeight = std::clamp(patternHeight, 1, characterMapRows());
+    QImage preview(patternWidth * tileWidth, patternHeight * tileHeight,
+                   QImage::Format_RGBA8888);
+    preview.fill(QColor(16, 22, 28));
+    const QVariantList paletteValues = characterPaletteColors();
+    const auto& set = characterSets_[static_cast<std::size_t>(setIndex)];
+    for (int row = 0; row < patternHeight; ++row) {
+        for (int column = 0; column < patternWidth; ++column) {
+            const int offset = verticalWrap
+                ? column * patternHeight + row : row * patternWidth + column;
+            const int patternIndex = firstPattern + offset;
+            if (patternIndex >= capacity) continue;
+            const auto& pattern = set.patterns[static_cast<std::size_t>(patternIndex)];
+            for (int pixelRow = 0; pixelRow < tileHeight; ++pixelRow) {
+                const std::uint8_t color = pattern.colors[
+                    static_cast<std::size_t>(pixelRow)];
+                const int foreground = color >> 4U;
+                const int background = color & 0x0fU;
+                for (int pixelColumn = 0; pixelColumn < tileWidth; ++pixelColumn) {
+                    const bool ink = (pattern.bitmap[static_cast<std::size_t>(pixelRow)]
+                                      & (0x80U >> pixelColumn)) != 0;
+                    const int paletteIndex = ink ? foreground : background;
+                    QColor pixel = paletteIndex < paletteValues.size()
+                        ? paletteValues.at(paletteIndex).value<QColor>()
+                        : QColor(Qt::black);
+                    if (pixel.alpha() == 0) pixel = QColor(48, 56, 66);
+                    preview.setPixelColor(column * tileWidth + pixelColumn,
+                                          row * tileHeight + pixelRow, pixel);
+                }
+            }
+        }
+    }
+    return imageDataUrl(preview);
 }
 
 void EditorProjectController::addCharacterEditor()
@@ -1032,7 +1560,7 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
     endSpriteEdit();
     QString path = fileUrl.toLocalFile();
     if (path.isEmpty()) {
-        setStatus({}, QStringLiteral("Choose a local recipe file."));
+        setStatus({}, QStringLiteral("Choose a local project file."));
         return false;
     }
     if (QFileInfo(path).suffix().isEmpty()) path += QStringLiteral(".rvdp.json");
@@ -1134,15 +1662,24 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
                         {QStringLiteral("size"), editor.size}});
     }
 
+    QJsonArray projectTargets;
+    if (tms9918aEnabled_) projectTargets.push_back(QStringLiteral("tms9918a"));
+    if (f18aEnabled_) projectTargets.push_back(QStringLiteral("f18a"));
+    for (const QString& targetId : plannedTargetIds_)
+        projectTargets.push_back(targetId);
+
     const QJsonObject root{
         {QStringLiteral("kind"), QStringLiteral("retrovdp-studio-recipe")},
         {QStringLiteral("schemaVersion"), 1},
+        {QStringLiteral("project"),
+         QJsonObject{{QStringLiteral("name"), projectName_},
+                     {QStringLiteral("targets"), projectTargets}}},
         {QStringLiteral("workspace"), workspaceName(workspaceMode_)},
         {QStringLiteral("source"),
          QJsonObject{{QStringLiteral("path"), imageInput_->sourcePath()}}},
         {QStringLiteral("profiles"),
          QJsonObject{{QStringLiteral("tms9918a"),
-                      QJsonObject{{QStringLiteral("enabled"), true}}},
+                      QJsonObject{{QStringLiteral("enabled"), tms9918aEnabled_}}},
                      {QStringLiteral("f18a"),
                       QJsonObject{{QStringLiteral("enabled"), f18aEnabled_},
                                   {QStringLiteral("inherits"),
@@ -1179,17 +1716,17 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
 
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
-        setStatus({}, QStringLiteral("Could not open the recipe for writing: %1")
+        setStatus({}, QStringLiteral("Could not open the project for writing: %1")
                           .arg(file.errorString()));
         return false;
     }
     file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
     if (!file.commit()) {
-        setStatus({}, QStringLiteral("Could not save the recipe: %1").arg(file.errorString()));
+        setStatus({}, QStringLiteral("Could not save the project: %1").arg(file.errorString()));
         return false;
     }
     recipePath_ = QFileInfo(path).absoluteFilePath();
-    setStatus(QStringLiteral("Saved recipe %1").arg(QFileInfo(path).fileName()));
+    setStatus(QStringLiteral("Saved project %1").arg(QFileInfo(path).fileName()));
     emit projectChanged();
     return true;
 }
@@ -1199,13 +1736,13 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
     const QString path = fileUrl.toLocalFile();
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
-        setStatus({}, QStringLiteral("Could not open the recipe: %1").arg(file.errorString()));
+        setStatus({}, QStringLiteral("Could not open the project: %1").arg(file.errorString()));
         return false;
     }
     QJsonParseError parseError;
     const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        setStatus({}, QStringLiteral("Invalid recipe JSON: %1").arg(parseError.errorString()));
+        setStatus({}, QStringLiteral("Invalid project JSON: %1").arg(parseError.errorString()));
         return false;
     }
     const QJsonObject root = document.object();
@@ -1236,15 +1773,43 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
         return false;
     }
 
+    const QJsonObject project = root.value(QStringLiteral("project")).toObject();
+    const QJsonArray configuredTargets = project.value(QStringLiteral("targets")).toArray();
+    if (project.isEmpty()) {
+        projectName_ = QFileInfo(path).completeBaseName();
+        tms9918aEnabled_ = true;
+        plannedTargetIds_.clear();
+    } else {
+        projectName_ = project.value(QStringLiteral("name"))
+                           .toString(QStringLiteral("Untitled Project")).trimmed();
+        if (projectName_.isEmpty()) projectName_ = QStringLiteral("Untitled Project");
+        tms9918aEnabled_ = configuredTargets.contains(QStringLiteral("tms9918a"));
+        plannedTargetIds_.clear();
+        for (const QJsonValue& targetValue : configuredTargets) {
+            const QString targetId = targetValue.toString().trimmed();
+            if (!targetId.isEmpty() && targetId != QStringLiteral("tms9918a")
+                && targetId != QStringLiteral("f18a")
+                && !plannedTargetIds_.contains(targetId)) {
+                plannedTargetIds_.push_back(targetId);
+            }
+        }
+    }
+
     workspaceMode_ = workspaceValue(root.value(QStringLiteral("workspace")).toString());
     f18aEnabled_ = root.value(QStringLiteral("profiles")).toObject()
                         .value(QStringLiteral("f18a")).toObject()
                         .value(QStringLiteral("enabled")).toBool(true);
-    previewTarget_ = previewValue(root.value(QStringLiteral("preview")).toString());
-    if (!f18aEnabled_) previewTarget_ = 0;
-    editScope_ = root.value(QStringLiteral("editScope")).toString()
-                         == QStringLiteral("f18a-enhancements")
-        && f18aEnabled_ ? 1 : 0;
+    if (!project.isEmpty())
+        f18aEnabled_ = configuredTargets.contains(QStringLiteral("f18a"));
+    if (!tms9918aEnabled_ && !f18aEnabled_) tms9918aEnabled_ = true;
+    if (!targetEnabled(activeTarget()))
+        imageInput_->setTargetProfile(tms9918aEnabled_ ? 0 : 1);
+    previewTarget_ = activeTarget();
+    const auto& activeProfile = retrovdp::core::targetProfile(
+        static_cast<retrovdp::core::TargetProfileId>(activeTarget()));
+    editScope_ = retrovdp::core::hasCapability(
+        activeProfile.capabilities,
+        retrovdp::core::TargetCapability::EnhancedColor) ? 1 : 0;
 
     const QJsonObject character = root.value(QStringLiteral("characterEditor")).toObject();
     activeCharacterSet_ = std::clamp(character.value(QStringLiteral("activeSet")).toInt(),
@@ -1459,7 +2024,7 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
     }
 
     recipePath_ = QFileInfo(path).absoluteFilePath();
-    setStatus(QStringLiteral("Loaded recipe %1").arg(QFileInfo(path).fileName()));
+    setStatus(QStringLiteral("Loaded project %1").arg(QFileInfo(path).fileName()));
     emit projectChanged();
     return true;
 }
@@ -1552,11 +2117,19 @@ void EditorProjectController::recordCharacterEdit(
     const CharacterPattern& before, const CharacterPattern& after)
 {
     if (sameCharacterPattern(before, after)) return;
+    recordCharacterEdits({CharacterPatternChange{setIndex, patternIndex,
+                                                  before, after}});
+}
+
+void EditorProjectController::recordCharacterEdits(
+    std::vector<CharacterPatternChange> changes)
+{
+    if (changes.empty()) return;
     constexpr std::size_t maximumHistory = 128;
     if (characterUndoHistory_.size() >= maximumHistory) {
         characterUndoHistory_.erase(characterUndoHistory_.begin());
     }
-    characterUndoHistory_.push_back({setIndex, patternIndex, before, after});
+    characterUndoHistory_.push_back({std::move(changes)});
     characterRedoHistory_.clear();
 }
 

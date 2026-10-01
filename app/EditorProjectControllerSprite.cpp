@@ -593,9 +593,14 @@ bool EditorProjectController::pasteActiveSpritePattern()
     const int count = data->size * data->size;
     for (int index = 0; index < count; ++index) {
         if (data->pixels[static_cast<std::size_t>(index)] > maximum) {
+            const QString targetName = activeTargetInfo()
+                                           .value(QStringLiteral("name"))
+                                           .toString();
             setStatus({}, editScope_ == 0
-                ? QStringLiteral("Enhanced-color sprite pixels cannot be pasted into the TMS9918A baseline.")
-                : QStringLiteral("Clipboard pixel indexes exceed the active F18A color depth."));
+                ? QStringLiteral("Enhanced-color sprite pixels are not supported by %1.")
+                      .arg(targetName)
+                : QStringLiteral("Clipboard pixel indexes exceed the active %1 color depth.")
+                      .arg(targetName));
             return false;
         }
     }
