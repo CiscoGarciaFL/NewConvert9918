@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 # This is the single release-version source. CMake's project() command accepts
 # only the numeric core, so keep the complete semantic version here and derive
 # PROJECT_VERSION from it.
-set(RETROVDP_VERSION "0.1.0-beta.5")
+set(RETROVDP_VERSION "0.1.0-beta.6")
 if(NOT RETROVDP_VERSION MATCHES
         "^([0-9]+)\\.([0-9]+)\\.([0-9]+)(-[0-9A-Za-z.-]+)?$")
     message(FATAL_ERROR
@@ -38,24 +38,17 @@ set(RETROVDP_WINDOWS_INSTALLER_ID
 option(RETROVDP_RELEASE_BUILD
     "Enable strict release packaging inputs and metadata" OFF)
 if(RETROVDP_RELEASE_BUILD)
+    set(RETROVDP_LICENSE_SOURCE_DIR
+        "${CMAKE_CURRENT_SOURCE_DIR}/packaging/licenses")
     set(RETROVDP_LICENSE_DIR "${CMAKE_BINARY_DIR}/release-licenses")
     file(MAKE_DIRECTORY "${RETROVDP_LICENSE_DIR}")
-    file(DOWNLOAD
-        "https://www.gnu.org/licenses/lgpl-3.0.txt"
-        "${RETROVDP_LICENSE_DIR}/LGPL-3.0.txt"
-        EXPECTED_HASH
-            "SHA256=e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
-        TLS_VERIFY ON
-        TIMEOUT 60
-    )
-    file(DOWNLOAD
-        "https://www.gnu.org/licenses/gpl-3.0.txt"
-        "${RETROVDP_LICENSE_DIR}/GPL-3.0.txt"
-        EXPECTED_HASH
-            "SHA256=3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
-        TLS_VERIFY ON
-        TIMEOUT 60
-    )
+    foreach(license_file IN ITEMS LGPL-3.0.txt GPL-3.0.txt)
+        configure_file(
+            "${RETROVDP_LICENSE_SOURCE_DIR}/${license_file}"
+            "${RETROVDP_LICENSE_DIR}/${license_file}"
+            COPYONLY
+        )
+    endforeach()
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
