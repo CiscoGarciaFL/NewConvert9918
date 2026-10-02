@@ -45,7 +45,7 @@ void importLegacySettings()
     current.sync();
 }
 
-QPixmap createSplashPixmap()
+QPixmap createSplashPixmap(const QString& applicationVersion)
 {
     constexpr int splashWidth = 640;
     constexpr int splashHeight = 360;
@@ -67,9 +67,17 @@ QPixmap createSplashPixmap()
     titleFont.setWeight(QFont::DemiBold);
     painter.setFont(titleFont);
     painter.setPen(QColor(QStringLiteral("#f4f7fa")));
-    painter.drawText(QRect(24, 270, splashWidth - 48, 52),
+    painter.drawText(QRect(24, 262, splashWidth - 48, 48),
                      Qt::AlignCenter,
                      QStringLiteral("RetroVDP Studio"));
+
+    QFont versionFont;
+    versionFont.setPixelSize(16);
+    painter.setFont(versionFont);
+    painter.setPen(QColor(QStringLiteral("#b8c5d1")));
+    painter.drawText(QRect(24, 310, splashWidth - 48, 28),
+                     Qt::AlignCenter,
+                     QStringLiteral("Version %1").arg(applicationVersion));
 
     return splashPixmap;
 }
@@ -96,7 +104,7 @@ int main(int argc, char* argv[])
     QElapsedTimer splashLifetime;
     splashLifetime.start();
     QSplashScreen splash(
-        createSplashPixmap(),
+        createSplashPixmap(application.applicationVersion()),
         Qt::SplashScreen | Qt::FramelessWindowHint
             | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
     if (!smokeTest) {

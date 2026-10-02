@@ -71,6 +71,10 @@ Dialog {
         tms9918aTarget.checked = editorProject.tms9918aEnabled
         f18aTarget.checked = editorProject.f18aEnabled
         setPlannedTargets(editorProject.plannedTargetIds)
+        v9938Target.checked = editorProject.v9938Enabled
+        v9958Target.checked = editorProject.v9958Enabled
+        segaSmsTarget.checked = editorProject.segaSmsEnabled
+        segaGenesisTarget.checked = editorProject.segaGenesisEnabled
         open()
         projectNameField.forceActiveFocus()
     }
@@ -118,7 +122,7 @@ Dialog {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
                 color: palette.placeholderText
-                text: qsTr("Implemented targets are available in the Project Bar. Future targets are recorded in the project now and become active as their rule engines are implemented.")
+                text: qsTr("Implemented targets are available in the Project Bar. Target selection is persisted with the project and controls its hardware-aware editors.")
             }
 
             Label {
@@ -129,49 +133,68 @@ Dialog {
             CheckBox {
                 id: tms9918aTarget
                 objectName: "tms9918aProjectTarget"
-                text: qsTr("TMS9918A — Implemented")
-                enabled: !checked || f18aTarget.checked
+                text: qsTr("TMS9918A")
+                enabled: !checked || f18aTarget.checked || v9938Target.checked
+                         || v9958Target.checked || segaSmsTarget.checked
+                         || segaGenesisTarget.checked
             }
             CheckBox {
                 id: f18aTarget
                 objectName: "f18aProjectTarget"
-                text: qsTr("F18A — Implemented")
-                enabled: !checked || tms9918aTarget.checked
+                text: qsTr("F18A")
+                enabled: !checked || tms9918aTarget.checked || v9938Target.checked
+                         || v9958Target.checked || segaSmsTarget.checked
+                         || segaGenesisTarget.checked
             }
             CheckBox {
                 id: v9938Target
                 objectName: "v9938ProjectTarget"
-                text: qsTr("Yamaha V9938 — Next")
+                text: qsTr("Yamaha V9938")
+                enabled: !checked || tms9918aTarget.checked || f18aTarget.checked
+                         || v9958Target.checked || segaSmsTarget.checked
+                         || segaGenesisTarget.checked
             }
             CheckBox {
                 id: v9958Target
                 objectName: "v9958ProjectTarget"
-                text: qsTr("Yamaha V9958 — Planned")
+                text: qsTr("Yamaha V9958")
+                enabled: !checked || tms9918aTarget.checked || f18aTarget.checked
+                         || v9938Target.checked || segaSmsTarget.checked
+                         || segaGenesisTarget.checked
             }
             CheckBox {
                 id: segaSmsTarget
                 objectName: "segaSmsProjectTarget"
-                text: qsTr("Sega Master System 315-5124 / 315-5246 — Planned")
+                text: qsTr("Sega Master System 315-5124 / 315-5246")
+                enabled: !checked || tms9918aTarget.checked || f18aTarget.checked
+                         || v9938Target.checked || v9958Target.checked
+                         || segaGenesisTarget.checked
             }
             CheckBox {
                 id: segaGenesisTarget
                 objectName: "segaGenesisProjectTarget"
-                text: qsTr("Sega Genesis / Mega Drive 315-5313 / YM7101 — Planned")
+                text: qsTr("Sega Genesis / Mega Drive 315-5313 / YM7101")
+                enabled: !checked || tms9918aTarget.checked || f18aTarget.checked
+                         || v9938Target.checked || v9958Target.checked
+                         || segaSmsTarget.checked
             }
             CheckBox {
                 id: huc6270Target
                 objectName: "huc6270ProjectTarget"
                 text: qsTr("NEC / Hudson HuC6270 — Planned")
+                enabled: false
             }
             CheckBox {
                 id: vicIiTarget
                 objectName: "vicIiProjectTarget"
                 text: qsTr("MOS VIC-II — Planned")
+                enabled: false
             }
             CheckBox {
                 id: vicTarget
                 objectName: "vicProjectTarget"
                 text: qsTr("MOS VIC — Planned")
+                enabled: false
             }
 
             Label {
@@ -183,16 +206,19 @@ Dialog {
                 id: gameBoyTarget
                 objectName: "gameBoyProjectTarget"
                 text: qsTr("Nintendo Game Boy — Planned")
+                enabled: false
             }
             CheckBox {
                 id: gameBoyColorTarget
                 objectName: "gameBoyColorProjectTarget"
                 text: qsTr("Nintendo Game Boy Color — Planned")
+                enabled: false
             }
             CheckBox {
                 id: superNesTarget
                 objectName: "superNesProjectTarget"
                 text: qsTr("Super NES 5C77 / 5C78 — Planned")
+                enabled: false
             }
 
             Label {
@@ -204,11 +230,13 @@ Dialog {
                 id: atariLynxTarget
                 objectName: "atariLynxProjectTarget"
                 text: qsTr("Atari Lynx Suzy / Mikey — Planned")
+                enabled: false
             }
             CheckBox {
                 id: neoGeoTarget
                 objectName: "neoGeoProjectTarget"
                 text: qsTr("SNK Neo Geo — Research")
+                enabled: false
             }
 
             Label {
@@ -220,21 +248,25 @@ Dialog {
                 id: amstradCpcTarget
                 objectName: "amstradCpcProjectTarget"
                 text: qsTr("Amstrad CPC — Planned")
+                enabled: false
             }
             CheckBox {
                 id: ibmCgaTarget
                 objectName: "ibmCgaProjectTarget"
                 text: qsTr("IBM CGA — Research")
+                enabled: false
             }
             CheckBox {
                 id: ibmEgaTarget
                 objectName: "ibmEgaProjectTarget"
                 text: qsTr("IBM EGA — Research")
+                enabled: false
             }
             CheckBox {
                 id: appleIieTarget
                 objectName: "appleIieProjectTarget"
                 text: qsTr("Apple IIe — Research")
+                enabled: false
             }
 
             Label {
@@ -246,11 +278,13 @@ Dialog {
                 id: timexTarget
                 objectName: "timexTs1000ProjectTarget"
                 text: qsTr("Timex Sinclair 1000 / ZX81-class — Research")
+                enabled: false
             }
             CheckBox {
                 id: trs80Target
                 objectName: "trs80ProjectTarget"
                 text: qsTr("TRS-80 Model I / III — Research")
+                enabled: false
             }
 
             Label {

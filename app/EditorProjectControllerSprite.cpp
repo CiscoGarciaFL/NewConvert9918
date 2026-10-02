@@ -1,4 +1,7 @@
 #include "EditorProjectController.hpp"
+#include "ImageInputController.hpp"
+
+#include "retrovdp/core/TargetProfile.hpp"
 
 #include <QClipboard>
 #include <QGuiApplication>
@@ -12,11 +15,6 @@
 
 namespace {
 
-int normalizedSpriteSize(int value)
-{
-    return value >= 16 ? 16 : 8;
-}
-
 bool sameSpritePattern(const auto& left, const auto& right)
 {
     return left.baselinePixels == right.baselinePixels
@@ -28,19 +26,64 @@ bool sameSpritePattern(const auto& left, const auto& right)
 
 int EditorProjectController::activeSpriteColorDepth() const
 {
+    if (usesIndexed4BppEditor()) return 4;
     if (spriteSets_.empty()) return 1;
     const auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
                                 .placements[static_cast<std::size_t>(activeSprite_)];
     return editScope_ == 1 ? placement.colorDepth : 1;
 }
 
+int EditorProjectController::spritePatternsPerSet() const
+{
+    if (usesGenesisMode5Editor() && imageInput_->targetWidth() == 256) return 64;
+    return std::min<int>(
+        retrovdp::core::targetProfile(
+            static_cast<retrovdp::core::TargetProfileId>(activeTarget()))
+            .sprites.patternsPerSet,
+        80);
+}
+
+int EditorProjectController::normalizedSpriteSize(int value) const
+{
+    if (usesGenesisMode5Editor()) {
+        int width = value >= 100 ? value / 100 : value;
+        int height = value >= 100 ? value % 100 : value;
+        width = std::clamp(((width + 4) / 8) * 8, 8, 32);
+        height = std::clamp(((height + 4) / 8) * 8, 8, 32);
+        return width * 100 + height;
+    }
+    return value >= 16 ? 16 : 8;
+}
+
+int EditorProjectController::spritePatternWidth(int size) const
+{
+    size = normalizedSpriteSize(size);
+    if (usesSmsMode4Editor()) return 8;
+    if (usesGenesisMode5Editor()) return size / 100;
+    return size;
+}
+
+int EditorProjectController::spritePatternHeight(int size) const
+{
+    size = normalizedSpriteSize(size);
+    return usesGenesisMode5Editor() ? size % 100 : size;
+}
+
+bool EditorProjectController::canRotateSpritePattern() const
+{
+    return spritePatternWidth(activeSpriteSize_)
+        == spritePatternHeight(activeSpriteSize_);
+}
+
 bool EditorProjectController::canPasteSpritePattern() const
 {
     const auto data = spritePatternFromClipboard();
-    if (!data.has_value() || data->size != activeSpriteSize_) return false;
+    if (!data.has_value()
+        || data->width != spritePatternWidth(activeSpriteSize_)
+        || data->height != spritePatternHeight(activeSpriteSize_)) return false;
     const int maximum = editScope_ == 1
         ? (1 << activeSpriteColorDepth()) - 1 : 1;
-    const int count = data->size * data->size;
+    const int count = data->width * data->height;
     for (int index = 0; index < count; ++index) {
         if (data->pixels[static_cast<std::size_t>(index)] > maximum) return false;
     }
@@ -50,7 +93,7 @@ bool EditorProjectController::canPasteSpritePattern() const
 void EditorProjectController::selectSpritePattern(int spriteIndex, int size)
 {
     if (spriteSets_.empty()) return;
-    spriteIndex = std::clamp(spriteIndex, 0, 31);
+    spriteIndex = std::clamp(spriteIndex, 0, spritePatternsPerSet() - 1);
     size = normalizedSpriteSize(size);
     if (spritePanActive_
         && (spriteIndex != activeSprite_ || size != activeSpriteSize_)) {
@@ -60,7 +103,8 @@ void EditorProjectController::selectSpritePattern(int spriteIndex, int size)
     bool changed = activeSprite_ != spriteIndex || activeSpriteSize_ != size;
     activeSprite_ = spriteIndex;
     activeSpriteSize_ = size;
-    if (editScope_ == 0) {
+    const bool perItemSize = usesPerSpriteSizeEditor();
+    if (!perItemSize) {
         if (spriteGlobalSize_ != size) {
             spriteGlobalSize_ = size;
             changed = true;
@@ -84,7 +128,8 @@ void EditorProjectController::setActiveSpriteSize(int value)
     if (spritePanActive_ && value != activeSpriteSize_) finishSpritePan();
     bool changed = activeSpriteSize_ != value;
     activeSpriteSize_ = value;
-    if (editScope_ == 0) {
+    const bool perItemSize = usesPerSpriteSizeEditor();
+    if (!perItemSize) {
         if (spriteGlobalSize_ != value) {
             spriteGlobalSize_ = value;
             changed = true;
@@ -107,7 +152,8 @@ void EditorProjectController::setSpriteGlobalSize(int value)
     if (spriteGlobalSize_ == value) return;
     if (spritePanActive_) finishSpritePan();
     spriteGlobalSize_ = value;
-    if (editScope_ == 0) {
+    const bool perItemSize = usesPerSpriteSizeEditor();
+    if (!perItemSize) {
         activeSpriteSize_ = value;
         activateSpriteEditorBank(value);
         syncSpriteDrawingColor();
@@ -120,7 +166,8 @@ void EditorProjectController::setSpriteDrawingColorIndex(int value)
     if (spriteSets_.empty()) return;
     auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
                           .placements[static_cast<std::size_t>(activeSprite_)];
-    const int maximum = editScope_ == 1 ? (1 << placement.colorDepth) - 1 : 15;
+    const int maximum = editScope_ == 1
+        ? (1 << activeSpriteColorDepth()) - 1 : 15;
     value = std::clamp(value, 1, maximum);
     bool changed = spriteDrawingColorIndex_ != value;
     spriteDrawingColorIndex_ = value;
@@ -131,10 +178,29 @@ void EditorProjectController::setSpriteDrawingColorIndex(int value)
     if (changed) emit projectChanged();
 }
 
+int EditorProjectController::activeSpritePaletteBank() const
+{
+    if (spriteSets_.empty()) return 0;
+    return spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
+        .placements[static_cast<std::size_t>(activeSprite_)].palette;
+}
+
+void EditorProjectController::setActiveSpritePaletteBank(int value)
+{
+    if (spriteSets_.empty()) return;
+    value = std::clamp(value, 0, usesGenesisMode5Editor() ? 3 : 0);
+    auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
+                          .placements[static_cast<std::size_t>(activeSprite_)];
+    if (placement.palette == value) return;
+    placement.palette = value;
+    ++spriteRevision_;
+    emit projectChanged();
+}
+
 void EditorProjectController::setActiveSpriteColorDepth(int value)
 {
     if (editScope_ != 1 || spriteSets_.empty()) return;
-    value = std::clamp(value, 1, 3);
+    value = usesIndexed4BppEditor() ? 4 : std::clamp(value, 1, 3);
     auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
                           .placements[static_cast<std::size_t>(activeSprite_)];
     if (placement.colorDepth == value) return;
@@ -156,7 +222,7 @@ void EditorProjectController::syncSpriteDrawingColor()
         return;
     }
     spriteDrawingColorIndex_ = std::clamp(
-        spriteDrawingColorIndex_, 1, (1 << placement.colorDepth) - 1);
+        spriteDrawingColorIndex_, 1, (1 << activeSpriteColorDepth()) - 1);
 }
 
 bool EditorProjectController::activateSpriteEditorBank(int size)
@@ -177,9 +243,11 @@ bool EditorProjectController::activateSpriteEditorBank(int size)
         if (slot.loaded) break;
     }
     if (matchingIndex < 0) {
-        constexpr std::size_t maximumEditors = 32;
+        const std::size_t maximumEditors = static_cast<std::size_t>(
+            spritePatternsPerSet());
         if (spriteEditorSlots_.size() >= maximumEditors) {
-            setStatus({}, QStringLiteral("A sprite tray can contain up to 32 unique sprite editors."));
+            setStatus({}, QStringLiteral("A sprite tray can contain up to %1 unique sprite editors.")
+                              .arg(spritePatternsPerSet()));
             return false;
         }
         spriteEditorSlots_.push_back(
@@ -232,7 +300,8 @@ bool EditorProjectController::assignActiveSpriteToEditor()
         }
     }
     if (targetIndex < 0) {
-        constexpr std::size_t maximumEditors = 32;
+        const std::size_t maximumEditors = static_cast<std::size_t>(
+            spritePatternsPerSet());
         if (spriteEditorSlots_.size() >= maximumEditors) return false;
         spriteEditorSlots_.push_back(
             {false, activeSpriteSet_, activeSprite_, activeSpriteSize_});
@@ -275,18 +344,18 @@ QVariantList EditorProjectController::spritePatternPixels(int setIndex,
     QVariantList result;
     size = normalizedSpriteSize(size);
     if (setIndex < 0 || setIndex >= static_cast<int>(spriteSets_.size())
-        || spriteIndex < 0 || spriteIndex >= 32) {
+        || spriteIndex < 0 || spriteIndex >= spritePatternsPerSet()) {
         return result;
     }
-    std::array<std::uint8_t, 256> panPixels{};
-    const std::array<std::uint8_t, 256>* pixels =
+    std::array<std::uint8_t, 1024> panPixels{};
+    const std::array<std::uint8_t, 1024>* pixels =
         &visibleSpritePixels(spritePattern(setIndex, spriteIndex, size));
     if (spritePanActive_ && setIndex == spritePanSetIndex_
         && spriteIndex == spritePanSpriteIndex_ && size == spritePanSize_) {
         panPixels = pannedSpritePixels();
         pixels = &panPixels;
     }
-    const int count = size * size;
+    const int count = spritePatternWidth(size) * spritePatternHeight(size);
     result.reserve(count);
     for (int index = 0; index < count; ++index) {
         result.push_back((*pixels)[static_cast<std::size_t>(index)]);
@@ -303,8 +372,9 @@ void EditorProjectController::paintSpritePixel(int setIndex,
 {
     size = normalizedSpriteSize(size);
     if (setIndex < 0 || setIndex >= static_cast<int>(spriteSets_.size())
-        || spriteIndex < 0 || spriteIndex >= 32
-        || row < 0 || row >= size || column < 0 || column >= size
+        || spriteIndex < 0 || spriteIndex >= spritePatternsPerSet()
+        || row < 0 || row >= spritePatternHeight(size)
+        || column < 0 || column >= spritePatternWidth(size)
         || spritePanActive_) {
         return;
     }
@@ -317,14 +387,15 @@ void EditorProjectController::paintSpritePixel(int setIndex,
     const bool standalone = !spriteEditActive_;
     if (standalone) beginSpriteEdit(setIndex, spriteIndex, size);
     auto& pattern = spritePattern(setIndex, spriteIndex, size);
-    std::array<std::uint8_t, 256>* pixels = &pattern.baselinePixels;
+    std::array<std::uint8_t, 1024>* pixels = &pattern.baselinePixels;
     int value = foreground ? 1 : 0;
     if (editScope_ == 1) {
         ensureF18aSpriteOverride(pattern);
         pixels = &pattern.f18aPixels;
         value = foreground ? spriteDrawingColorIndex_ : 0;
     }
-    auto& pixel = (*pixels)[static_cast<std::size_t>(row * size + column)];
+    auto& pixel = (*pixels)[static_cast<std::size_t>(
+        row * spritePatternWidth(size) + column)];
     if (pixel != value) {
         pixel = static_cast<std::uint8_t>(value);
         ++spriteRevision_;
@@ -344,13 +415,14 @@ void EditorProjectController::drawSpriteLine(int setIndex,
 {
     size = normalizedSpriteSize(size);
     if (setIndex < 0 || setIndex >= static_cast<int>(spriteSets_.size())
-        || spriteIndex < 0 || spriteIndex >= 32 || spritePanActive_) {
+        || spriteIndex < 0 || spriteIndex >= spritePatternsPerSet()
+        || spritePanActive_) {
         return;
     }
-    fromRow = std::clamp(fromRow, 0, size - 1);
-    fromColumn = std::clamp(fromColumn, 0, size - 1);
-    toRow = std::clamp(toRow, 0, size - 1);
-    toColumn = std::clamp(toColumn, 0, size - 1);
+    fromRow = std::clamp(fromRow, 0, spritePatternHeight(size) - 1);
+    fromColumn = std::clamp(fromColumn, 0, spritePatternWidth(size) - 1);
+    toRow = std::clamp(toRow, 0, spritePatternHeight(size) - 1);
+    toColumn = std::clamp(toColumn, 0, spritePatternWidth(size) - 1);
     const bool groupedEdit = spriteEditActive_
         && spriteEditSetIndex_ == setIndex
         && spriteEditSpriteIndex_ == spriteIndex
@@ -384,7 +456,8 @@ void EditorProjectController::beginSpriteEdit(int setIndex, int spriteIndex, int
 {
     size = normalizedSpriteSize(size);
     if (setIndex < 0 || setIndex >= static_cast<int>(spriteSets_.size())
-        || spriteIndex < 0 || spriteIndex >= 32 || spritePanActive_) {
+        || spriteIndex < 0 || spriteIndex >= spritePatternsPerSet()
+        || spritePanActive_) {
         return;
     }
     if (spriteEditActive_) {
@@ -416,6 +489,11 @@ void EditorProjectController::endSpriteEdit()
 
 void EditorProjectController::rotateActiveSpritePattern()
 {
+    if (!canRotateSpritePattern()) {
+        setStatus({}, QStringLiteral(
+            "Rotation is unavailable when the active hardware sprite is rectangular."));
+        return;
+    }
     if (spritePanActive_) finishSpritePan();
     endSpriteEdit();
     auto& pattern = spritePattern(activeSpriteSet_, activeSprite_, activeSpriteSize_);
@@ -424,10 +502,12 @@ void EditorProjectController::rotateActiveSpritePattern()
     auto& pixels = editScope_ == 1 ? pattern.f18aPixels : pattern.baselinePixels;
     const auto source = pixels;
     const int size = activeSpriteSize_;
-    for (int row = 0; row < size; ++row) {
-        for (int column = 0; column < size; ++column) {
-            pixels[static_cast<std::size_t>(column * size + (size - 1 - row))] =
-                source[static_cast<std::size_t>(row * size + column)];
+    const int width = spritePatternWidth(size);
+    const int height = spritePatternHeight(size);
+    for (int row = 0; row < height; ++row) {
+        for (int column = 0; column < width; ++column) {
+            pixels[static_cast<std::size_t>(column * width + (width - 1 - row))] =
+                source[static_cast<std::size_t>(row * width + column)];
         }
     }
     recordSpriteEdit(activeSpriteSet_, activeSprite_, size, before, pattern);
@@ -445,10 +525,12 @@ void EditorProjectController::mirrorActiveSpritePattern()
     if (editScope_ == 1) ensureF18aSpriteOverride(pattern);
     auto& pixels = editScope_ == 1 ? pattern.f18aPixels : pattern.baselinePixels;
     const int size = activeSpriteSize_;
-    for (int row = 0; row < size; ++row) {
-        for (int column = 0; column < size / 2; ++column) {
-            std::swap(pixels[static_cast<std::size_t>(row * size + column)],
-                      pixels[static_cast<std::size_t>(row * size + size - 1 - column)]);
+    const int width = spritePatternWidth(size);
+    const int height = spritePatternHeight(size);
+    for (int row = 0; row < height; ++row) {
+        for (int column = 0; column < width / 2; ++column) {
+            std::swap(pixels[static_cast<std::size_t>(row * width + column)],
+                      pixels[static_cast<std::size_t>(row * width + width - 1 - column)]);
         }
     }
     recordSpriteEdit(activeSpriteSet_, activeSprite_, size, before, pattern);
@@ -466,10 +548,12 @@ void EditorProjectController::flipActiveSpritePattern()
     if (editScope_ == 1) ensureF18aSpriteOverride(pattern);
     auto& pixels = editScope_ == 1 ? pattern.f18aPixels : pattern.baselinePixels;
     const int size = activeSpriteSize_;
-    for (int row = 0; row < size / 2; ++row) {
-        for (int column = 0; column < size; ++column) {
-            std::swap(pixels[static_cast<std::size_t>(row * size + column)],
-                      pixels[static_cast<std::size_t>((size - 1 - row) * size + column)]);
+    const int width = spritePatternWidth(size);
+    const int height = spritePatternHeight(size);
+    for (int row = 0; row < height / 2; ++row) {
+        for (int column = 0; column < width; ++column) {
+            std::swap(pixels[static_cast<std::size_t>(row * width + column)],
+                      pixels[static_cast<std::size_t>((height - 1 - row) * width + column)]);
         }
     }
     recordSpriteEdit(activeSpriteSet_, activeSprite_, size, before, pattern);
@@ -486,7 +570,8 @@ void EditorProjectController::blankActiveSpritePattern()
     const SpritePattern before = pattern;
     if (editScope_ == 1) ensureF18aSpriteOverride(pattern);
     auto& pixels = editScope_ == 1 ? pattern.f18aPixels : pattern.baselinePixels;
-    const int count = activeSpriteSize_ * activeSpriteSize_;
+    const int count = spritePatternWidth(activeSpriteSize_)
+        * spritePatternHeight(activeSpriteSize_);
     std::fill_n(pixels.begin(), count, 0);
     recordSpriteEdit(activeSpriteSet_, activeSprite_, activeSpriteSize_, before, pattern);
     if (sameSpritePattern(before, pattern)) return;
@@ -497,8 +582,10 @@ void EditorProjectController::blankActiveSpritePattern()
 void EditorProjectController::nudgeSpritePan(int horizontal, int vertical)
 {
     if (!spritePanActive_) return;
-    const int nextX = std::clamp(spritePanX_ + horizontal, -spritePanSize_, spritePanSize_);
-    const int nextY = std::clamp(spritePanY_ + vertical, -spritePanSize_, spritePanSize_);
+    const int width = spritePatternWidth(spritePanSize_);
+    const int height = spritePatternHeight(spritePanSize_);
+    const int nextX = std::clamp(spritePanX_ + horizontal, -width, width);
+    const int nextY = std::clamp(spritePanY_ + vertical, -height, height);
     if (nextX == spritePanX_ && nextY == spritePanY_) return;
     spritePanX_ = nextX;
     spritePanY_ = nextY;
@@ -547,12 +634,14 @@ bool EditorProjectController::copyActiveSpritePattern()
     endSpriteEdit();
     const auto& pattern = spritePattern(activeSpriteSet_, activeSprite_, activeSpriteSize_);
     const auto& pixels = visibleSpritePixels(pattern);
+    const int width = spritePatternWidth(activeSpriteSize_);
+    const int height = spritePatternHeight(activeSpriteSize_);
     QJsonArray rows;
-    for (int row = 0; row < activeSpriteSize_; ++row) {
+    for (int row = 0; row < height; ++row) {
         QJsonArray values;
-        for (int column = 0; column < activeSpriteSize_; ++column) {
+        for (int column = 0; column < width; ++column) {
             values.push_back(pixels[static_cast<std::size_t>(
-                row * activeSpriteSize_ + column)]);
+                row * width + column)]);
         }
         rows.push_back(values);
     }
@@ -560,8 +649,14 @@ bool EditorProjectController::copyActiveSpritePattern()
         {QStringLiteral("format"), QStringLiteral("retrovdp.sprite-pattern")},
         {QStringLiteral("version"), 1},
         {QStringLiteral("size"), activeSpriteSize_},
+        {QStringLiteral("width"), width},
+        {QStringLiteral("height"), height},
         {QStringLiteral("scope"), editScope_ == 1
-                                      ? QStringLiteral("f18a-override")
+                                      ? (usesSmsMode4Editor()
+                                             ? QStringLiteral("sms-mode4")
+                                             : usesGenesisMode5Editor()
+                                                 ? QStringLiteral("genesis-mode5")
+                                             : QStringLiteral("f18a-override"))
                                       : QStringLiteral("tms9918a-baseline")},
         {QStringLiteral("source"),
          QJsonObject{{QStringLiteral("set"), activeSpriteSet_},
@@ -573,8 +668,9 @@ bool EditorProjectController::copyActiveSpritePattern()
     if (clipboard == nullptr) return false;
     clipboard->setText(QString::fromUtf8(QJsonDocument(root).toJson(
         QJsonDocument::Indented)));
-    setStatus(QStringLiteral("Copied %1x%1 sprite %2 to the clipboard.")
-                  .arg(activeSpriteSize_)
+    setStatus(QStringLiteral("Copied %1x%2 sprite %3 to the clipboard.")
+                  .arg(width)
+                  .arg(height)
                   .arg(activeSprite_));
     return true;
 }
@@ -584,13 +680,15 @@ bool EditorProjectController::pasteActiveSpritePattern()
     if (spritePanActive_) return false;
     endSpriteEdit();
     const auto data = spritePatternFromClipboard();
-    if (!data.has_value() || data->size != activeSpriteSize_) {
+    if (!data.has_value()
+        || data->width != spritePatternWidth(activeSpriteSize_)
+        || data->height != spritePatternHeight(activeSpriteSize_)) {
         setStatus({}, QStringLiteral("Clipboard sprite size does not match the active editor."));
         return false;
     }
     const int maximum = editScope_ == 1
         ? (1 << activeSpriteColorDepth()) - 1 : 1;
-    const int count = data->size * data->size;
+    const int count = data->width * data->height;
     for (int index = 0; index < count; ++index) {
         if (data->pixels[static_cast<std::size_t>(index)] > maximum) {
             const QString targetName = activeTargetInfo()
@@ -625,6 +723,8 @@ EditorProjectController::SpritePattern&
 EditorProjectController::spritePattern(int setIndex, int spriteIndex, int size)
 {
     auto& set = spriteSets_[static_cast<std::size_t>(setIndex)];
+    if (usesGenesisMode5Editor())
+        return set.patternsGenesis[static_cast<std::size_t>(spriteIndex)];
     return normalizedSpriteSize(size) == 16
         ? set.patterns16[static_cast<std::size_t>(spriteIndex)]
         : set.patterns8[static_cast<std::size_t>(spriteIndex)];
@@ -634,32 +734,36 @@ const EditorProjectController::SpritePattern&
 EditorProjectController::spritePattern(int setIndex, int spriteIndex, int size) const
 {
     const auto& set = spriteSets_[static_cast<std::size_t>(setIndex)];
+    if (usesGenesisMode5Editor())
+        return set.patternsGenesis[static_cast<std::size_t>(spriteIndex)];
     return normalizedSpriteSize(size) == 16
         ? set.patterns16[static_cast<std::size_t>(spriteIndex)]
         : set.patterns8[static_cast<std::size_t>(spriteIndex)];
 }
 
-const std::array<std::uint8_t, 256>&
+const std::array<std::uint8_t, 1024>&
 EditorProjectController::visibleSpritePixels(const SpritePattern& pattern) const
 {
     return editScope_ == 1 && pattern.f18aOverride
         ? pattern.f18aPixels : pattern.baselinePixels;
 }
 
-std::array<std::uint8_t, 256> EditorProjectController::pannedSpritePixels() const
+std::array<std::uint8_t, 1024> EditorProjectController::pannedSpritePixels() const
 {
     const auto& source = spritePanEnhanced_ && spritePanOriginal_.f18aOverride
         ? spritePanOriginal_.f18aPixels : spritePanOriginal_.baselinePixels;
-    std::array<std::uint8_t, 256> result{};
-    for (int row = 0; row < spritePanSize_; ++row) {
+    std::array<std::uint8_t, 1024> result{};
+    const int width = spritePatternWidth(spritePanSize_);
+    const int height = spritePatternHeight(spritePanSize_);
+    for (int row = 0; row < height; ++row) {
         const int sourceRow = row - spritePanY_;
-        if (sourceRow < 0 || sourceRow >= spritePanSize_) continue;
-        for (int column = 0; column < spritePanSize_; ++column) {
+        if (sourceRow < 0 || sourceRow >= height) continue;
+        for (int column = 0; column < width; ++column) {
             const int sourceColumn = column - spritePanX_;
-            if (sourceColumn < 0 || sourceColumn >= spritePanSize_) continue;
-            result[static_cast<std::size_t>(row * spritePanSize_ + column)] =
+            if (sourceColumn < 0 || sourceColumn >= width) continue;
+            result[static_cast<std::size_t>(row * width + column)] =
                 source[static_cast<std::size_t>(
-                    sourceRow * spritePanSize_ + sourceColumn)];
+                    sourceRow * width + sourceColumn)];
         }
     }
     return result;
@@ -678,29 +782,37 @@ EditorProjectController::spritePatternFromClipboard() const
         return std::nullopt;
     }
     const QJsonObject root = document.object();
+    const int version = root.value(QStringLiteral("version")).toInt();
     if (root.value(QStringLiteral("format")).toString()
             != QStringLiteral("retrovdp.sprite-pattern")
-        || root.value(QStringLiteral("version")).toInt() != 1) {
+        || (version != 1 && version != 2)) {
         return std::nullopt;
     }
     SpriteClipboardData data;
     data.size = normalizedSpriteSize(root.value(QStringLiteral("size")).toInt());
     if (root.value(QStringLiteral("size")).toInt() != data.size) return std::nullopt;
+    data.width = root.contains(QStringLiteral("width"))
+        ? root.value(QStringLiteral("width")).toInt() : data.size;
+    data.height = root.contains(QStringLiteral("height"))
+        ? root.value(QStringLiteral("height")).toInt() : data.size;
+    if (data.width < 8 || data.width > 32 || data.width % 8 != 0
+        || data.height < 8 || data.height > 32 || data.height % 8 != 0)
+        return std::nullopt;
     data.enhanced = root.value(QStringLiteral("scope")).toString()
         == QStringLiteral("f18a-override");
     data.colorDepth = std::clamp(
-        root.value(QStringLiteral("colorDepth")).toInt(1), 1, 3);
+        root.value(QStringLiteral("colorDepth")).toInt(1), 1, 4);
     const QJsonArray rows = root.value(QStringLiteral("pixels")).toArray();
-    if (rows.size() != data.size) return std::nullopt;
-    for (int row = 0; row < data.size; ++row) {
+    if (rows.size() != data.height) return std::nullopt;
+    for (int row = 0; row < data.height; ++row) {
         const QJsonArray values = rows[row].toArray();
-        if (values.size() != data.size) return std::nullopt;
-        for (int column = 0; column < data.size; ++column) {
+        if (values.size() != data.width) return std::nullopt;
+        for (int column = 0; column < data.width; ++column) {
             const int value = values[column].toInt(-1);
             if (value < 0 || value > (1 << data.colorDepth) - 1) {
                 return std::nullopt;
             }
-            data.pixels[static_cast<std::size_t>(row * data.size + column)] =
+            data.pixels[static_cast<std::size_t>(row * data.width + column)] =
                 static_cast<std::uint8_t>(value);
         }
     }

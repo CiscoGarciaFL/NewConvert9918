@@ -14,6 +14,7 @@ completed phase checklist from competing with the current architecture plan.
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Accepted module boundaries, contracts, dependency rules, and design decisions |
 | [ARCHITECTURE_IMPLEMENTATION_PLAN.md](ARCHITECTURE_IMPLEMENTATION_PLAN.md) | Ordered architecture migration, work packages, and exit gates |
 | [TARGET_PROFILES.md](TARGET_PROFILES.md) | Product contract for reusable sources, target profiles, managed outputs, and format applicability |
+| [TARGET_IMPLEMENTATION_GUIDE.md](TARGET_IMPLEMENTATION_GUIDE.md) | Required Screen Image, Character, and Sprite accounting for every target, including approximation and disablement rules |
 | [VDP_SUPPORT_ROADMAP.md](VDP_SUPPORT_ROADMAP.md) | Planned hardware catalog, target families, and per-target acceptance policy |
 | [VDP_DESIGN_TOOLS.md](VDP_DESIGN_TOOLS.md) | Character, pattern, sprite/object, allocation, and hardware-editor behavior |
 | [BATCH_MODE.md](BATCH_MODE.md) | Deferred frame-sequence feature contract; not currently implemented |

@@ -33,10 +33,12 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <numeric>
 #include <span>
+#include <thread>
 #include <unordered_set>
 #include <utility>
 
@@ -46,6 +48,7 @@ using namespace retrovdp;
 
 constexpr std::size_t maximumDrawingHistoryEntries = 64;
 constexpr std::size_t maximumDrawingHistoryBytes = 128U * 1024U * 1024U;
+constexpr auto livePreviewFrameInterval = std::chrono::milliseconds(16);
 constexpr auto screenImageSelectionMimeType =
     "application/x-retrovdp-screen-image-selection";
 constexpr auto sourceImageSelectionMimeType =
@@ -288,7 +291,7 @@ QImage renderTiArtistText(const TiArtistFont& font,
             penX += glyph.advance;
         }
     }
-    const double scale = static_cast<double>(std::clamp(pixelSize, 1, 192))
+    const double scale = static_cast<double>(std::clamp(pixelSize, 1, 4096))
         / font.lineHeight;
     return native.scaled(std::max(1, qRound(native.width() * scale)),
                          std::max(1, qRound(native.height() * scale)),
@@ -306,6 +309,17 @@ QString modeName(core::ConversionMode mode)
 {
     const auto name = core::displayMode(mode).displayName;
     return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
+}
+
+QString formatConversionDetails(const core::TargetMemoryImage& target,
+                                const core::RgbImage& preview,
+                                std::size_t byteCount)
+{
+    return QObject::tr("%1 — %2×%3 — %4 target bytes")
+        .arg(modeName(target.mode))
+        .arg(preview.width())
+        .arg(preview.height())
+        .arg(byteCount);
 }
 
 formats::ExportFormat exportFormatForIndex(int index)
@@ -375,6 +389,52 @@ std::vector<core::RgbColor> decodeF18Palette(std::span<const std::uint8_t> bytes
         });
     }
     return colors;
+}
+
+std::vector<core::RgbColor> decodeTargetPalette(
+    const core::TargetMemoryImage& target,
+    std::span<const std::uint8_t> bytes)
+{
+    if (target.profile == core::TargetProfileId::SegaMasterSystem) {
+        std::vector<core::RgbColor> colors;
+        colors.reserve(bytes.size());
+        for (const std::uint8_t value : bytes) {
+            colors.push_back({
+                static_cast<std::uint8_t>((value & 0x03U) * 85U),
+                static_cast<std::uint8_t>(((value >> 2U) & 0x03U) * 85U),
+                static_cast<std::uint8_t>(((value >> 4U) & 0x03U) * 85U),
+            });
+        }
+        return colors;
+    }
+    if (target.profile == core::TargetProfileId::SegaGenesis) {
+        std::vector<core::RgbColor> colors;
+        colors.reserve(bytes.size() / 2U);
+        for (std::size_t offset = 0; offset + 1U < bytes.size(); offset += 2U) {
+            const std::uint16_t word = static_cast<std::uint16_t>(
+                (static_cast<std::uint16_t>(bytes[offset]) << 8U)
+                | bytes[offset + 1U]);
+            colors.push_back({
+                static_cast<std::uint8_t>(((word >> 1U) & 0x07U) * 255U / 7U),
+                static_cast<std::uint8_t>(((word >> 5U) & 0x07U) * 255U / 7U),
+                static_cast<std::uint8_t>(((word >> 9U) & 0x07U) * 255U / 7U),
+            });
+        }
+        return colors;
+    }
+    if (target.profile == core::TargetProfileId::V9938
+        || target.profile == core::TargetProfileId::V9958) {
+        std::vector<core::RgbColor> colors;
+        for (std::size_t offset = 0; offset + 1U < bytes.size(); offset += 2U) {
+            colors.push_back({
+                static_cast<std::uint8_t>(((bytes[offset] >> 4U) & 0x07U) * 255U / 7U),
+                static_cast<std::uint8_t>((bytes[offset + 1U] & 0x07U) * 255U / 7U),
+                static_cast<std::uint8_t>((bytes[offset] & 0x07U) * 255U / 7U),
+            });
+        }
+        return colors;
+    }
+    return decodeF18Palette(bytes);
 }
 
 QString colorName(const core::RgbColor& color)
@@ -551,6 +611,23 @@ int ImageInputController::conversionMode() const
 int ImageInputController::targetProfile() const
 {
     return static_cast<int>(settings_.targetProfile);
+}
+
+int ImageInputController::targetWidth() const
+{
+    return static_cast<int>(core::displayMode(settings_.mode).geometry.width);
+}
+
+int ImageInputController::targetHeight() const
+{
+    return static_cast<int>(core::displayMode(settings_.mode).geometry.height);
+}
+
+double ImageInputController::targetPixelAspectRatio() const
+{
+    const auto ratio = core::displayMode(settings_.mode).geometry.pixelAspectRatio;
+    return static_cast<double>(ratio.numerator)
+        / static_cast<double>(ratio.denominator);
 }
 
 QVariantList ImageInputController::targetProfileNames() const
@@ -753,8 +830,9 @@ void ImageInputController::openUrl(const QUrl& url)
 
 void ImageInputController::newScreenImage()
 {
+    const auto& geometry = core::displayMode(settings_.mode).geometry;
     auto blank = core::RgbImage::createTightlyPacked(
-        256, 192, core::PixelFormat::Rgb888);
+        geometry.width, geometry.height, core::PixelFormat::Rgb888);
     if (!blank) {
         errorMessage_ = tr("A blank Screen Image could not be created.");
         emit statusChanged();
@@ -824,9 +902,8 @@ void ImageInputController::newScreenImage()
         [](std::size_t total, const core::TargetMemoryTable& table) {
             return total + table.bytes.size();
         });
-    conversionDetails_ = tr("%1 — 256×192 — %2 target bytes")
-                             .arg(modeName(result_->target->mode))
-                             .arg(byteCount);
+    conversionDetails_ = formatConversionDetails(
+        *result_->target, *result_->preview, byteCount);
     errorMessage_.clear();
     statusMessage_ = tr("Blank Screen Image created.");
     updatePaletteInspection();
@@ -861,9 +938,30 @@ void ImageInputController::pasteClipboard()
 
 void ImageInputController::ensureDrawingLayer()
 {
-    if (drawingLayer_) return;
+    const auto& geometry = core::displayMode(settings_.mode).geometry;
+    const std::uint32_t width = framedSource_ ? framedSource_->width() : geometry.width;
+    const std::uint32_t height = framedSource_ ? framedSource_->height() : geometry.height;
+    if (drawingLayer_ && drawingLayer_->width() == width
+        && drawingLayer_->height() == height) {
+        return;
+    }
+    if (drawingLayer_) {
+        const core::ImageTransformOptions options{
+            .targetWidth = width,
+            .targetHeight = height,
+            .filter = core::ScalingFilter::None,
+            .fillMode = core::ImageFillMode::Fit,
+            .backgroundAlpha = 0,
+        };
+        auto transformed = core::transformImage(*drawingLayer_, options);
+        if (transformed) {
+            drawingLayer_ = std::make_shared<core::RgbImage>(
+                std::move(*transformed.image));
+            return;
+        }
+    }
     auto layer = core::RgbImage::createTightlyPacked(
-        256, 192, core::PixelFormat::Rgba8888);
+        width, height, core::PixelFormat::Rgba8888);
     if (!layer) return;
     std::fill(layer->bytes().begin(), layer->bytes().end(), 0);
     drawingLayer_ = std::make_shared<core::RgbImage>(std::move(*layer));
@@ -920,9 +1018,10 @@ void ImageInputController::refreshSourcePreview()
     framedSource_.reset();
     sourcePreview_.clear();
     if (image_) {
+        const auto& geometry = core::displayMode(settings_.mode).geometry;
         const core::ImageTransformOptions options{
-            .targetWidth = powerPaintFraming_ ? 240U : 256U,
-            .targetHeight = powerPaintFraming_ ? 160U : 192U,
+            .targetWidth = powerPaintFraming_ ? 240U : geometry.width,
+            .targetHeight = powerPaintFraming_ ? 160U : geometry.height,
             .filter = scalingFilter_,
             .fillMode = fillMode_,
             .horizontalOffset = horizontalOffset_,
@@ -935,7 +1034,7 @@ void ImageInputController::refreshSourcePreview()
         if (transformed) {
             if (powerPaintFraming_) {
                 auto padded = core::RgbImage::createTightlyPacked(
-                    256, 192, transformed.image->pixelFormat());
+                    geometry.width, geometry.height, transformed.image->pixelFormat());
                 if (padded) {
                     std::fill(padded->bytes().begin(), padded->bytes().end(), 0);
                     if (padded->pixelFormat() == core::PixelFormat::Rgba8888) {
@@ -952,6 +1051,7 @@ void ImageInputController::refreshSourcePreview()
                     transformed.image = std::move(padded);
                 }
             }
+            if (drawingLayer_) ensureDrawingLayer();
             compositeDrawingLayer(*transformed.image);
             framedSource_ = std::move(*transformed.image);
             sourcePreview_ = dataUrl(*framedSource_);
@@ -998,6 +1098,14 @@ void ImageInputController::startConversion()
     QPointer<ImageInputController> guarded(this);
     core::ConversionProgressCallback progress;
     if (livePreview_) {
+        if (auto emptyPreview = core::RgbImage::createTightlyPacked(
+                framedSource_->width(), framedSource_->height(),
+                framedSource_->pixelFormat())) {
+            convertedPreview_ = dataUrl(*emptyPreview);
+            statusMessage_ = tr("Converting… 0%");
+            emit conversionChanged();
+            emit statusChanged();
+        }
         const std::uint64_t generation = request.generation;
         progress = [guarded, generation](const core::RgbImage& preview,
                                          std::uint32_t completedRows,
@@ -1019,6 +1127,10 @@ void ImageInputController::startConversion()
                     emit guarded->statusChanged();
                 },
                 Qt::QueuedConnection);
+            // A converter can produce every partial frame before Qt reaches its
+            // next render pass. Pace live-preview delivery to the display cadence
+            // so fast target modes visibly publish their completed rows too.
+            std::this_thread::sleep_for(livePreviewFrameInterval);
         };
     }
     QThreadPool::globalInstance()->start(
@@ -1078,9 +1190,8 @@ void ImageInputController::publishConversion(const core::ConversionRequest& requ
             [](std::size_t total, const core::TargetMemoryTable& table) {
                 return total + table.bytes.size();
             });
-        conversionDetails_ = tr("%1 — 256×192 — %2 target bytes")
-                                 .arg(modeName(result.target->mode))
-                                 .arg(byteCount);
+        conversionDetails_ = formatConversionDetails(
+            *result.target, *result.preview, byteCount);
         errorMessage_.clear();
         statusMessage_ = tr("Preview is current.");
         result_ = std::move(result);
@@ -1121,7 +1232,7 @@ void ImageInputController::updatePaletteInspection()
         const auto fixed = std::ranges::find(
             target.tables, core::TargetTableRole::Palette, &core::TargetMemoryTable::role);
         if (fixed != target.tables.end()) {
-            colors = decodeF18Palette(fixed->bytes);
+            colors = decodeTargetPalette(target, fixed->bytes);
         } else if (target.palette) {
             colors.assign(target.palette->colors().begin(), target.palette->colors().end());
         }
@@ -1160,7 +1271,11 @@ formats::GeneratedFileManifest ImageInputController::exportManifest() const
             };
             screenImageExportResult_ = runConversion(
                 request, core::ScalingFilter::None, core::ImageFillMode::Fit,
-                0, 0, screenImageBackgroundColor_, workingPalette_, false, true, {});
+                0, 0, screenImageBackgroundColor_, workingPalette_, false,
+                screenImage_->width() == core::displayMode(exportSettings.mode).geometry.width
+                    && screenImage_->height()
+                        == core::displayMode(exportSettings.mode).geometry.height,
+                {});
         }
         if (!screenImageExportResult_->succeeded()
             || !screenImageExportResult_->target) {
@@ -1493,8 +1608,8 @@ void ImageInputController::drawSourceShape(double fromNormalizedX,
         const double centerY = (fromNormalizedY + toNormalizedY) / 2.0;
         const double radiusX = std::abs(toNormalizedX - fromNormalizedX) / 2.0;
         const double radiusY = std::abs(toNormalizedY - fromNormalizedY) / 2.0;
-        const double pixelRadiusX = radiusX * 256.0;
-        const double pixelRadiusY = radiusY * 192.0;
+        const double pixelRadiusX = radiusX * drawingLayer_->width();
+        const double pixelRadiusY = radiusY * drawingLayer_->height();
         constexpr double pi = 3.14159265358979323846;
         const double perimeter = pi * (3.0 * (pixelRadiusX + pixelRadiusY)
             - std::sqrt(std::max(0.0,
@@ -2014,8 +2129,10 @@ void ImageInputController::paintDrawingPixel(int x,
                                              double coverage)
 {
     if (!drawingLayer_) return;
-    const int drawableWidth = powerPaintFraming_ ? 240 : 256;
-    const int drawableHeight = powerPaintFraming_ ? 160 : 192;
+    const int drawableWidth = powerPaintFraming_
+        ? 240 : static_cast<int>(drawingLayer_->width());
+    const int drawableHeight = powerPaintFraming_
+        ? 160 : static_cast<int>(drawingLayer_->height());
     if (x < 0 || y < 0 || x >= drawableWidth || y >= drawableHeight) return;
     coverage = std::clamp(coverage, 0.0, 1.0);
     if (coverage <= 0.0) return;
@@ -2060,8 +2177,9 @@ void ImageInputController::fillSourceShape(double fromNormalizedX,
                                            bool ellipse,
                                            double inset)
 {
-    constexpr double previewWidth = 256.0;
-    constexpr double previewHeight = 192.0;
+    if (!drawingLayer_) return;
+    const double previewWidth = drawingLayer_->width();
+    const double previewHeight = drawingLayer_->height();
     const double fromX = fromNormalizedX * previewWidth;
     const double fromY = fromNormalizedY * previewHeight;
     const double toX = toNormalizedX * previewWidth;
@@ -2121,8 +2239,8 @@ void ImageInputController::drawSourceStrokeSegment(double fromNormalizedX,
                                                    double toNormalizedY)
 {
     if (!drawingLayer_) return;
-    constexpr double previewWidth = 256.0;
-    constexpr double previewHeight = 192.0;
+    const double previewWidth = drawingLayer_->width();
+    const double previewHeight = drawingLayer_->height();
     const auto coordinate = [this](double normalized, double extent) {
         const double value = std::clamp(normalized, 0.0, 1.0) * extent;
         if (!sourceStrokeHardEdges_) return value;
@@ -3102,7 +3220,11 @@ std::shared_ptr<core::RgbImage> ImageInputController::renderScreenImageText(
         if (error) *error = tr("Enter text before placing it on the Screen Image.");
         return {};
     }
-    pixelSize = std::clamp(pixelSize, 1, 192);
+    const int maximumWidth = screenImage_
+        ? static_cast<int>(screenImage_->width()) : targetWidth();
+    const int maximumHeight = screenImage_
+        ? static_cast<int>(screenImage_->height()) : targetHeight();
+    pixelSize = std::clamp(pixelSize, 1, maximumHeight);
     QImage rendered;
     if (fontKey.startsWith(QStringLiteral("tia:"))) {
         QString fontError;
@@ -3136,10 +3258,13 @@ std::shared_ptr<core::RgbImage> ImageInputController::renderScreenImageText(
                              lines[lineIndex]);
         }
     }
-    if (rendered.isNull() || rendered.width() > 256 || rendered.height() > 192) {
+    if (rendered.isNull() || rendered.width() > maximumWidth
+        || rendered.height() > maximumHeight) {
         if (error) {
-            *error = tr("The rendered text is larger than the 256×192 Screen Image. "
-                        "Reduce the font size or shorten the text.");
+            *error = tr("The rendered text exceeds the %1 by %2 Screen Image. "
+                        "Reduce the font size or shorten the text.")
+                         .arg(maximumWidth)
+                         .arg(maximumHeight);
         }
         return {};
     }
@@ -3159,7 +3284,7 @@ std::shared_ptr<core::RgbImage> ImageInputController::renderSourceText(
         if (error) *error = tr("Source-image text supports installed system fonts only.");
         return {};
     }
-    pixelSize = std::clamp(pixelSize, 1, 192);
+    pixelSize = std::clamp(pixelSize, 1, targetHeight());
     QFont font(fontKey.sliced(7));
     font.setPixelSize(pixelSize);
     const QFontMetrics metrics(font);
@@ -3178,8 +3303,10 @@ std::shared_ptr<core::RgbImage> ImageInputController::renderSourceText(
         painter.drawText(0, lineIndex * metrics.lineSpacing() + metrics.ascent(),
                          lines[lineIndex]);
     }
-    const int maximumWidth = framedSource_ ? static_cast<int>(framedSource_->width()) : 256;
-    const int maximumHeight = framedSource_ ? static_cast<int>(framedSource_->height()) : 192;
+    const int maximumWidth = framedSource_
+        ? static_cast<int>(framedSource_->width()) : targetWidth();
+    const int maximumHeight = framedSource_
+        ? static_cast<int>(framedSource_->height()) : targetHeight();
     if (rendered.isNull() || rendered.width() > maximumWidth
         || rendered.height() > maximumHeight) {
         if (error) *error = tr("The rendered text is larger than the source canvas.");
@@ -3255,8 +3382,12 @@ std::shared_ptr<core::RgbImage> ImageInputController::renderScreenImageClipArt(
         if (error) *error = tr("Choose a Slide/ClipArt image first.");
         return {};
     }
-    width = std::clamp(width, 1, 256);
-    height = std::clamp(height, 1, 192);
+    const int maximumWidth = screenImage_
+        ? static_cast<int>(screenImage_->width()) : targetWidth();
+    const int maximumHeight = screenImage_
+        ? static_cast<int>(screenImage_->height()) : targetHeight();
+    width = std::clamp(width, 1, maximumWidth);
+    height = std::clamp(height, 1, maximumHeight);
     colorMode = std::clamp(colorMode, 0, 2);
     QImage image = imageio::toQImage(*screenImageClipArtSourceImage_)
                        .convertToFormat(QImage::Format_RGBA8888)
@@ -3560,7 +3691,10 @@ void ImageInputController::applyScreenImageEdits()
 
     auto converted = runConversion(
         request, core::ScalingFilter::None, core::ImageFillMode::Fit,
-        0, 0, screenImageBackgroundColor_, workingPalette_, false, true, {});
+        0, 0, screenImageBackgroundColor_, workingPalette_, false,
+        screenImage_->width() == core::displayMode(settings_.mode).geometry.width
+            && screenImage_->height() == core::displayMode(settings_.mode).geometry.height,
+        {});
     busy_ = false;
     if (!converted.succeeded() || !converted.preview || !converted.target) {
         errorMessage_ = tr("The Screen Image could not be constrained to the chipset rules.");
@@ -3593,9 +3727,8 @@ void ImageInputController::applyScreenImageEdits()
         [](std::size_t total, const core::TargetMemoryTable& table) {
             return total + table.bytes.size();
         });
-    conversionDetails_ = tr("%1 — 256×192 — %2 target bytes")
-                             .arg(modeName(result_->target->mode))
-                             .arg(byteCount);
+    conversionDetails_ = formatConversionDetails(
+        *result_->target, *result_->preview, byteCount);
     errorMessage_.clear();
     statusMessage_ = tr("Screen Image drawing applied with chipset rules.");
     updatePaletteInspection();
@@ -3763,7 +3896,8 @@ bool ImageInputController::applyRecipeSettings(const QJsonObject& object, QStrin
     }
     SettingsSnapshot value = snapshot();
     value.settings.mode = static_cast<core::ConversionMode>(
-        std::clamp(object.value(QStringLiteral("mode")).toInt(conversionMode()), 0, 8));
+        std::clamp(object.value(QStringLiteral("mode")).toInt(conversionMode()), 0,
+                   static_cast<int>(core::ConversionMode::Mode5GenesisH40Pal)));
     const std::string requestedProfile = object.value(QStringLiteral("targetProfile"))
         .toString().toStdString();
     value.settings.targetProfile = requestedProfile.empty()
@@ -3904,7 +4038,8 @@ void ImageInputController::loadSettings()
     QSettings persisted;
     persisted.beginGroup(QStringLiteral("conversion"));
     settings_.mode = static_cast<core::ConversionMode>(
-        std::clamp(persisted.value(QStringLiteral("mode"), 0).toInt(), 0, 8));
+        std::clamp(persisted.value(QStringLiteral("mode"), 0).toInt(), 0,
+                   static_cast<int>(core::ConversionMode::Mode5GenesisH40Pal)));
     const std::string persistedProfile = persisted.value(
         QStringLiteral("targetProfile")).toString().toStdString();
     settings_.targetProfile = persistedProfile.empty()
@@ -4072,7 +4207,7 @@ void ImageInputController::saveSettings() const
 void ImageInputController::setTargetProfile(int value)
 {
     value = std::clamp(value, 0,
-                       static_cast<int>(core::TargetProfileId::V9938));
+                       static_cast<int>(core::TargetProfileId::SegaGenesis));
     const auto requested = static_cast<core::TargetProfileId>(value);
     const auto& profile = core::targetProfile(requested);
     if (profile.status != core::TargetProfileStatus::Implemented
@@ -4084,12 +4219,13 @@ void ImageInputController::setTargetProfile(int value)
     if (!core::supportsConversionMode(requested, settings_.mode)) {
         settings_.mode = core::defaultConversionMode(requested);
     }
-    settingsWereChanged();
+    settingsWereChanged(true);
 }
 
 void ImageInputController::setConversionMode(int value)
 {
-    value = std::clamp(value, 0, 8);
+    value = std::clamp(value, 0,
+                       static_cast<int>(core::ConversionMode::Mode5GenesisH40Pal));
     const auto mode = static_cast<core::ConversionMode>(value);
     const auto effectiveProfile = core::effectiveTargetProfile(
         settings_.targetProfile, mode);
@@ -4097,7 +4233,7 @@ void ImageInputController::setConversionMode(int value)
     recordUndo();
     settings_.mode = mode;
     settings_.targetProfile = effectiveProfile;
-    settingsWereChanged();
+    settingsWereChanged(true);
 }
 
 void ImageInputController::setDitherMode(int value)
@@ -4407,9 +4543,11 @@ void ImageInputController::setAutoUpdate(bool value)
 void ImageInputController::setLivePreview(bool value)
 {
     if (value == livePreview_) return;
+    const bool conversionWasInFlight = busy_ || debounceTimer_.isActive();
     livePreview_ = value;
     saveSettings();
     emit settingsChanged();
+    if (livePreview_ && conversionWasInFlight) scheduleConversion();
 }
 
 void ImageInputController::setBackgroundColor(const QColor& value)

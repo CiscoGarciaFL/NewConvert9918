@@ -10,9 +10,12 @@
 #include "retrovdp/core/Multicolor9918Converter.hpp"
 #include "retrovdp/core/PaletteSelection.hpp"
 #include "retrovdp/core/RgbImage.hpp"
+#include "retrovdp/core/SegaGenesisVdpConverter.hpp"
+#include "retrovdp/core/SegaSmsVdpConverter.hpp"
 #include "retrovdp/core/TargetData.hpp"
 #include "retrovdp/core/TargetProfile.hpp"
 #include "retrovdp/core/Validation.hpp"
+#include "retrovdp/core/YamahaVdpConverter.hpp"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -86,6 +89,8 @@ using retrovdp::core::convertBitmap9918;
 using retrovdp::core::convertDualMulticolor9918;
 using retrovdp::core::convertPalettedBitmapF18A;
 using retrovdp::core::convertScanlinePaletteBitmapF18A;
+using retrovdp::core::convertSegaSmsMode4;
+using retrovdp::core::convertYamahaBitmap;
 using retrovdp::core::estimateConversionMemory;
 using retrovdp::core::convertGreyscaleBitmap9918;
 using retrovdp::core::convertHalfMulticolor9918;
@@ -1494,6 +1499,23 @@ void testConverterCancellation(TestContext &test)
     settings.mode = ConversionMode::ScanlinePaletteBitmapF18A;
     expectCancelled(convertScanlinePaletteBitmapF18A(
         *image, settings, cancellationSource.token()));
+
+    settings.targetProfile = TargetProfileId::SegaMasterSystem;
+    settings.mode = ConversionMode::Mode4Sms192;
+    expectCancelled(convertSegaSmsMode4(
+        *image, settings, cancellationSource.token()));
+
+    settings.targetProfile = TargetProfileId::SegaGenesis;
+    settings.mode = ConversionMode::Mode5GenesisH32;
+    settings.targetWidth = 256;
+    settings.targetHeight = 224;
+    auto genesisImage = RgbImage::createTightlyPacked(256, 224, PixelFormat::Rgb888);
+    test.expect(genesisImage.has_value(),
+                "the Genesis cancellation source should be allocated");
+    if (genesisImage) {
+        expectCancelled(convertSegaGenesisMode5(
+            *genesisImage, settings, cancellationSource.token()));
+    }
 }
 
 void testConversionMemoryEstimate(TestContext &test)
@@ -1527,12 +1549,17 @@ void testConversionMemoryEstimate(TestContext &test)
 void testTargetProfiles(TestContext &test)
 {
     const auto profiles = retrovdp::core::targetProfiles();
-    test.expect(profiles.size() == 3,
-                "the registry should publish implemented and planned VDP profiles");
+    test.expect(profiles.size() == 6,
+                "the registry should publish the implemented VDP profiles");
 
     const auto& tms9918 = retrovdp::core::targetProfile(TargetProfileId::Tms9918A);
     const auto& f18a = retrovdp::core::targetProfile(TargetProfileId::F18A);
     const auto& v9938 = retrovdp::core::targetProfile(TargetProfileId::V9938);
+    const auto& v9958 = retrovdp::core::targetProfile(TargetProfileId::V9958);
+    const auto& sms = retrovdp::core::targetProfile(
+        TargetProfileId::SegaMasterSystem);
+    const auto& genesis = retrovdp::core::targetProfile(
+        TargetProfileId::SegaGenesis);
     test.expect(tms9918.stableId == "tms9918a"
                     && tms9918.status == TargetProfileStatus::Implemented
                     && retrovdp::core::hasCapability(
@@ -1561,9 +1588,58 @@ void testTargetProfiles(TestContext &test)
                     && f18a.sprites.supportsPerSpriteSize,
                 "the F18A profile should support compatible base and enhanced modes");
     test.expect(v9938.stableId == "v9938"
-                    && v9938.status == TargetProfileStatus::Planned
-                    && v9938.conversionModes.empty(),
-                "the V9938 profile should be discoverable without claiming implementation");
+                    && v9938.status == TargetProfileStatus::Implemented
+                    && retrovdp::core::supportsConversionMode(
+                        TargetProfileId::V9938, ConversionMode::Screen5V9938)
+                    && v9938.sprites.maximumColorDepth == 4
+                    && v9958.stableId == "v9958"
+                    && v9958.status == TargetProfileStatus::Implemented
+                    && retrovdp::core::supportsConversionMode(
+                    TargetProfileId::V9958, ConversionMode::Screen12V9958),
+                "the Yamaha VDP profiles should publish their native bitmap modes");
+    test.expect(sms.stableId == "sega-sms-vdp"
+                    && sms.status == TargetProfileStatus::Implemented
+                    && sms.nominalVramBytes == 16U * 1024U
+                    && sms.characterPatterns.pixelWidth == 8
+                    && sms.characterPatterns.pixelHeight == 8
+                    && sms.characterPatterns.patternsPerSet == 448
+                    && sms.characterPatterns.mapColumns == 32
+                    && sms.characterPatterns.mapRows == 28
+                    && sms.sprites.patternsPerSet == 64
+                    && sms.sprites.maximumVisibleSprites == 64
+                    && sms.sprites.maximumColorDepth == 4
+                    && retrovdp::core::supportsConversionMode(
+                        TargetProfileId::SegaMasterSystem,
+                        ConversionMode::Mode4Sms192)
+                    && retrovdp::core::supportsConversionMode(
+                        TargetProfileId::SegaMasterSystem,
+                        ConversionMode::Bitmap9918),
+                "the Master System profile should expose Mode 4 and documented legacy compatibility");
+    test.expect(genesis.stableId == "sega-genesis-vdp"
+                    && genesis.status == TargetProfileStatus::Implemented
+                    && genesis.nominalVramBytes == 64U * 1024U
+                    && genesis.characterPatterns.pixelWidth == 8
+                    && genesis.characterPatterns.pixelHeight == 8
+                    && genesis.characterPatterns.patternsPerSet == 2048
+                    && genesis.characterPatterns.mapColumns == 40
+                    && genesis.characterPatterns.mapRows == 28
+                    && genesis.sprites.minimumPixelSize == 8
+                    && genesis.sprites.maximumPixelSize == 32
+                    && genesis.sprites.patternsPerSet == 80
+                    && genesis.sprites.maximumVisibleSprites == 80
+                    && genesis.sprites.maximumColorDepth == 4
+                    && !genesis.sprites.usesGlobalSize
+                    && genesis.sprites.supportsPerSpriteSize
+                    && retrovdp::core::supportsConversionMode(
+                        TargetProfileId::SegaGenesis,
+                        ConversionMode::Mode5GenesisH32)
+                    && retrovdp::core::supportsConversionMode(
+                        TargetProfileId::SegaGenesis,
+                        ConversionMode::Mode5GenesisH40Pal)
+                    && !retrovdp::core::supportsConversionMode(
+                        TargetProfileId::SegaGenesis,
+                        ConversionMode::Bitmap9918),
+                "the Genesis profile should expose native Mode V character, map, and sprite limits");
     test.expect(!retrovdp::core::supportsConversionMode(
                     TargetProfileId::Tms9918A, ConversionMode::PalettedBitmapF18A),
                 "target profiles should reject modes outside their capabilities");
@@ -1572,8 +1648,8 @@ void testTargetProfiles(TestContext &test)
                 "stable target identifiers should round-trip and reject unknown values");
     test.expect(retrovdp::core::effectiveTargetProfile(
                     TargetProfileId::V9938, ConversionMode::Bitmap9918)
-                    == TargetProfileId::Tms9918A,
-                "planned profiles should fall back to the mode's implemented primary target");
+                    == TargetProfileId::V9938,
+                "implemented Yamaha profiles should retain compatible TMS modes");
 
     retrovdp::core::StableIdError idError = retrovdp::core::StableIdError::None;
     const auto validId = retrovdp::core::ModeId::create("bitmap-9918a", &idError);
@@ -1587,7 +1663,7 @@ void testTargetProfiles(TestContext &test)
                 "stable IDs should reject ambiguous separators");
 
     const auto modes = retrovdp::core::displayModes();
-    test.expect(modes.size() == 9 && retrovdp::core::validateRegistry(),
+    test.expect(modes.size() == 23 && retrovdp::core::validateRegistry(),
                 "the target and display-mode registries should validate as one contract");
     const auto& f18aMode = retrovdp::core::displayMode(
         ConversionMode::PalettedBitmapF18A);
@@ -1610,6 +1686,57 @@ void testTargetProfiles(TestContext &test)
                             ConversionMode::ScanlinePaletteBitmapF18A).options,
                         retrovdp::core::ModeOption::ScanlinePalette),
                 "display modes should describe their applicable settings without UI mode-number checks");
+    const auto& screen7 = retrovdp::core::displayMode(ConversionMode::Screen7V9938);
+    const auto& screen10 = retrovdp::core::displayMode(ConversionMode::Screen10V9958);
+    const auto& screen12 = retrovdp::core::displayMode(ConversionMode::Screen12V9958);
+    test.expect(screen7.geometry.width == 512 && screen7.geometry.height == 212
+                    && screen7.geometry.pixelAspectRatio.numerator == 1
+                    && screen7.geometry.pixelAspectRatio.denominator == 2
+                    && screen7.palette.entryCount == 16
+                    && screen7.palette.channelBits == 3
+                    && screen10.palette.model
+                        == retrovdp::core::PaletteModel::YjkWithPalette
+                    && screen10.palette.entryCount == 16
+                    && screen10.palette.channelBits == 3
+                    && screen12.palette.model == retrovdp::core::PaletteModel::Yjk
+                    && screen12.palette.channelBits == 0,
+                "Yamaha mode descriptors should retain native geometry and color depth");
+    const auto& sms192 = retrovdp::core::displayMode(ConversionMode::Mode4Sms192);
+    const auto& sms224 = retrovdp::core::displayMode(ConversionMode::Mode4Sms224);
+    const auto& sms240 = retrovdp::core::displayMode(ConversionMode::Mode4Sms240);
+    test.expect(sms192.stableId == "mode-4-sms-192"
+                    && sms192.geometry.width == 256 && sms192.geometry.height == 192
+                    && sms224.geometry.height == 224 && sms240.geometry.height == 240
+                    && sms192.palette.entryCount == 32
+                    && sms192.palette.workingColorCount == 32
+                    && sms192.palette.channelBits == 2
+                    && retrovdp::core::hasOption(
+                        sms192.options, retrovdp::core::ModeOption::PaletteSelection),
+                "Master System Mode 4 descriptors should cover every supported display height");
+    const auto& genesisH32 = retrovdp::core::displayMode(
+        ConversionMode::Mode5GenesisH32);
+    const auto& genesisH40 = retrovdp::core::displayMode(
+        ConversionMode::Mode5GenesisH40);
+    const auto& genesisH32Pal = retrovdp::core::displayMode(
+        ConversionMode::Mode5GenesisH32Pal);
+    const auto& genesisH40Pal = retrovdp::core::displayMode(
+        ConversionMode::Mode5GenesisH40Pal);
+    test.expect(genesisH32.stableId == "mode-5-genesis-h32"
+                    && genesisH32.geometry.width == 256
+                    && genesisH32.geometry.height == 224
+                    && genesisH40.geometry.width == 320
+                    && genesisH40.geometry.height == 224
+                    && genesisH32Pal.geometry.width == 256
+                    && genesisH32Pal.geometry.height == 240
+                    && genesisH40Pal.geometry.width == 320
+                    && genesisH40Pal.geometry.height == 240
+                    && genesisH40.palette.entryCount == 64
+                    && genesisH40.palette.workingColorCount == 61
+                    && genesisH40.palette.channelBits == 3
+                    && retrovdp::core::hasOption(
+                        genesisH40.options,
+                        retrovdp::core::ModeOption::PaletteSelection),
+                "Genesis Mode V descriptors should cover H32/H40 and 224/240-line displays");
     test.expect(retrovdp::core::conversionMode("bitmap-9918a")
                     == ConversionMode::Bitmap9918
                     && !retrovdp::core::conversionMode("unknown-mode").has_value(),
@@ -1640,10 +1767,332 @@ void testTargetProfiles(TestContext &test)
                 "registry validation should reject invalid display geometry");
     std::vector<retrovdp::core::DisplayModeDescriptor> invalidPrimaryModes(
         modes.begin(), modes.end());
-    invalidPrimaryModes[0].primaryTarget = TargetProfileId::V9938;
+    invalidPrimaryModes[7].primaryTarget = TargetProfileId::V9938;
     test.expect(retrovdp::core::validateRegistry(profiles, invalidPrimaryModes).error
                     == retrovdp::core::RegistryError::PrimaryTargetDoesNotSupportMode,
                 "registry validation should reject a primary target that cannot compile its mode");
+}
+
+void testYamahaBitmapConversion(TestContext &test)
+{
+    struct YamahaModeCase {
+        ConversionMode mode;
+        TargetProfileId profile;
+        std::uint32_t width;
+        std::size_t framebufferBytes;
+        bool hasPalette;
+    };
+    constexpr std::array cases{
+        YamahaModeCase{ConversionMode::Screen5V9938, TargetProfileId::V9938,
+                       256, 27136, true},
+        YamahaModeCase{ConversionMode::Screen6V9938, TargetProfileId::V9938,
+                       512, 27136, true},
+        YamahaModeCase{ConversionMode::Screen7V9938, TargetProfileId::V9938,
+                       512, 54272, true},
+        YamahaModeCase{ConversionMode::Screen8V9938, TargetProfileId::V9938,
+                       256, 54272, false},
+        YamahaModeCase{ConversionMode::Screen10V9958, TargetProfileId::V9958,
+                       256, 54272, true},
+        YamahaModeCase{ConversionMode::Screen11V9958, TargetProfileId::V9958,
+                       256, 54272, true},
+        YamahaModeCase{ConversionMode::Screen12V9958, TargetProfileId::V9958,
+                       256, 54272, false},
+    };
+
+    for (const auto& modeCase : cases) {
+        auto source = RgbImage::createTightlyPacked(
+            modeCase.width, 212, PixelFormat::Rgb888);
+        test.expect(source.has_value(),
+                    "the Yamaha bitmap test source should be allocated");
+        if (!source) continue;
+        for (std::uint32_t y = 0; y < source->height(); ++y)
+            std::ranges::fill(source->row(y), std::uint8_t{0});
+
+        ConversionSettings settings;
+        settings.targetProfile = modeCase.profile;
+        settings.mode = modeCase.mode;
+        settings.dither = DitherMode::None;
+        std::size_t progressFrames = 0;
+        std::uint32_t lastCompletedRows = 0;
+        std::uint32_t reportedTotalRows = 0;
+        bool progressGeometryValid = true;
+        const ConversionResult result = convertYamahaBitmap(
+            *source,
+            settings,
+            {},
+            [&progressFrames, &lastCompletedRows, &reportedTotalRows,
+             &progressGeometryValid](
+                const RgbImage& preview,
+                std::uint32_t completedRows,
+                std::uint32_t totalRows) {
+                ++progressFrames;
+                lastCompletedRows = completedRows;
+                reportedTotalRows = totalRows;
+                progressGeometryValid = progressGeometryValid
+                    && preview.width() != 0 && preview.height() != 0;
+            });
+        const bool tablesValid = result.target
+            && static_cast<bool>(validateTargetTables(*result.target));
+        test.expect(result.succeeded() && result.preview && tablesValid,
+                    "every native Yamaha bitmap mode should compile valid target data");
+        test.expect(progressFrames > 0 && progressGeometryValid
+                        && lastCompletedRows == source->height()
+                        && reportedTotalRows == source->height(),
+                    "every native Yamaha bitmap mode should publish live progress through its final row");
+        if (!result.target) continue;
+        test.expect(result.target->tables.front().role == TargetTableRole::Framebuffer
+                        && result.target->tables.front().bytes.size()
+                            == modeCase.framebufferBytes,
+                    "Yamaha modes should emit their native VRAM framebuffer size");
+        test.expect(result.target->tables.size() == (modeCase.hasPalette ? 2U : 1U)
+                        && (!modeCase.hasPalette
+                            || result.target->tables[1].role == TargetTableRole::Palette),
+                    "Yamaha modes should emit palette data only when the mode uses it");
+    }
+}
+
+void testSegaSmsMode4Conversion(TestContext& test)
+{
+    struct ModeCase {
+        ConversionMode mode;
+        std::uint32_t height;
+        std::size_t patternBytes;
+        std::uint8_t register0;
+        std::uint8_t register1;
+    };
+    constexpr std::array cases{
+        ModeCase{ConversionMode::Mode4Sms192, 192, 0x3800, 0x04, 0xc0},
+        ModeCase{ConversionMode::Mode4Sms224, 224, 0x3700, 0x06, 0xc0},
+        ModeCase{ConversionMode::Mode4Sms240, 240, 0x3700, 0x04, 0xc8},
+    };
+
+    for (const auto& modeCase : cases) {
+        auto source = RgbImage::createTightlyPacked(
+            256, modeCase.height, PixelFormat::Rgb888);
+        test.expect(source.has_value(),
+                    "the Master System test source should be allocated");
+        if (!source) continue;
+        constexpr std::array colors{
+            RgbColor{0, 0, 0}, RgbColor{255, 0, 0},
+            RgbColor{0, 255, 0}, RgbColor{0, 0, 255},
+        };
+        for (std::uint32_t y = 0; y < source->height(); ++y) {
+            auto row = source->row(y);
+            for (std::uint32_t x = 0; x < source->width(); ++x) {
+                const RgbColor color = colors[((x / 8U) + (y / 8U)) % colors.size()];
+                const std::size_t offset = static_cast<std::size_t>(x) * 3U;
+                row[offset] = color.red;
+                row[offset + 1U] = color.green;
+                row[offset + 2U] = color.blue;
+            }
+        }
+
+        ConversionSettings settings;
+        settings.targetProfile = TargetProfileId::SegaMasterSystem;
+        settings.mode = modeCase.mode;
+        settings.dither = DitherMode::None;
+        settings.paletteSelection = retrovdp::core::PaletteSelectionMode::Popularity;
+        std::uint32_t lastProgressRow = 0;
+        const ConversionResult result = convertSegaSmsMode4(
+            *source, settings, {},
+            [&lastProgressRow](const RgbImage&, std::uint32_t completed,
+                               std::uint32_t) { lastProgressRow = completed; });
+        test.expect(result.succeeded() && result.preview && result.target
+                        && validateTargetTables(*result.target),
+                    "every Master System Mode 4 height should compile valid hardware tables");
+        if (!result.preview || !result.target) continue;
+        test.expect(lastProgressRow == modeCase.height
+                        && result.preview->width() == 256
+                        && result.preview->height() == modeCase.height,
+                    "Master System conversion should publish native-size live progress");
+        test.expect(result.target->profile == TargetProfileId::SegaMasterSystem
+                        && result.target->tables.size() == 4
+                        && result.target->tables[0].role == TargetTableRole::Pattern
+                        && result.target->tables[0].bytes.size() == modeCase.patternBytes
+                        && result.target->tables[1].role == TargetTableRole::TileMap
+                        && result.target->tables[1].bytes.size() == 2048
+                        && result.target->tables[2].role == TargetTableRole::Palette
+                        && result.target->tables[2].bytes.size() == 32
+                        && result.target->tables[3].role
+                            == TargetTableRole::DisplayRegisters
+                        && result.target->tables[3].bytes.size() == 11,
+                    "Master System output should contain planar tiles, name table, CRAM, and registers");
+        test.expect(std::ranges::all_of(
+                        result.target->tables[2].bytes,
+                        [](std::uint8_t value) { return value <= 0x3fU; })
+                        && result.target->tables[3].bytes[0] == modeCase.register0
+                        && result.target->tables[3].bytes[1] == modeCase.register1,
+                    "Master System CRAM and display-mode register data should use hardware encodings");
+
+        const auto& patterns = result.target->tables[0].bytes;
+        const auto& nameTable = result.target->tables[1].bytes;
+        const auto& cram = result.target->tables[2].bytes;
+        const std::uint16_t word = static_cast<std::uint16_t>(nameTable[0])
+            | (static_cast<std::uint16_t>(nameTable[1]) << 8U);
+        const std::size_t pattern = word & 0x01ffU;
+        const bool flipX = (word & 0x0200U) != 0U;
+        const bool flipY = (word & 0x0400U) != 0U;
+        const std::size_t bank = (word & 0x0800U) != 0U ? 1U : 0U;
+        const std::size_t patternX = flipX ? 7U : 0U;
+        const std::size_t patternY = flipY ? 7U : 0U;
+        std::uint8_t colorIndex = 0;
+        for (std::size_t plane = 0; plane < 4; ++plane) {
+            const std::uint8_t planeByte =
+                patterns[pattern * 32U + patternY * 4U + plane];
+            if ((planeByte & (0x80U >> patternX)) != 0U)
+                colorIndex = static_cast<std::uint8_t>(colorIndex | (1U << plane));
+        }
+        const std::uint8_t cramColor = cram[bank * 16U + colorIndex];
+        const auto previewPixel = result.preview->row(0);
+        test.expect(previewPixel[0] == static_cast<std::uint8_t>((cramColor & 3U) * 85U)
+                        && previewPixel[1]
+                            == static_cast<std::uint8_t>(((cramColor >> 2U) & 3U) * 85U)
+                        && previewPixel[2]
+                            == static_cast<std::uint8_t>(((cramColor >> 4U) & 3U) * 85U),
+                    "the Mode 4 preview should decode the emitted tile, map, and CRAM data");
+    }
+
+    auto wrongSize = RgbImage::createTightlyPacked(255, 192, PixelFormat::Rgb888);
+    ConversionSettings settings;
+    settings.targetProfile = TargetProfileId::SegaMasterSystem;
+    settings.mode = ConversionMode::Mode4Sms192;
+    const ConversionResult invalid = convertSegaSmsMode4(*wrongSize, settings);
+    test.expect(!invalid.succeeded() && !invalid.diagnostics.empty()
+                    && invalid.diagnostics.front().code == "sms-mode4-invalid-dimensions",
+                "the Master System converter should reject non-native source geometry");
+}
+
+void testSegaGenesisMode5Conversion(TestContext& test)
+{
+    struct ModeCase {
+        ConversionMode mode;
+        std::uint32_t width;
+        std::uint32_t height;
+        std::size_t patternBytes;
+        std::size_t mapBytes;
+        std::uint8_t register1;
+        std::uint8_t register5;
+        std::uint8_t register12;
+    };
+    constexpr std::array cases{
+        ModeCase{ConversionMode::Mode5GenesisH32, 256, 224,
+                 0xb000, 2048, 0x74, 0x5f, 0x00},
+        ModeCase{ConversionMode::Mode5GenesisH40, 320, 224,
+                 0xa800, 4096, 0x74, 0x54, 0x81},
+        ModeCase{ConversionMode::Mode5GenesisH32Pal, 256, 240,
+                 0xb000, 2048, 0x7c, 0x5f, 0x00},
+        ModeCase{ConversionMode::Mode5GenesisH40Pal, 320, 240,
+                 0xa800, 4096, 0x7c, 0x54, 0x81},
+    };
+
+    for (const auto& modeCase : cases) {
+        auto source = RgbImage::createTightlyPacked(
+            modeCase.width, modeCase.height, PixelFormat::Rgb888);
+        test.expect(source.has_value(),
+                    "the Genesis test source should be allocated");
+        if (!source) continue;
+        constexpr std::array colors{
+            RgbColor{0, 0, 0}, RgbColor{255, 0, 0},
+            RgbColor{0, 255, 0}, RgbColor{0, 0, 255},
+        };
+        for (std::uint32_t y = 0; y < source->height(); ++y) {
+            auto row = source->row(y);
+            for (std::uint32_t x = 0; x < source->width(); ++x) {
+                const RgbColor color = colors[((x / 8U) + (y / 8U)) % colors.size()];
+                const std::size_t offset = static_cast<std::size_t>(x) * 3U;
+                row[offset] = color.red;
+                row[offset + 1U] = color.green;
+                row[offset + 2U] = color.blue;
+            }
+        }
+
+        ConversionSettings settings;
+        settings.targetProfile = TargetProfileId::SegaGenesis;
+        settings.mode = modeCase.mode;
+        settings.targetWidth = modeCase.width;
+        settings.targetHeight = modeCase.height;
+        settings.dither = DitherMode::None;
+        settings.paletteSelection = retrovdp::core::PaletteSelectionMode::Popularity;
+        std::uint32_t lastProgressRow = 0;
+        const ConversionResult result = convertSegaGenesisMode5(
+            *source, settings, {},
+            [&lastProgressRow](const RgbImage&, std::uint32_t completed,
+                               std::uint32_t) { lastProgressRow = completed; });
+        test.expect(result.succeeded() && result.preview && result.target
+                        && validateTargetTables(*result.target),
+                    "every standard Genesis Mode V geometry should compile valid hardware tables");
+        if (!result.preview || !result.target) continue;
+        test.expect(lastProgressRow == modeCase.height
+                        && result.preview->width() == modeCase.width
+                        && result.preview->height() == modeCase.height,
+                    "Genesis conversion should publish native-size live progress");
+        test.expect(result.target->profile == TargetProfileId::SegaGenesis
+                        && result.target->tables.size() == 4
+                        && result.target->tables[0].role == TargetTableRole::Pattern
+                        && result.target->tables[0].bytes.size() == modeCase.patternBytes
+                        && result.target->tables[1].role == TargetTableRole::TileMap
+                        && result.target->tables[1].bytes.size() == modeCase.mapBytes
+                        && result.target->tables[2].role == TargetTableRole::Palette
+                        && result.target->tables[2].bytes.size() == 128
+                        && result.target->tables[3].role
+                            == TargetTableRole::DisplayRegisters
+                        && result.target->tables[3].bytes.size() == 24,
+                    "Genesis output should contain packed tiles, Plane A map, CRAM, and registers");
+        const auto& registers = result.target->tables[3].bytes;
+        bool validCram = true;
+        const auto& cram = result.target->tables[2].bytes;
+        for (std::size_t offset = 0; offset < cram.size(); offset += 2U) {
+            const std::uint16_t word = static_cast<std::uint16_t>(
+                (static_cast<std::uint16_t>(cram[offset]) << 8U)
+                | cram[offset + 1U]);
+            validCram &= (word & static_cast<std::uint16_t>(~0x0eeeU)) == 0U;
+        }
+        test.expect(validCram
+                        && registers[1] == modeCase.register1
+                        && registers[5] == modeCase.register5
+                        && registers[12] == modeCase.register12,
+                    "Genesis CRAM and display registers should use native big-endian RGB333 encodings");
+
+        const auto& patterns = result.target->tables[0].bytes;
+        const auto& nameTable = result.target->tables[1].bytes;
+        const std::uint16_t mapWord = static_cast<std::uint16_t>(
+            (static_cast<std::uint16_t>(nameTable[0]) << 8U) | nameTable[1]);
+        const std::size_t pattern = mapWord & 0x07ffU;
+        const bool flipX = (mapWord & 0x0800U) != 0U;
+        const bool flipY = (mapWord & 0x1000U) != 0U;
+        const std::size_t bank = (mapWord >> 13U) & 0x03U;
+        const std::size_t patternX = flipX ? 7U : 0U;
+        const std::size_t patternY = flipY ? 7U : 0U;
+        const std::uint8_t packed = patterns[
+            pattern * 32U + patternY * 4U + patternX / 2U];
+        const std::uint8_t colorIndex = patternX % 2U == 0U
+            ? static_cast<std::uint8_t>(packed >> 4U)
+            : static_cast<std::uint8_t>(packed & 0x0fU);
+        const std::size_t cramOffset = (bank * 16U + colorIndex) * 2U;
+        const std::uint16_t cramWord = static_cast<std::uint16_t>(
+            (static_cast<std::uint16_t>(cram[cramOffset]) << 8U)
+            | cram[cramOffset + 1U]);
+        const auto previewPixel = result.preview->row(0);
+        test.expect(previewPixel[0]
+                            == static_cast<std::uint8_t>(((cramWord >> 1U) & 7U) * 255U / 7U)
+                        && previewPixel[1]
+                            == static_cast<std::uint8_t>(((cramWord >> 5U) & 7U) * 255U / 7U)
+                        && previewPixel[2]
+                            == static_cast<std::uint8_t>(((cramWord >> 9U) & 7U) * 255U / 7U),
+                    "the Genesis preview should decode the emitted tile, map, and CRAM data");
+    }
+
+    auto wrongSize = RgbImage::createTightlyPacked(255, 224, PixelFormat::Rgb888);
+    ConversionSettings settings;
+    settings.targetProfile = TargetProfileId::SegaGenesis;
+    settings.mode = ConversionMode::Mode5GenesisH32;
+    settings.targetWidth = 256;
+    settings.targetHeight = 224;
+    const ConversionResult invalid = convertSegaGenesisMode5(*wrongSize, settings);
+    test.expect(!invalid.succeeded() && !invalid.diagnostics.empty()
+                    && invalid.diagnostics.front().code
+                        == "genesis-mode5-invalid-dimensions",
+                "the Genesis converter should reject non-native source geometry");
 }
 
 void testTargetData(TestContext &test)
@@ -1674,13 +2123,28 @@ void testTargetData(TestContext &test)
         ConversionMode::BitmapColorOnly9918,
         ConversionMode::PalettedBitmapF18A,
         ConversionMode::ScanlinePaletteBitmapF18A,
+        ConversionMode::Screen5V9938,
+        ConversionMode::Screen6V9938,
+        ConversionMode::Screen7V9938,
+        ConversionMode::Screen8V9938,
+        ConversionMode::Screen10V9958,
+        ConversionMode::Screen11V9958,
+        ConversionMode::Screen12V9958,
+        ConversionMode::Mode4Sms192,
+        ConversionMode::Mode4Sms224,
+        ConversionMode::Mode4Sms240,
+        ConversionMode::Mode5GenesisH32,
+        ConversionMode::Mode5GenesisH40,
+        ConversionMode::Mode5GenesisH32Pal,
+        ConversionMode::Mode5GenesisH40Pal,
     };
 
     constexpr std::array roles{
         TargetTableRole::Pattern, TargetTableRole::Color, TargetTableRole::Multicolor,
         TargetTableRole::MulticolorFrame1, TargetTableRole::MulticolorFrame2,
         TargetTableRole::FixedPattern, TargetTableRole::Palette,
-        TargetTableRole::ScanlinePalettes,
+        TargetTableRole::ScanlinePalettes, TargetTableRole::Framebuffer,
+        TargetTableRole::TileMap, TargetTableRole::DisplayRegisters,
     };
     for (const auto role : roles) {
         const auto id = retrovdp::core::targetTableRoleId(role);
@@ -2277,6 +2741,9 @@ int main(int argc, char *argv[])
     testHalfMulticolor9918Conversion(test);
     testPalettedBitmapF18AConversion(test);
     testScanlinePaletteBitmapF18AConversion(test);
+    testYamahaBitmapConversion(test);
+    testSegaSmsMode4Conversion(test);
+    testSegaGenesisMode5Conversion(test);
     testImageAdjustments(test);
     testPaletteSelection(test);
     testRgbImage(test);

@@ -24,11 +24,24 @@ The application is organized around three independent ideas:
 
 ## Status
 
-The current release implements complete TMS9918A and F18A conversion profiles,
-while the target-profile architecture is intended to add V9938 and other
-classic VDPs without another product redesign. The input pipeline loads common
-Qt raster formats, PCX, and supported retro formats with explicit safety
-limits. The export layer provides deterministic RAW, RLE,
+The current release implements TMS9918A, F18A, V9938, V9958, Sega Master
+System, and Sega Genesis/Mega Drive conversion profiles. V9938 SCREEN 5–8 and V9958 SCREEN 10–12 are
+compiled through the registered Yamaha bitmap strategies, including
+programmable palette and YJK/YAE output. The Master System profile compiles
+192-, 224-, and PAL 240-line Mode 4 screens into 4-bit planar tiles, name-table
+attributes, two 16-color CRAM banks, and display-register state. The Master
+System Character and Sprite workspaces use native Mode 4
+interpretations: 448 8×8 4bpp background tiles, 64 sprite entries, global
+8×8/8×16 sprite sizing, and separate background/sprite palette banks. The
+Genesis profile compiles H32 256-pixel and H40 320-pixel Mode V screens at
+224 or PAL 240 lines into packed 4bpp tiles, a Plane A map, four 16-entry
+RGB333 CRAM banks, and display-register state. Its Character workspace exposes
+2,048 indexed tiles and palette-bank selection; its Sprite workspace exposes
+80 entries, four palette banks, and every rectangular 8-to-32-pixel hardware
+size. Native structured-editor map/SAT export remains part of the shared
+export work. The input
+pipeline loads common Qt raster formats, PCX, and supported retro formats with
+explicit safety limits. The export layer provides deterministic RAW, RLE,
 TIFILES, V9T9, MSX, Coleco, Adam, Extended BASIC, ROM, and PNG exporters with
 generated-file manifests and overwrite preflight. The Qt workspace provides
 menu-driven tabbed/horizontal/vertical previews, an adjacent or overlay Side

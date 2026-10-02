@@ -12,7 +12,7 @@ Item {
     readonly property var placements: editorProject.activeSpritePlacements
     readonly property var editorSlots: editorProject.spriteEditorSlots
     readonly property var visibleEditorSlots: {
-        if (editorProject.editScope === 1)
+        if (editorProject.activeTargetInfo.spritePerItemSize)
             return editorSlots
         const visible = []
         for (let index = 0; index < editorSlots.length; ++index) {
@@ -23,18 +23,27 @@ Item {
     }
     readonly property int editorSlotCount: visibleEditorSlots.length
     property bool sprite8Expanded:
-        editorProject.editScope === 1 || editorProject.spriteGlobalSize === 8
+        editorProject.activeTargetInfo.spritePerItemSize
+        || editorProject.spriteGlobalSize === 8
     property bool sprite16Expanded:
-        editorProject.editScope === 1 || editorProject.spriteGlobalSize === 16
+        editorProject.activeTargetInfo.spritePerItemSize
+        || editorProject.spriteGlobalSize === 16
     property int observedEditScope: editorProject.editScope
     property int observedGlobalSize: editorProject.spriteGlobalSize
+    readonly property int square8Size:
+        editorProject.activeTargetInfo.id === "sega-genesis-vdp" ? 808 : 8
+    readonly property int square16Size:
+        editorProject.activeTargetInfo.id === "sega-genesis-vdp" ? 1616 : 16
 
     function bankExpanded(size) {
-        return size === 8 ? sprite8Expanded : sprite16Expanded
+        return editorProject.spritePatternWidth(size) === 8
+                && editorProject.spritePatternHeight(size) === 8
+               ? sprite8Expanded : sprite16Expanded
     }
 
     function setBankExpanded(size, expanded) {
-        if (size === 8)
+        if (editorProject.spritePatternWidth(size) === 8
+                && editorProject.spritePatternHeight(size) === 8)
             sprite8Expanded = expanded
         else
             sprite16Expanded = expanded
@@ -42,11 +51,11 @@ Item {
 
     function activateSpriteBank(size) {
         const wasExpanded = bankExpanded(size)
-        if (editorProject.editScope === 0) {
+        if (!editorProject.activeTargetInfo.spritePerItemSize) {
             if (editorProject.spriteGlobalSize !== size) {
                 editorProject.spriteGlobalSize = size
-                sprite8Expanded = size === 8
-                sprite16Expanded = size === 16
+                sprite8Expanded = size === root.square8Size
+                sprite16Expanded = size === root.square16Size
             } else {
                 setBankExpanded(size, !wasExpanded)
             }
@@ -59,7 +68,7 @@ Item {
     Connections {
         target: editorProject
         function onProjectChanged() {
-            const scope = editorProject.editScope
+            const scope = editorProject.activeTargetInfo.spritePerItemSize ? 1 : 0
             const globalSize = editorProject.spriteGlobalSize
             if (scope !== root.observedEditScope) {
                 if (scope === 1) {
@@ -79,7 +88,7 @@ Item {
     }
 
     function paletteColor(index) {
-        const colors = editorProject.characterPaletteColors
+        const colors = editorProject.spritePaletteColors
         if (index < 0 || index >= colors.length)
             return "#000000"
         return index === 0 ? "#20272e" : colors[index]
@@ -91,12 +100,16 @@ Item {
         required property string title
         readonly property bool expanded: root.bankExpanded(spriteSize)
         readonly property bool activeForChipset:
-            editorProject.editScope === 1
+            editorProject.activeTargetInfo.spritePerItemSize
             || editorProject.spriteGlobalSize === spriteSize
+        readonly property int pixelWidth:
+            editorProject.spritePatternWidth(spriteSize)
+        readonly property int pixelHeight:
+            editorProject.spritePatternHeight(spriteSize)
 
         Rectangle {
             id: bankHeader
-            objectName: bank.spriteSize === 8
+            objectName: bank.pixelWidth === 8 && bank.pixelHeight === 8
                         ? "sprite8PatternHeader" : "sprite16PatternHeader"
             anchors.left: parent.left
             anchors.right: parent.right
@@ -141,7 +154,7 @@ Item {
 
         GridView {
             id: spriteGrid
-            objectName: bank.spriteSize === 8
+            objectName: bank.pixelWidth === 8 && bank.pixelHeight === 8
                         ? "sprite8PatternGrid" : "sprite16PatternGrid"
             anchors.left: parent.left
             anchors.right: parent.right
@@ -150,9 +163,9 @@ Item {
             anchors.bottom: parent.bottom
             visible: bank.expanded
             enabled: visible
-            model: 32
+            model: editorProject.spritePatternsPerSet
             clip: true
-            cellWidth: bank.spriteSize === 8
+            cellWidth: bank.pixelWidth === 8 && bank.pixelHeight === 8
                        ? Math.max(24, Math.floor(width / 16))
                        : Math.max(48, Math.floor(width / 8))
             cellHeight: cellWidth
@@ -179,11 +192,13 @@ Item {
                 Item {
                     id: thumbnail
                     anchors.centerIn: parent
-                    width: Math.min(parent.width - 8, parent.height - 8)
-                    height: width
+                    width: Math.min(parent.width - 8,
+                                    (parent.height - 8) * bank.pixelWidth
+                                    / bank.pixelHeight)
+                    height: width * bank.pixelHeight / bank.pixelWidth
 
                     Repeater {
-                        model: bank.spriteSize * bank.spriteSize
+                        model: bank.pixelWidth * bank.pixelHeight
                         Rectangle {
                             required property int index
                             readonly property int value:
@@ -198,12 +213,12 @@ Item {
                                 }
                                 return value
                             }
-                            x: (index % bank.spriteSize)
-                               * thumbnail.width / bank.spriteSize
-                            y: Math.floor(index / bank.spriteSize)
-                               * thumbnail.height / bank.spriteSize
-                            width: Math.ceil(thumbnail.width / bank.spriteSize)
-                            height: Math.ceil(thumbnail.height / bank.spriteSize)
+                            x: (index % bank.pixelWidth)
+                               * thumbnail.width / bank.pixelWidth
+                            y: Math.floor(index / bank.pixelWidth)
+                               * thumbnail.height / bank.pixelHeight
+                            width: Math.ceil(thumbnail.width / bank.pixelWidth)
+                            height: Math.ceil(thumbnail.height / bank.pixelHeight)
                             color: root.paletteColor(colorIndex)
                         }
                     }
@@ -371,7 +386,8 @@ Item {
                     implicitWidth: 26
                     implicitHeight: 26
                     text: "+"
-                    enabled: editorTray.totalEditorCount < 32
+                    enabled: editorTray.totalEditorCount
+                             < editorProject.spritePatternsPerSet
                     Accessible.name: editorProject.spritePlacementMode
                                      ? qsTr("Add empty placed sprite")
                                      : qsTr("Add empty sprite editor")
@@ -409,7 +425,7 @@ Item {
                 objectName: "spriteItemSpinBox"
                 implicitWidth: 60
                 from: 0
-                to: 31
+                to: editorProject.spritePatternsPerSet - 1
                 value: editorProject.activeSprite
                 editable: true
                 onValueModified: editorProject.activeSprite = value
@@ -429,16 +445,20 @@ Item {
                                              24, Math.floor(width / 16)))
                                          : 28
                 SplitView.maximumHeight: expanded ? 16777215 : 28
-                spriteSize: 8
-                title: qsTr("8×8 sprite patterns · 32")
+                spriteSize: root.square8Size
+                title: qsTr("8×8 sprite patterns · %1")
+                       .arg(editorProject.spritePatternsPerSet)
             }
             SpriteBank {
                 objectName: "sprite16PatternBank"
                 SplitView.preferredHeight: expanded ? parent.height / 2 : 28
                 SplitView.minimumHeight: expanded ? 80 : 28
                 SplitView.maximumHeight: expanded ? 16777215 : 28
-                spriteSize: 16
-                title: qsTr("16×16 sprite patterns · 32")
+                spriteSize: root.square16Size
+                title: qsTr("%1×%2 sprite patterns · %3")
+                       .arg(editorProject.spritePatternWidth(16))
+                       .arg(editorProject.spritePatternHeight(16))
+                       .arg(editorProject.spritePatternsPerSet)
             }
         }
     }

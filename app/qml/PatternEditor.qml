@@ -27,6 +27,8 @@ Rectangle {
         return editorProject.characterPatternRows(patternSetIndex, patternIndex)
     }
     readonly property var paletteColors: editorProject.characterPaletteColors
+    readonly property bool indexedMode:
+        loaded && rows.length === 8 && rows[0].indexed
     readonly property bool pixelEditingEnabled:
         loaded && !editorProject.characterPanActive
     property bool kLineActive: false
@@ -55,9 +57,18 @@ Rectangle {
     function paletteColor(index) {
         if (index < 0 || index >= paletteColors.length)
             return "#000000"
-        if (index === 0)
+        if (index === 0 && !root.indexedMode)
             return "#303842"
         return paletteColors[index]
+    }
+
+    function pixelIndex(row, column) {
+        if (!loaded || rows.length !== 8)
+            return 0
+        if (rows[row].indexed)
+            return rows[row].pixels[column]
+        return (rows[row].pattern & (0x80 >> column)) !== 0
+                ? rows[row].foreground : rows[row].background
     }
 
     function paintAt(localX, localY) {
@@ -192,8 +203,9 @@ Rectangle {
         spacing: 0
 
         Item {
-            width: 10
+            width: root.indexedMode ? 0 : 10
             height: root.gridSize
+            visible: !root.indexedMode
 
             Label {
                 anchors.centerIn: parent
@@ -205,7 +217,8 @@ Rectangle {
         }
 
         Column {
-            width: 28
+            width: root.indexedMode ? 0 : 28
+            visible: !root.indexedMode
             spacing: 0
             Repeater {
                 model: 8
@@ -238,18 +251,14 @@ Rectangle {
                     required property int index
                     readonly property int patternRow: Math.floor(index / 8)
                     readonly property int patternColumn: index % 8
-                    readonly property bool foregroundPixel:
-                        root.loaded && root.rows.length === 8
-                        && (root.rows[patternRow].pattern
-                            & (0x80 >> patternColumn)) !== 0
+                    readonly property int colorIndex:
+                        root.pixelIndex(patternRow, patternColumn)
                     x: patternColumn * root.cellSize
                     y: patternRow * root.cellSize
                     width: root.cellSize
                     height: root.cellSize
                     color: !root.loaded || root.rows.length !== 8 ? "#20272e"
-                           : root.paletteColor(foregroundPixel
-                                               ? root.rows[patternRow].foreground
-                                               : root.rows[patternRow].background)
+                           : root.paletteColor(colorIndex)
                 }
             }
 
@@ -413,7 +422,8 @@ Rectangle {
 
         Column {
             id: colorValueColumn
-            width: 28
+            width: root.indexedMode ? 0 : 28
+            visible: !root.indexedMode
             spacing: 0
             Repeater {
                 model: 8
@@ -433,8 +443,9 @@ Rectangle {
         }
 
         Item {
-            width: 10
+            width: root.indexedMode ? 0 : 10
             height: root.gridSize
+            visible: !root.indexedMode
 
             Label {
                 anchors.centerIn: parent
@@ -522,18 +533,14 @@ Rectangle {
                     required property int index
                     readonly property int patternRow: Math.floor(index / 8)
                     readonly property int patternColumn: index % 8
-                    readonly property bool foregroundPixel:
-                        root.loaded && root.rows.length === 8
-                        && (root.rows[patternRow].pattern
-                            & (0x80 >> patternColumn)) !== 0
+                    readonly property int colorIndex:
+                        root.pixelIndex(patternRow, patternColumn)
                     x: patternColumn * root.previewScale
                     y: patternRow * root.previewScale
                     width: root.previewScale
                     height: root.previewScale
                     color: !root.loaded || root.rows.length !== 8 ? "#20272e"
-                           : root.paletteColor(foregroundPixel
-                                               ? root.rows[patternRow].foreground
-                                               : root.rows[patternRow].background)
+                           : root.paletteColor(colorIndex)
                 }
             }
         }

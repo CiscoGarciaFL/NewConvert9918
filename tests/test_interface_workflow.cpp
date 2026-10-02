@@ -116,6 +116,51 @@ void testLiveWorkflow(TestContext& test, ImageInputController& controller)
                         && blankController.canUndoScreenImage(),
                     "a new blank Screen Image should immediately support drawing and undo");
 
+        ImageInputController yamahaController;
+        yamahaController.setAutoUpdate(false);
+        yamahaController.setTargetProfile(static_cast<int>(
+            retrovdp::core::TargetProfileId::V9958));
+        yamahaController.setConversionMode(static_cast<int>(
+            retrovdp::core::ConversionMode::Screen12V9958));
+        yamahaController.openUrl(QUrl::fromLocalFile(
+            goldenSource(u"source/tiny-rgba.png")));
+        const QImage yamahaSource = QImage::fromData(QByteArray::fromBase64(
+            yamahaController.sourcePreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(yamahaSource.size() == QSize(256, 212)
+                        && yamahaController.targetWidth() == 256
+                        && yamahaController.targetHeight() == 212,
+                    "V9958 source framing should use the selected mode's 256x212 geometry");
+        yamahaController.updateConversion();
+        const bool yamahaReady = waitFor([&] {
+            return yamahaController.hasConversion() && !yamahaController.busy();
+        }, 60'000);
+        const QImage yamahaPreview = QImage::fromData(QByteArray::fromBase64(
+            yamahaController.convertedPreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(yamahaReady && yamahaPreview.size() == QSize(256, 212)
+                        && qAbs(yamahaController.targetPixelAspectRatio() - 1.0)
+                            < 0.001
+                        && yamahaController.conversionDetails().contains(
+                            QStringLiteral("256×212"))
+                        && yamahaController.conversionDetails().contains(
+                            QStringLiteral("54272 target bytes")),
+                    "V9958 Screen 12 should update a native-resolution YJK Screen Image");
+        yamahaController.setConversionMode(static_cast<int>(
+            retrovdp::core::ConversionMode::Screen7V9938));
+        const QImage screen7Source = QImage::fromData(QByteArray::fromBase64(
+            yamahaController.sourcePreview()
+                .section(QLatin1Char(','), 1).toLatin1()), "PNG");
+        test.expect(screen7Source.size() == QSize(512, 212)
+                        && yamahaController.targetWidth() == 512
+                        && yamahaController.targetHeight() == 212
+                        && qAbs(yamahaController.targetPixelAspectRatio() - 0.5)
+                            < 0.001,
+                    "512-pixel Yamaha modes should retain native pixels and half-width display aspect");
+        yamahaController.setTargetProfile(static_cast<int>(
+            retrovdp::core::TargetProfileId::Tms9918A));
+        yamahaController.setAutoUpdate(true);
+
         ImageInputController selectionController;
         selectionController.newScreenImage();
         const QColor selectionColor(246, 52, 121);
@@ -1300,6 +1345,139 @@ void testEditorProjectRecipe(TestContext& test)
                     && fixtureProject.recipePath().isEmpty(),
                 "New Project should reset project state and select a configured target");
 
+    ImageInputController smsImage;
+    smsImage.setAutoUpdate(false);
+    EditorProjectController smsProject(&smsImage);
+    smsProject.configureProjectWithTargets(
+        QStringLiteral("Master System Campaign"), false, false,
+        QStringList{QStringLiteral("sega-sms-vdp")});
+    smsProject.setSpriteGlobalSize(16);
+    const QVariantMap smsTargetInfo = smsProject.activeTargetInfo();
+    test.expect(smsProject.segaSmsEnabled()
+                    && smsProject.activeTarget()
+                        == static_cast<int>(retrovdp::core::TargetProfileId::SegaMasterSystem)
+                    && smsProject.supportedTargets().size() == 1,
+                "a project should activate the implemented Master System target by itself");
+    test.expect(retrovdp::core::supportsConversionMode(
+                    retrovdp::core::TargetProfileId::SegaMasterSystem,
+                    static_cast<retrovdp::core::ConversionMode>(smsImage.conversionMode())),
+                "an activated Master System target should retain a compatible conversion mode");
+    test.expect(smsTargetInfo.value(QStringLiteral("characterPatternsPerSet")).toInt()
+                        == 448
+                    && smsTargetInfo.value(QStringLiteral("spriteMaximumVisible")).toInt()
+                        == 64
+                    && smsTargetInfo.value(QStringLiteral("spriteMaximumColorDepth")).toInt()
+                        == 4
+                    && smsProject.editScope() == 1
+                    && smsProject.characterSetNames().size() == 1
+                    && smsProject.spritePatternsPerSet() == 64
+                    && smsProject.spritePatternWidth(16) == 8
+                    && smsProject.spritePatternHeight(16) == 16
+                    && smsProject.activeSpriteColorDepth() == 4
+                    && !smsProject.canRotateSpritePattern(),
+                "Master System target metadata should expose its tile and sprite limits");
+    smsProject.setCharacterForegroundColorIndex(7);
+    smsProject.paintCharacterPixel(0, 447, 3, 5, true);
+    const QVariantList smsRows = smsProject.characterPatternRows(0, 447);
+    test.expect(smsRows.size() == 8
+                    && smsRows[3].toMap().value(QStringLiteral("indexed")).toBool()
+                    && smsRows[3].toMap().value(QStringLiteral("pixels"))
+                           .toList()[5].toInt() == 7,
+                "Master System character editing should retain native 4bpp indexes across all 448 slots");
+    smsProject.setSpriteDrawingColorIndex(15);
+    smsProject.paintSpritePixel(0, 63, 16, 15, 7, true);
+    const QVariantList smsSprite = smsProject.spritePatternPixels(0, 63, 16);
+    test.expect(smsSprite.size() == 128 && smsSprite[127].toInt() == 15,
+                "Master System sprite editing should use 64 rectangular 8x16 4bpp entries");
+
+    ImageInputController genesisImage;
+    genesisImage.setAutoUpdate(false);
+    EditorProjectController genesisProject(&genesisImage);
+    genesisProject.configureProjectWithTargets(
+        QStringLiteral("Genesis Campaign"), false, false,
+        QStringList{QStringLiteral("sega-genesis-vdp")});
+    const QVariantMap genesisTargetInfo = genesisProject.activeTargetInfo();
+    test.expect(genesisProject.segaGenesisEnabled()
+                    && genesisProject.activeTarget()
+                        == static_cast<int>(retrovdp::core::TargetProfileId::SegaGenesis)
+                    && genesisProject.supportedTargets().size() == 1
+                    && genesisProject.characterPatternsPerSet() == 2048
+                    && genesisProject.characterMapColumns() == 40
+                    && genesisProject.characterMapRows() == 28
+                    && genesisProject.spritePatternsPerSet() == 80
+                    && genesisTargetInfo.value(QStringLiteral("characterColorDepth")).toInt()
+                        == 4
+                    && genesisTargetInfo.value(
+                           QStringLiteral("characterPaletteBankCount")).toInt() == 4
+                    && genesisTargetInfo.value(
+                           QStringLiteral("spritePaletteBankCount")).toInt() == 4
+                    && genesisTargetInfo.value(
+                           QStringLiteral("spriteMaximumPerScanline")).toInt() == 20,
+                "a Genesis project should expose native H40 character, palette, and sprite limits");
+    genesisImage.setConversionMode(static_cast<int>(
+        retrovdp::core::ConversionMode::Mode5GenesisH32));
+    const QVariantMap genesisH32Info = genesisProject.activeTargetInfo();
+    test.expect(genesisProject.characterMapColumns() == 32
+                    && genesisProject.characterMapRows() == 28
+                    && genesisH32Info.value(
+                           QStringLiteral("characterMapColumns")).toInt() == 32
+                    && genesisProject.spritePatternsPerSet() == 64
+                    && genesisH32Info.value(
+                           QStringLiteral("spriteMaximumPerScanline")).toInt() == 16,
+                "Genesis H32 editor limits should follow the active display mode");
+    genesisImage.setConversionMode(static_cast<int>(
+        retrovdp::core::ConversionMode::Mode5GenesisH40));
+    genesisProject.setCharacterPaletteBank(3);
+    genesisProject.setCharacterForegroundColorIndex(14);
+    genesisProject.paintCharacterPixel(0, 2047, 7, 7, true);
+    const QVariantList genesisRows = genesisProject.characterPatternRows(0, 2047);
+    test.expect(genesisProject.characterPaletteBank() == 3
+                    && genesisRows.size() == 8
+                    && genesisRows[7].toMap().value(QStringLiteral("indexed")).toBool()
+                    && genesisRows[7].toMap().value(QStringLiteral("pixels"))
+                           .toList()[7].toInt() == 14,
+                "Genesis character editing should retain 4bpp indexes through all 2048 tile slots");
+    genesisProject.setActiveSprite(79);
+    genesisProject.setActiveSpriteSize(2432);
+    genesisProject.setActiveSpritePaletteBank(2);
+    genesisProject.setSpriteDrawingColorIndex(15);
+    genesisProject.paintSpritePixel(0, 79, 2432, 31, 23, true);
+    const QVariantList genesisSprite = genesisProject.spritePatternPixels(0, 79, 2432);
+    test.expect(genesisProject.spritePatternWidth(2432) == 24
+                    && genesisProject.spritePatternHeight(2432) == 32
+                    && genesisProject.activeSpriteColorDepth() == 4
+                    && genesisProject.activeSpritePaletteBank() == 2
+                    && !genesisProject.canRotateSpritePattern()
+                    && genesisSprite.size() == 768
+                    && genesisSprite[767].toInt() == 15,
+                "Genesis sprite editing should support all rectangular 8-to-32-pixel 4bpp sizes");
+
+    QTemporaryDir genesisDirectory(
+        QDir::current().filePath(QStringLiteral("genesis-recipe-XXXXXX")));
+    const QString genesisRecipe = genesisDirectory.filePath(
+        QStringLiteral("genesis-roundtrip.rvdp.json"));
+    const bool genesisSaved = genesisDirectory.isValid()
+        && genesisProject.saveRecipe(QUrl::fromLocalFile(genesisRecipe));
+    genesisProject.configureProject(QStringLiteral("Changed"), true, false);
+    const bool genesisLoaded = genesisProject.loadRecipe(
+        QUrl::fromLocalFile(genesisRecipe));
+    const QVariantList restoredGenesisRows = genesisProject.characterPatternRows(0, 2047);
+    const QVariantList restoredGenesisSprite = genesisProject.spritePatternPixels(
+        0, 79, 2432);
+    test.expect(genesisSaved && genesisLoaded
+                    && genesisProject.projectName() == QStringLiteral("Genesis Campaign")
+                    && genesisProject.segaGenesisEnabled()
+                    && !genesisProject.tms9918aEnabled()
+                    && genesisProject.characterPaletteBank() == 3
+                    && genesisProject.activeSprite() == 79
+                    && genesisProject.activeSpriteSize() == 2432
+                    && genesisProject.activeSpritePaletteBank() == 2
+                    && restoredGenesisRows[7].toMap()
+                           .value(QStringLiteral("pixels")).toList()[7].toInt() == 14
+                    && restoredGenesisSprite.size() == 768
+                    && restoredGenesisSprite[767].toInt() == 15,
+                "Genesis character and sprite data should round-trip through project recipes");
+
     ImageInputController recipeImage;
     recipeImage.setAutoUpdate(false);
     recipeImage.openUrl(QUrl::fromLocalFile(goldenSource(u"source/tiny-rgba.png")));
@@ -1309,7 +1487,8 @@ void testEditorProjectRecipe(TestContext& test)
     EditorProjectController project(&recipeImage);
     project.configureProjectWithTargets(
         QStringLiteral("Demo Campaign"), true, true,
-        QStringList{QStringLiteral("v9938"), QStringLiteral("game-boy-ppu")});
+        QStringList{QStringLiteral("v9938"), QStringLiteral("sega-sms-vdp"),
+                    QStringLiteral("game-boy-ppu")});
     project.setWorkspaceMode(2);
     project.setActiveTarget(1);
     project.addSpriteSet();
@@ -1907,9 +2086,10 @@ void testEditorProjectRecipe(TestContext& test)
     const QVariantList restoredSpritePixels = project.spritePatternPixels(1, 3, 16);
     test.expect(loaded && project.projectName() == QStringLiteral("Demo Campaign")
                     && project.tms9918aEnabled()
+                    && project.v9938Enabled()
+                    && project.segaSmsEnabled()
                     && project.plannedTargetIds()
-                           == QStringList{QStringLiteral("v9938"),
-                                          QStringLiteral("game-boy-ppu")}
+                           == QStringList{QStringLiteral("game-boy-ppu")}
                     && project.workspaceMode() == 2 && project.f18aEnabled()
                     && project.previewTarget() == 1 && project.editScope() == 1
                     && project.spriteSetNames().size() == 2
@@ -2116,14 +2296,42 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     const bool projectSettingsOpened = projectSettingsAction != nullptr
         && QMetaObject::invokeMethod(projectSettingsAction, "trigger");
     QObject* projectDialog = window->findChild<QObject*>(QStringLiteral("projectDialog"));
+    QObject* tmsProjectTarget = window->findChild<QObject*>(
+        QStringLiteral("tms9918aProjectTarget"));
+    QObject* f18aProjectTarget = window->findChild<QObject*>(
+        QStringLiteral("f18aProjectTarget"));
+    QObject* v9938ProjectTarget = window->findChild<QObject*>(
+        QStringLiteral("v9938ProjectTarget"));
+    QObject* segaSmsProjectTarget = window->findChild<QObject*>(
+        QStringLiteral("segaSmsProjectTarget"));
+    QObject* segaGenesisProjectTarget = window->findChild<QObject*>(
+        QStringLiteral("segaGenesisProjectTarget"));
     test.expect(projectSettingsOpened && projectDialog != nullptr
                     && waitFor([&] { return projectDialog->property("visible").toBool(); })
                     && window->findChild<QObject*>(QStringLiteral("projectNameField")) != nullptr
-                    && window->findChild<QObject*>(QStringLiteral("tms9918aProjectTarget")) != nullptr
-                    && window->findChild<QObject*>(QStringLiteral("f18aProjectTarget")) != nullptr
-                    && window->findChild<QObject*>(QStringLiteral("v9938ProjectTarget")) != nullptr
+                    && tmsProjectTarget != nullptr
+                    && f18aProjectTarget != nullptr
+                    && v9938ProjectTarget != nullptr
                     && window->findChild<QObject*>(QStringLiteral("trs80ProjectTarget")) != nullptr,
                 "Project Settings should edit the project name and grouped target roadmap");
+    test.expect(tmsProjectTarget != nullptr
+                    && tmsProjectTarget->property("text").toString()
+                        == QStringLiteral("TMS9918A")
+                    && f18aProjectTarget != nullptr
+                    && f18aProjectTarget->property("text").toString()
+                        == QStringLiteral("F18A")
+                    && v9938ProjectTarget != nullptr
+                    && v9938ProjectTarget->property("text").toString()
+                        == QStringLiteral("Yamaha V9938")
+                    && segaSmsProjectTarget != nullptr
+                    && segaSmsProjectTarget->property("enabled").toBool()
+                    && segaSmsProjectTarget->property("text").toString()
+                        == QStringLiteral("Sega Master System 315-5124 / 315-5246")
+                    && segaGenesisProjectTarget != nullptr
+                    && segaGenesisProjectTarget->property("enabled").toBool()
+                    && segaGenesisProjectTarget->property("text").toString()
+                        == QStringLiteral("Sega Genesis / Mega Drive 315-5313 / YM7101"),
+                "implemented project targets should be enabled and omit roadmap status text");
     if (projectDialog != nullptr) QMetaObject::invokeMethod(projectDialog, "close");
     QObject* aboutAction = window->findChild<QObject*>(QStringLiteral("aboutAction"));
     const bool aboutOpened = aboutAction != nullptr
@@ -2131,12 +2339,18 @@ void testResponsiveQml(TestContext& test, ImageInputController& controller)
     QObject* aboutDialog = window->findChild<QObject*>(QStringLiteral("aboutDialog"));
     QObject* aboutIcon = window->findChild<QObject*>(
         QStringLiteral("aboutApplicationIcon"));
+    QObject* aboutVersion = window->findChild<QObject*>(
+        QStringLiteral("aboutVersionLabel"));
     test.expect(aboutOpened && aboutDialog != nullptr
                     && waitFor([&] { return aboutDialog->property("visible").toBool(); })
                     && aboutIcon != nullptr
                     && aboutIcon->property("width").toReal() == 64.0
-                    && aboutIcon->property("height").toReal() == 64.0,
-                "About should present the attribution notice with a 64 by 64 application icon");
+                    && aboutIcon->property("height").toReal() == 64.0
+                    && aboutVersion != nullptr
+                    && aboutVersion->property("text").toString()
+                        == QStringLiteral("Version %1").arg(
+                            QCoreApplication::applicationVersion()),
+                "About should present the compiled application version and a 64 by 64 application icon");
     if (aboutDialog != nullptr) QMetaObject::invokeMethod(aboutDialog, "close");
     const QObject* exitAction =
         window->findChild<QObject*>(QStringLiteral("exitAction"));
@@ -3998,6 +4212,7 @@ int main(int argc, char** argv)
     QGuiApplication application(argc, argv);
     application.setOrganizationName(QStringLiteral("CiscoGarciaFL-Test"));
     application.setApplicationName(QStringLiteral("RetroVDPStudio-InterfaceTest"));
+    application.setApplicationVersion(QStringLiteral(RETROVDP_VERSION));
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
     QTemporaryDir settingsDirectory;
     if (!settingsDirectory.isValid()) {

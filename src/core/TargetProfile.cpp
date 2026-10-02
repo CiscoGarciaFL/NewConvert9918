@@ -32,7 +32,39 @@ constexpr std::array f18aModes{
     ConversionMode::ScanlinePaletteBitmapF18A,
 };
 
-constexpr std::array<ConversionMode, 0> v9938Modes{};
+constexpr std::array v9938Modes{
+    ConversionMode::Bitmap9918, ConversionMode::GreyscaleBitmap9918,
+    ConversionMode::BlackAndWhiteBitmap9918, ConversionMode::Multicolor9918,
+    ConversionMode::DualMulticolor9918, ConversionMode::HalfMulticolor9918,
+    ConversionMode::BitmapColorOnly9918, ConversionMode::Screen5V9938,
+    ConversionMode::Screen6V9938, ConversionMode::Screen7V9938,
+    ConversionMode::Screen8V9938,
+};
+
+constexpr std::array v9958Modes{
+    ConversionMode::Bitmap9918, ConversionMode::GreyscaleBitmap9918,
+    ConversionMode::BlackAndWhiteBitmap9918, ConversionMode::Multicolor9918,
+    ConversionMode::DualMulticolor9918, ConversionMode::HalfMulticolor9918,
+    ConversionMode::BitmapColorOnly9918, ConversionMode::Screen5V9938,
+    ConversionMode::Screen6V9938, ConversionMode::Screen7V9938,
+    ConversionMode::Screen8V9938, ConversionMode::Screen10V9958,
+    ConversionMode::Screen11V9958, ConversionMode::Screen12V9958,
+};
+
+constexpr std::array segaSmsModes{
+    ConversionMode::Bitmap9918, ConversionMode::GreyscaleBitmap9918,
+    ConversionMode::BlackAndWhiteBitmap9918, ConversionMode::Multicolor9918,
+    ConversionMode::DualMulticolor9918, ConversionMode::HalfMulticolor9918,
+    ConversionMode::BitmapColorOnly9918, ConversionMode::Mode4Sms192,
+    ConversionMode::Mode4Sms224, ConversionMode::Mode4Sms240,
+};
+
+constexpr std::array segaGenesisModes{
+    ConversionMode::Mode5GenesisH32,
+    ConversionMode::Mode5GenesisH40,
+    ConversionMode::Mode5GenesisH32Pal,
+    ConversionMode::Mode5GenesisH40Pal,
+};
 
 constexpr TargetCapability commonCapabilities =
     TargetCapability::FixedPalette | TargetCapability::CharacterPatterns
@@ -87,6 +119,96 @@ const std::array modes{
                           "Scanline Palette Bitmap F18A", TargetProfileId::F18A,
                           {256, 192, {1, 1}}, {PaletteModel::ProgrammableRgb, 16, 15, 4},
                           ModeOption::PaletteSelection | ModeOption::ScanlinePalette},
+    DisplayModeDescriptor{ConversionMode::Screen5V9938,
+                          mustId<ModeId>("screen-5-v9938"),
+                          "V9938 Screen 5 (G4)", TargetProfileId::V9938,
+                          {256, 212, {1, 1}},
+                          {PaletteModel::ProgrammableRgb, 16, 16, 3},
+                          ModeOption::PaletteSelection},
+    DisplayModeDescriptor{ConversionMode::Screen6V9938,
+                          mustId<ModeId>("screen-6-v9938"),
+                          "V9938 Screen 6 (G5)", TargetProfileId::V9938,
+                          {512, 212, {1, 2}},
+                          {PaletteModel::ProgrammableRgb, 4, 4, 3},
+                          ModeOption::PaletteSelection},
+    DisplayModeDescriptor{ConversionMode::Screen7V9938,
+                          mustId<ModeId>("screen-7-v9938"),
+                          "V9938 Screen 7 (G6)", TargetProfileId::V9938,
+                          {512, 212, {1, 2}},
+                          {PaletteModel::ProgrammableRgb, 16, 16, 3},
+                          ModeOption::PaletteSelection},
+    DisplayModeDescriptor{ConversionMode::Screen8V9938,
+                          mustId<ModeId>("screen-8-v9938"),
+                          "V9938 Screen 8 (G7)", TargetProfileId::V9938,
+                          {256, 212, {1, 1}},
+                          {PaletteModel::FixedRgb332, 256, 256, 3},
+                          ModeOption::None},
+    DisplayModeDescriptor{ConversionMode::Screen10V9958,
+                          mustId<ModeId>("screen-10-v9958"),
+                          "V9958 Screen 10 (YAE)", TargetProfileId::V9958,
+                          {256, 212, {1, 1}},
+                          {PaletteModel::YjkWithPalette, 16, 16, 3},
+                          ModeOption::PaletteSelection},
+    DisplayModeDescriptor{ConversionMode::Screen11V9958,
+                          mustId<ModeId>("screen-11-v9958"),
+                          "V9958 Screen 11 (YAE)", TargetProfileId::V9958,
+                          {256, 212, {1, 1}},
+                          {PaletteModel::YjkWithPalette, 16, 16, 3},
+                          ModeOption::PaletteSelection},
+    DisplayModeDescriptor{ConversionMode::Screen12V9958,
+                          mustId<ModeId>("screen-12-v9958"),
+                          "V9958 Screen 12 (YJK)", TargetProfileId::V9958,
+                          {256, 212, {1, 1}},
+                          {PaletteModel::Yjk, 16, 16, 0}, ModeOption::None},
+    DisplayModeDescriptor{ConversionMode::Mode4Sms192,
+                          mustId<ModeId>("mode-4-sms-192"),
+                          "Master System Mode 4 (192 lines)",
+                          TargetProfileId::SegaMasterSystem,
+                          {256, 192, {1, 1}},
+                          {PaletteModel::ProgrammableRgb, 32, 32, 2},
+                          ModeOption::PaletteSelection},
+    DisplayModeDescriptor{ConversionMode::Mode4Sms224,
+                          mustId<ModeId>("mode-4-sms-224"),
+                          "Master System Mode 4 (224 lines)",
+                          TargetProfileId::SegaMasterSystem,
+                          {256, 224, {1, 1}},
+                          {PaletteModel::ProgrammableRgb, 32, 32, 2},
+                          ModeOption::PaletteSelection},
+    DisplayModeDescriptor{ConversionMode::Mode4Sms240,
+                          mustId<ModeId>("mode-4-sms-240-pal"),
+                          "Master System Mode 4 (240 lines, PAL)",
+                          TargetProfileId::SegaMasterSystem,
+                          {256, 240, {1, 1}},
+                          {PaletteModel::ProgrammableRgb, 32, 32, 2},
+                          ModeOption::PaletteSelection},
+    DisplayModeDescriptor{ConversionMode::Mode5GenesisH32,
+                          mustId<ModeId>("mode-5-genesis-h32"),
+                          "Genesis Mode V H32 (256x224)",
+                          TargetProfileId::SegaGenesis,
+                          {256, 224, {1, 1}},
+                          {PaletteModel::ProgrammableRgb, 64, 61, 3},
+                          ModeOption::PaletteSelection},
+    DisplayModeDescriptor{ConversionMode::Mode5GenesisH40,
+                          mustId<ModeId>("mode-5-genesis-h40"),
+                          "Genesis Mode V H40 (320x224)",
+                          TargetProfileId::SegaGenesis,
+                          {320, 224, {1, 1}},
+                          {PaletteModel::ProgrammableRgb, 64, 61, 3},
+                          ModeOption::PaletteSelection},
+    DisplayModeDescriptor{ConversionMode::Mode5GenesisH32Pal,
+                          mustId<ModeId>("mode-5-genesis-h32-pal"),
+                          "Mega Drive Mode V H32 PAL (256x240)",
+                          TargetProfileId::SegaGenesis,
+                          {256, 240, {1, 1}},
+                          {PaletteModel::ProgrammableRgb, 64, 61, 3},
+                          ModeOption::PaletteSelection},
+    DisplayModeDescriptor{ConversionMode::Mode5GenesisH40Pal,
+                          mustId<ModeId>("mode-5-genesis-h40-pal"),
+                          "Mega Drive Mode V H40 PAL (320x240)",
+                          TargetProfileId::SegaGenesis,
+                          {320, 240, {1, 1}},
+                          {PaletteModel::ProgrammableRgb, 64, 61, 3},
+                          ModeOption::PaletteSelection},
 };
 
 const std::array profiles{
@@ -105,15 +227,49 @@ const std::array profiles{
                   {8, 16, 32, 32, 3, false, true},
                   f18aModes},
     TargetProfile{TargetProfileId::V9938, mustId<TargetId>("v9938"), "V9938",
-                  TargetKind::VideoDisplayProcessor, TargetProfileStatus::Planned,
+                  TargetKind::VideoDisplayProcessor, TargetProfileStatus::Implemented,
                   128U * 1024U,
                   TargetCapability::ProgrammablePalette
                       | TargetCapability::CharacterPatterns | TargetCapability::Sprites
                       | TargetCapability::TileMaps | TargetCapability::BitmapConversion
-                  | TargetCapability::EnhancedColor,
+                      | TargetCapability::EnhancedColor | TargetCapability::SpriteMode2,
                   {8, 8, 256, 3, 32, 24},
-                  {8, 16, 32, 32, 1, true, false},
+                  {8, 16, 32, 32, 4, true, false},
                   v9938Modes},
+    TargetProfile{TargetProfileId::V9958, mustId<TargetId>("v9958"), "V9958",
+                  TargetKind::VideoDisplayProcessor, TargetProfileStatus::Implemented,
+                  128U * 1024U,
+                  TargetCapability::ProgrammablePalette
+                      | TargetCapability::CharacterPatterns | TargetCapability::Sprites
+                      | TargetCapability::TileMaps | TargetCapability::BitmapConversion
+                      | TargetCapability::EnhancedColor | TargetCapability::SpriteMode2
+                      | TargetCapability::HorizontalScroll | TargetCapability::YjkColor,
+                  {8, 8, 256, 3, 32, 24}, {8, 16, 32, 32, 4, true, false}, v9958Modes},
+    TargetProfile{TargetProfileId::SegaMasterSystem,
+                  mustId<TargetId>("sega-sms-vdp"),
+                  "Sega Master System VDP",
+                  TargetKind::VideoDisplayProcessor, TargetProfileStatus::Implemented,
+                  16U * 1024U,
+                  TargetCapability::ProgrammablePalette
+                      | TargetCapability::CharacterPatterns | TargetCapability::Sprites
+                      | TargetCapability::TileMaps | TargetCapability::BitmapConversion
+                      | TargetCapability::EnhancedColor
+                      | TargetCapability::HorizontalScroll,
+                  {8, 8, 448, 1, 32, 28},
+                  {8, 16, 64, 64, 4, true, false}, segaSmsModes},
+    TargetProfile{TargetProfileId::SegaGenesis,
+                  mustId<TargetId>("sega-genesis-vdp"),
+                  "Sega Genesis / Mega Drive VDP",
+                  TargetKind::VideoDisplayProcessor, TargetProfileStatus::Implemented,
+                  64U * 1024U,
+                  TargetCapability::ProgrammablePalette
+                      | TargetCapability::CharacterPatterns | TargetCapability::Sprites
+                      | TargetCapability::TileMaps | TargetCapability::BitmapConversion
+                      | TargetCapability::EnhancedColor
+                      | TargetCapability::MultipleTileLayers
+                      | TargetCapability::HorizontalScroll,
+                  {8, 8, 2048, 1, 40, 28},
+                  {8, 32, 80, 80, 4, false, true}, segaGenesisModes},
 };
 
 } // namespace
@@ -276,6 +432,12 @@ ConversionMode defaultConversionMode(TargetProfileId profile)
     const auto supported = targetProfile(profile).conversionModes;
     if (supported.empty()) return ConversionMode::Bitmap9918;
     if (profile == TargetProfileId::F18A) return ConversionMode::PalettedBitmapF18A;
+    if (profile == TargetProfileId::V9938) return ConversionMode::Screen5V9938;
+    if (profile == TargetProfileId::V9958) return ConversionMode::Screen5V9938;
+    if (profile == TargetProfileId::SegaMasterSystem)
+        return ConversionMode::Mode4Sms192;
+    if (profile == TargetProfileId::SegaGenesis)
+        return ConversionMode::Mode5GenesisH40;
     return supported.front();
 }
 

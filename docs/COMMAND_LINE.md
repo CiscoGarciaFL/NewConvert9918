@@ -44,11 +44,10 @@ summary.
 
 ## Targets, modes, presets, and formats
 
-The implemented target names are `tms9918a` and `f18a`. The default target is
-`tms9918a`; the default mode is `bitmap-9918a`, the default preset is
-`balanced`, and the default format is `tifiles`. A target accepts only modes
-declared compatible by its profile. V9938 is registered as planned but is not
-offered by the CLI until conversion support is implemented.
+The implemented target names are `tms9918a`, `f18a`, `v9938`, `v9958`,
+`sega-sms-vdp`, and `sega-genesis-vdp`. The default target is `tms9918a`; the default mode is
+`bitmap-9918a`, the default preset is `balanced`, and the default format is
+`tifiles`. A target accepts only modes declared compatible by its profile.
 
 Supported modes are:
 
@@ -61,6 +60,28 @@ Supported modes are:
 - `bitmap-color-only-9918a`
 - `paletted-bitmap-f18a`
 - `scanline-palette-bitmap-f18a`
+- `screen-5-v9938`
+- `screen-6-v9938`
+- `screen-7-v9938`
+- `screen-8-v9938`
+- `screen-10-v9958`
+- `screen-11-v9958`
+- `screen-12-v9958`
+- `mode-4-sms-192`
+- `mode-4-sms-224`
+- `mode-4-sms-240-pal`
+- `mode-5-genesis-h32`
+- `mode-5-genesis-h40`
+- `mode-5-genesis-h32-pal`
+- `mode-5-genesis-h40-pal`
+
+Master System Mode 4 supports `raw` and `png` export. A RAW manifest contains
+`.TILES` planar pattern data, a `.MAP` name table, `.PAL` RGB222 CRAM bytes,
+and `.REG` values for VDP registers 0–10.
+
+Genesis Mode V supports `raw` and `png` export. A RAW manifest contains
+`.TILES` packed-nibble pattern data, a big-endian `.MAP` Plane A name table,
+`.PAL` big-endian RGB333 CRAM words, and `.REG` values for VDP registers 0–23.
 
 Supported presets are `balanced`, `crisp-pixel-art`, `smooth-photograph`, and
 `ordered-retro`. The shorter aliases `crisp`, `smooth`, and `ordered` are also

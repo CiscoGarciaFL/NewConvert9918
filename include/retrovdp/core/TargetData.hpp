@@ -53,6 +53,9 @@ enum class TargetTableRole : std::uint8_t {
     FixedPattern,
     Palette,
     ScanlinePalettes,
+    Framebuffer,
+    TileMap,
+    DisplayRegisters,
 };
 
 [[nodiscard]] RegionRoleId targetTableRoleId(TargetTableRole role);

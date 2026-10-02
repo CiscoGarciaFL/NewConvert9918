@@ -40,10 +40,12 @@ PreviewPane {
         editorKind === 0 ? characterActiveColor : spriteActiveColor
 
     function patternPaletteColor(index) {
-        const colors = editorProject.characterPaletteColors
+        const colors = editorKind === 1 ? editorProject.spritePaletteColors
+                                        : editorProject.characterPaletteColors
         if (index < 0 || index >= colors.length)
             return "#000000"
-        if (index === 0)
+        if (index === 0 && (editorKind === 1
+                || editorProject.activeTargetInfo.id !== "sega-sms-vdp"))
             return "#303842"
         return colors[index]
     }
@@ -166,8 +168,10 @@ PreviewPane {
                         visible: root.editorKind === 1
                         Layout.fillWidth: true
                         text: editorProject.activeTargetInfo.spriteMaximumColorDepth > 1
-                              ? qsTr("Choose index 1–%1. Increase color depth in Sprite Options for more indexes.")
-                                    .arg((1 << editorProject.activeSpriteColorDepth) - 1)
+                              ? editorProject.activeTargetInfo.id === "sega-sms-vdp"
+                                ? qsTr("Choose index 1–15 from the dedicated Mode 4 sprite palette. Index 0 is transparent.")
+                                : qsTr("Choose index 1–%1. Increase color depth in Sprite Options for more indexes.")
+                                      .arg((1 << editorProject.activeSpriteColorDepth) - 1)
                               : qsTr("Choose one opaque color for the active sprite. Index 0 is transparent.")
                         wrapMode: Text.WordWrap
                         color: palette.placeholderText
@@ -181,7 +185,9 @@ PreviewPane {
                         rowSpacing: 3
 
                         Repeater {
-                            model: editorProject.characterPaletteColors
+                            model: root.editorKind === 1
+                                   ? editorProject.spritePaletteColors
+                                   : editorProject.characterPaletteColors
 
                             Rectangle {
                                 required property int index
@@ -281,7 +287,8 @@ PreviewPane {
                 implicitHeight: 26
                 enabled: root.activeEditorItemLoaded && !root.activeEditorPan
                          && !(root.editorKind === 1
-                              && editorProject.spritePlacementMode)
+                              && (editorProject.spritePlacementMode
+                                  || !editorProject.canRotateSpritePattern))
                 checkable: true
                 checked: root.activeDrawingTool === 1
                 Accessible.name: root.editorKind === 0
@@ -1023,7 +1030,8 @@ PreviewPane {
                 checked: editorProject.spritePlacementMode
                 Accessible.name: qsTr("Sprite placement workspace")
                 ToolTip.visible: hovered
-                ToolTip.text: qsTr("Arrange a 32-sprite set over the Screen Image reference")
+                ToolTip.text: qsTr("Arrange a %1-sprite set over the Screen Image reference")
+                              .arg(editorProject.spritePatternsPerSet)
                 onClicked: editorProject.spritePlacementMode = true
             }
             Item { Layout.fillWidth: true }

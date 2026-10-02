@@ -247,7 +247,7 @@ Item {
                 objectName: "characterPatternSpinBox"
                 implicitWidth: 48
                 from: 0
-                to: 255
+                to: editorProject.characterPatternsPerSet - 1
                 value: editorProject.activeCharacterPattern
                 editable: true
                 onValueModified: editorProject.activeCharacterPattern = value
@@ -259,7 +259,7 @@ Item {
             objectName: "characterPatternGrid"
             Layout.fillWidth: true
             Layout.fillHeight: true
-            model: 256
+            model: editorProject.characterPatternsPerSet
             clip: true
             cellWidth: Math.max(28, Math.floor(width / 16))
             cellHeight: cellWidth

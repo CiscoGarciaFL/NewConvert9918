@@ -116,7 +116,8 @@ bool loadRecipe(const QString& path,
     }
 
     settings.mode = static_cast<core::ConversionMode>(std::clamp(
-        conversion.value(QStringLiteral("mode")).toInt(0), 0, 8));
+        conversion.value(QStringLiteral("mode")).toInt(0), 0,
+        static_cast<int>(core::ConversionMode::Mode5GenesisH40Pal)));
     const auto savedTarget = core::targetProfileId(
         conversion.value(QStringLiteral("targetProfile")).toString().toStdString());
     settings.targetProfile = core::effectiveTargetProfile(
@@ -319,12 +320,12 @@ int main(int argc, char* argv[])
         QStringLiteral("Destination directory."), QStringLiteral("directory"));
     const QCommandLineOption modeOption(
         {QStringLiteral("m"), QStringLiteral("mode")},
-        QStringLiteral("Conversion mode: bitmap-9918a, greyscale-bitmap-9918a, black-and-white-bitmap-9918a, multicolor-9918, dual-multicolor-9918, half-multicolor-9918a, bitmap-color-only-9918a, paletted-bitmap-f18a, or scanline-palette-bitmap-f18a."),
+        QStringLiteral("Conversion mode: registered TMS9918A/F18A and Yamaha SCREEN modes; mode-4-sms-192, mode-4-sms-224, mode-4-sms-240-pal; or mode-5-genesis-h32, mode-5-genesis-h40, mode-5-genesis-h32-pal, and mode-5-genesis-h40-pal."),
         QStringLiteral("name"),
         QStringLiteral("bitmap-9918a"));
     const QCommandLineOption targetOption(
         {QStringLiteral("t"), QStringLiteral("target")},
-        QStringLiteral("Target VDP profile: tms9918a or f18a."),
+        QStringLiteral("Target VDP profile: tms9918a, f18a, v9938, v9958, sega-sms-vdp, or sega-genesis-vdp."),
         QStringLiteral("name"));
     const QCommandLineOption presetOption(
         {QStringLiteral("p"), QStringLiteral("preset")},

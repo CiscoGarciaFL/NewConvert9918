@@ -23,6 +23,9 @@ enum class TargetKind : std::uint8_t {
 enum class PaletteModel : std::uint8_t {
     Fixed,
     ProgrammableRgb,
+    FixedRgb332,
+    Yjk,
+    YjkWithPalette,
 };
 
 struct Rational {
@@ -103,6 +106,9 @@ enum class TargetCapability : std::uint32_t {
     BitmapConversion = 1U << 5U,
     EnhancedColor = 1U << 6U,
     MultipleTileLayers = 1U << 7U,
+    SpriteMode2 = 1U << 8U,
+    HorizontalScroll = 1U << 9U,
+    YjkColor = 1U << 10U,
 };
 
 [[nodiscard]] constexpr TargetCapability operator|(TargetCapability left,

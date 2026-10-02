@@ -20,6 +20,10 @@ class EditorProjectController final : public QObject {
     Q_PROPERTY(bool tms9918aEnabled READ tms9918aEnabled WRITE setTms9918aEnabled NOTIFY projectChanged)
     Q_PROPERTY(int workspaceMode READ workspaceMode WRITE setWorkspaceMode NOTIFY projectChanged)
     Q_PROPERTY(bool f18aEnabled READ f18aEnabled WRITE setF18aEnabled NOTIFY projectChanged)
+    Q_PROPERTY(bool v9938Enabled READ v9938Enabled NOTIFY projectChanged)
+    Q_PROPERTY(bool v9958Enabled READ v9958Enabled NOTIFY projectChanged)
+    Q_PROPERTY(bool segaSmsEnabled READ segaSmsEnabled NOTIFY projectChanged)
+    Q_PROPERTY(bool segaGenesisEnabled READ segaGenesisEnabled NOTIFY projectChanged)
     Q_PROPERTY(QStringList plannedTargetIds READ plannedTargetIds NOTIFY projectChanged)
     Q_PROPERTY(int activeTarget READ activeTarget WRITE setActiveTarget NOTIFY projectChanged)
     Q_PROPERTY(QVariantList supportedTargets READ supportedTargets NOTIFY projectChanged)
@@ -33,8 +37,10 @@ class EditorProjectController final : public QObject {
     Q_PROPERTY(int activeCharacterPattern READ activeCharacterPattern WRITE setActiveCharacterPattern NOTIFY projectChanged)
     Q_PROPERTY(QVariantList characterSetNames READ characterSetNames NOTIFY projectChanged)
     Q_PROPERTY(QVariantList characterPaletteColors READ characterPaletteColors NOTIFY projectChanged)
+    Q_PROPERTY(QVariantList spritePaletteColors READ spritePaletteColors NOTIFY projectChanged)
     Q_PROPERTY(int characterForegroundColorIndex READ characterForegroundColorIndex WRITE setCharacterForegroundColorIndex NOTIFY projectChanged)
     Q_PROPERTY(int characterBackgroundColorIndex READ characterBackgroundColorIndex WRITE setCharacterBackgroundColorIndex NOTIFY projectChanged)
+    Q_PROPERTY(int characterPaletteBank READ characterPaletteBank WRITE setCharacterPaletteBank NOTIFY projectChanged)
     Q_PROPERTY(int characterRevision READ characterRevision NOTIFY projectChanged)
     Q_PROPERTY(QVariantList characterEditorSlots READ characterEditorSlots NOTIFY projectChanged)
     Q_PROPERTY(int activeCharacterEditor READ activeCharacterEditor WRITE setActiveCharacterEditor NOTIFY projectChanged)
@@ -58,6 +64,7 @@ class EditorProjectController final : public QObject {
     Q_PROPERTY(int activeSpriteSize READ activeSpriteSize WRITE setActiveSpriteSize NOTIFY projectChanged)
     Q_PROPERTY(int spriteGlobalSize READ spriteGlobalSize WRITE setSpriteGlobalSize NOTIFY projectChanged)
     Q_PROPERTY(int spriteDrawingColorIndex READ spriteDrawingColorIndex WRITE setSpriteDrawingColorIndex NOTIFY projectChanged)
+    Q_PROPERTY(int activeSpritePaletteBank READ activeSpritePaletteBank WRITE setActiveSpritePaletteBank NOTIFY projectChanged)
     Q_PROPERTY(int activeSpriteColorDepth READ activeSpriteColorDepth WRITE setActiveSpriteColorDepth NOTIFY projectChanged)
     Q_PROPERTY(int spriteRevision READ spriteRevision NOTIFY projectChanged)
     Q_PROPERTY(QVariantList spriteSetNames READ spriteSetNames NOTIFY projectChanged)
@@ -71,6 +78,8 @@ class EditorProjectController final : public QObject {
     Q_PROPERTY(bool canUndoSprite READ canUndoSprite NOTIFY projectChanged)
     Q_PROPERTY(bool canRedoSprite READ canRedoSprite NOTIFY projectChanged)
     Q_PROPERTY(bool canPasteSpritePattern READ canPasteSpritePattern NOTIFY projectChanged)
+    Q_PROPERTY(bool canRotateSpritePattern READ canRotateSpritePattern NOTIFY projectChanged)
+    Q_PROPERTY(int spritePatternsPerSet READ spritePatternsPerSet NOTIFY projectChanged)
     Q_PROPERTY(int placementWidth READ placementWidth WRITE setPlacementWidth NOTIFY projectChanged)
     Q_PROPERTY(int placementHeight READ placementHeight WRITE setPlacementHeight NOTIFY projectChanged)
     Q_PROPERTY(QString recipePath READ recipePath NOTIFY projectChanged)
@@ -85,6 +94,10 @@ public:
     [[nodiscard]] bool tms9918aEnabled() const { return tms9918aEnabled_; }
     [[nodiscard]] int workspaceMode() const { return workspaceMode_; }
     [[nodiscard]] bool f18aEnabled() const { return f18aEnabled_; }
+    [[nodiscard]] bool v9938Enabled() const { return v9938Enabled_; }
+    [[nodiscard]] bool v9958Enabled() const { return v9958Enabled_; }
+    [[nodiscard]] bool segaSmsEnabled() const { return segaSmsEnabled_; }
+    [[nodiscard]] bool segaGenesisEnabled() const { return segaGenesisEnabled_; }
     [[nodiscard]] QStringList plannedTargetIds() const { return plannedTargetIds_; }
     [[nodiscard]] int activeTarget() const;
     [[nodiscard]] QVariantList supportedTargets() const;
@@ -98,12 +111,14 @@ public:
     [[nodiscard]] int activeCharacterPattern() const { return activeCharacterPattern_; }
     [[nodiscard]] QVariantList characterSetNames() const;
     [[nodiscard]] QVariantList characterPaletteColors() const;
+    [[nodiscard]] QVariantList spritePaletteColors() const;
     [[nodiscard]] int characterForegroundColorIndex() const {
         return characterForegroundColorIndex_;
     }
     [[nodiscard]] int characterBackgroundColorIndex() const {
         return characterBackgroundColorIndex_;
     }
+    [[nodiscard]] int characterPaletteBank() const { return characterPaletteBank_; }
     [[nodiscard]] int characterRevision() const { return characterRevision_; }
     [[nodiscard]] QVariantList characterEditorSlots() const;
     [[nodiscard]] int activeCharacterEditor() const { return activeCharacterEditor_; }
@@ -130,6 +145,7 @@ public:
     [[nodiscard]] int activeSpriteSize() const { return activeSpriteSize_; }
     [[nodiscard]] int spriteGlobalSize() const { return spriteGlobalSize_; }
     [[nodiscard]] int spriteDrawingColorIndex() const { return spriteDrawingColorIndex_; }
+    [[nodiscard]] int activeSpritePaletteBank() const;
     [[nodiscard]] int activeSpriteColorDepth() const;
     [[nodiscard]] int spriteRevision() const { return spriteRevision_; }
     [[nodiscard]] QVariantList spriteSetNames() const;
@@ -147,6 +163,8 @@ public:
         return !spritePanActive_ && !spriteRedoHistory_.empty();
     }
     [[nodiscard]] bool canPasteSpritePattern() const;
+    [[nodiscard]] bool canRotateSpritePattern() const;
+    [[nodiscard]] int spritePatternsPerSet() const;
     [[nodiscard]] int placementWidth() const { return placementWidth_; }
     [[nodiscard]] int placementHeight() const { return placementHeight_; }
     [[nodiscard]] QString recipePath() const { return recipePath_; }
@@ -164,6 +182,7 @@ public:
     void setActiveCharacterPattern(int value);
     void setCharacterForegroundColorIndex(int value);
     void setCharacterBackgroundColorIndex(int value);
+    void setCharacterPaletteBank(int value);
     void setActiveCharacterEditor(int value);
     void setCharacterTilingMode(bool value);
     void setCharacterPanActive(bool value);
@@ -172,6 +191,7 @@ public:
     void setActiveSpriteSize(int value);
     void setSpriteGlobalSize(int value);
     void setSpriteDrawingColorIndex(int value);
+    void setActiveSpritePaletteBank(int value);
     void setActiveSpriteColorDepth(int value);
     void setActiveSpriteEditor(int value);
     void setSpritePlacementMode(bool value);
@@ -204,6 +224,8 @@ public:
     Q_INVOKABLE QVariantList spritePatternPixels(int setIndex,
                                                 int spriteIndex,
                                                 int size) const;
+    Q_INVOKABLE int spritePatternWidth(int size) const;
+    Q_INVOKABLE int spritePatternHeight(int size) const;
     Q_INVOKABLE void paintSpritePixel(int setIndex,
                                       int spriteIndex,
                                       int size,
@@ -283,10 +305,12 @@ private:
     struct CharacterPattern {
         std::array<std::uint8_t, 8> bitmap{};
         std::array<std::uint8_t, 8> colors{};
+        std::array<std::uint8_t, 64> indexedPixels{};
+        bool indexedOverride{};
     };
     struct CharacterSet {
         QString name;
-        std::array<CharacterPattern, 256> patterns;
+        std::array<CharacterPattern, 2048> patterns;
     };
     struct CharacterEditorSlot {
         bool loaded{};
@@ -318,15 +342,16 @@ private:
         bool flipY{};
     };
     struct SpritePattern {
-        std::array<std::uint8_t, 256> baselinePixels{};
-        std::array<std::uint8_t, 256> f18aPixels{};
+        std::array<std::uint8_t, 1024> baselinePixels{};
+        std::array<std::uint8_t, 1024> f18aPixels{};
         bool f18aOverride{};
     };
     struct SpriteSet {
         QString name;
-        std::array<SpritePattern, 32> patterns8;
-        std::array<SpritePattern, 32> patterns16;
-        std::array<SpritePlacement, 32> placements;
+        std::array<SpritePattern, 64> patterns8;
+        std::array<SpritePattern, 64> patterns16;
+        std::array<SpritePattern, 80> patternsGenesis;
+        std::array<SpritePlacement, 80> placements;
     };
     struct SpriteHistoryEntry {
         int setIndex{};
@@ -343,9 +368,11 @@ private:
     };
     struct SpriteClipboardData {
         int size{8};
+        int width{8};
+        int height{8};
         int colorDepth{1};
         bool enhanced{};
-        std::array<std::uint8_t, 256> pixels{};
+        std::array<std::uint8_t, 1024> pixels{};
     };
 
     [[nodiscard]] CharacterSet makeCharacterSet(int ordinal) const;
@@ -364,9 +391,9 @@ private:
     [[nodiscard]] const SpritePattern& spritePattern(int setIndex,
                                                      int spriteIndex,
                                                      int size) const;
-    [[nodiscard]] const std::array<std::uint8_t, 256>&
+    [[nodiscard]] const std::array<std::uint8_t, 1024>&
         visibleSpritePixels(const SpritePattern& pattern) const;
-    [[nodiscard]] std::array<std::uint8_t, 256> pannedSpritePixels() const;
+    [[nodiscard]] std::array<std::uint8_t, 1024> pannedSpritePixels() const;
     [[nodiscard]] std::optional<SpriteClipboardData>
         spritePatternFromClipboard() const;
     void ensureF18aSpriteOverride(SpritePattern& pattern);
@@ -377,6 +404,12 @@ private:
     bool activateSpriteEditorBank(int size);
     bool assignActiveSpriteToEditor();
     void syncSpriteDrawingColor();
+    [[nodiscard]] bool usesSmsMode4Editor() const;
+    [[nodiscard]] bool usesGenesisMode5Editor() const;
+    [[nodiscard]] bool usesIndexed4BppEditor() const;
+    [[nodiscard]] int normalizedSpriteSize(int value) const;
+    [[nodiscard]] bool usesPerSpriteSizeEditor() const;
+    void ensureIndexedCharacterOverride(CharacterPattern& pattern) const;
     void resetProjectData();
     [[nodiscard]] bool targetEnabled(int value) const;
     [[nodiscard]] bool activeTargetHasCapability(std::uint32_t capability) const;
@@ -387,14 +420,19 @@ private:
     bool tms9918aEnabled_{true};
     int workspaceMode_{};
     bool f18aEnabled_{true};
+    bool v9938Enabled_{};
+    bool v9958Enabled_{};
+    bool segaSmsEnabled_{};
+    bool segaGenesisEnabled_{};
     QStringList plannedTargetIds_;
     int previewTarget_{};
     int editScope_{};
     int activeCharacterSet_{};
     int activeCharacterPattern_{};
-    std::array<CharacterSet, 3> characterSets_;
+    std::vector<CharacterSet> characterSets_{3};
     int characterForegroundColorIndex_{15};
     int characterBackgroundColorIndex_{1};
+    int characterPaletteBank_{};
     int characterRevision_{};
     std::vector<CharacterEditorSlot> characterEditorSlots_;
     int activeCharacterEditor_{};

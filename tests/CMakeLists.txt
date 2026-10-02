@@ -91,6 +91,7 @@ target_compile_definitions(test_interface_workflow
         RETROVDP_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
         RETROVDP_QML_DIR="${PROJECT_SOURCE_DIR}/app/qml"
         RETROVDP_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+        RETROVDP_VERSION="${RETROVDP_VERSION}"
 )
 
 set_target_properties(test_interface_workflow PROPERTIES AUTOMOC OFF)

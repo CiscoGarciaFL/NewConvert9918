@@ -158,6 +158,13 @@ ApplicationWindow {
                 }
             }
             Label {
+                objectName: "aboutVersionLabel"
+                Layout.fillWidth: true
+                text: qsTr("Version %1").arg(Qt.application.version)
+                font.weight: Font.DemiBold
+                color: palette.placeholderText
+            }
+            Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
                 text: qsTr("RetroVDP Studio cross-platform architecture, Qt interface, user experience, and new features are created by Cisco Garcia / CiscoGarciaFL.")

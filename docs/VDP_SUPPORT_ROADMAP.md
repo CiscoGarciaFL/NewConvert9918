@@ -80,8 +80,10 @@ tms9918a, f18a, and v9938 identifiers must remain compatible.
 | --- | --- | --- | --- | --- |
 | Texas Instruments TMS9918A | tms9918a | Video processor | Implemented | Graphics II bitmap conversion, multicolor conversions, pattern/color tables, character and sprite authoring |
 | F18A | f18a | Video processor | Implemented | TMS9918A-compatible output plus programmable-palette bitmap conversions and enhanced editor capabilities |
-| Yamaha V9938 (MSX2 and Geneve 9640) | v9938 | Video processor | Next | TMS9918A-compatible modes, native bitmap modes, programmable palette, Sprite Mode 2, VRAM-page exports |
-| Yamaha V9958 (MSX2+ and Turbo R) | v9958 | Video processor | Planned | Verified V9938 compatibility plus YJK/YAE color modes and enhanced scrolling state |
+| Yamaha V9938 (MSX2 and Geneve 9640) | v9938 | Video processor | Implemented | TMS9918A-compatible modes, SCREEN 5–8 bitmap modes, programmable palette, VRAM-page exports |
+| Yamaha V9958 (MSX2+ and Turbo R) | v9958 | Video processor | Implemented | Verified V9938 bitmap modes plus SCREEN 10–12 YJK/YAE color modes and scroll capability descriptors |
+| Sega Master System 315-5124/315-5246 family | sega-sms-vdp | Video processor | Implemented | 192/224/PAL-240-line Mode 4, 4-bit planar tiles, flip/palette map attributes, dual CRAM banks, register state |
+| Sega Genesis/Mega Drive 315-5313/YM7101 family | sega-genesis-vdp | Video processor | Implemented | H32/H40 224/PAL-240-line Mode V, packed 4bpp tiles, Plane A map attributes, four RGB333 palettes, character and rectangular sprite authoring |
 
 V9938 is the proving target for the generalized framework because it is close
 enough to the existing TMS9918A model to reuse tested concepts while forcing
@@ -96,8 +98,6 @@ separate descriptors, encoders, previews, and golden fixtures.
 
 | Target | Proposed stable ID | Kind | Status | First useful scope |
 | --- | --- | --- | --- | --- |
-| Sega Master System 315-5124/315-5246 family | sega-sms-vdp | Video processor | Planned | 4-bit planar tiles, background map attributes, separate background/sprite palette use, sprite patterns |
-| Sega Genesis/Mega Drive 315-5313/YM7101 family | sega-genesis-vdp | Video processor | Planned | 4-bit tiles, planes and window map data, palette banks, compound sprites and SAT serialization |
 | Nintendo Game Boy | game-boy-ppu | Picture processor | Planned | 2-bit planar tiles, tile maps, four-shade assignments, OAM sprites |
 | Nintendo Game Boy Color | game-boy-color-ppu | Picture processor | Planned | Game Boy-compatible assets plus color palettes, bank and map attributes, color OAM data |
 | Super NES 5C77/5C78 family | super-nes-ppu | Picture processor | Planned | 2/4/8-bit planar tiles, mode-described layers, CGRAM palettes, tile maps, OAM sprites |
@@ -319,7 +319,8 @@ Boy Color, and VIC-II outputs without one target overwriting another.
 Wave 0 corresponds to Architecture Stages 0–7. Complete those stage gates
 instead of implementing this list as a second, parallel framework plan.
 
-Complete this before implementing a native V9938 bitmap mode:
+The following framework gates are now in place for the native Yamaha bitmap
+slice:
 
 - add TargetKind and typed display-mode descriptors;
 - add stable mode IDs and registry lookup;
@@ -374,11 +375,16 @@ fixtures, and inherited V9938 fixtures remain byte-identical.
 ### Wave 3: reusable planar tile engines
 
 Build the common planar-tile compiler while delivering targets in increasing
-complexity:
+complexity. The Master System screen-image compiler and native Mode 4
+Character/Sprite editor interpretations establish 4-bit wrapping, flip reuse,
+two-bank palette assignment, rectangular sprites, map construction, and
+overflow diagnostics. Native sprite asset serialization remains part of the
+shared structured-editor export work:
 
-1. Game Boy: 2-bit tiles, maps, palette assignments, and OAM.
-2. Game Boy Color: color palettes, attribute maps, banking, and color OAM.
-3. Master System: 4-bit tiles, map attributes, dual palette use, and sprites.
+1. Master System: add native sprite pattern and SAT serialization to the
+   implemented editor interpretation.
+2. Game Boy: 2-bit tiles, maps, palette assignments, and OAM.
+3. Game Boy Color: color palettes, attribute maps, banking, and color OAM.
 4. HuC6270: 4-bit patterns, background table, palette selection, and compound
    sprites.
 
@@ -387,8 +393,14 @@ bank assignment, planar wrapping, map construction, and overflow diagnostics.
 
 ### Wave 4: layered 16-bit tile systems
 
-1. Genesis/Mega Drive: packed tiles, planes/window, palette banks, compound
-   sprites, and SAT link generation.
+The implemented Genesis slice establishes packed-nibble tiles, four RGB333
+palette banks, flip-aware deduplication, Plane A map output, H32/H40 register
+state, 2,048-entry character authoring, and 80-entry rectangular sprite
+authoring. Remaining Genesis work is multi-plane/window composition and native
+structured-editor sprite pattern/SAT link serialization.
+
+1. Genesis/Mega Drive: finish Scroll B/Window design surfaces, compound
+   objects, and SAT link generation on the implemented Mode V foundation.
 2. Super NES: mode descriptors, 2/4/8-bit planar encoders, layer maps, CGRAM,
    and OAM.
 
@@ -474,6 +486,12 @@ A profile is not Implemented until all applicable items are complete:
 11. Direct editor import is capability-gated and documents information loss.
 12. Documentation states implemented scope, omissions, and validated variants.
 13. Package-level smoke tests include the new target where practical.
+
+In addition, every target must publish a disposition for Screen Image,
+Character, and Sprite as defined by
+[TARGET_IMPLEMENTATION_GUIDE.md](TARGET_IMPLEMENTATION_GUIDE.md). An
+unimplemented applicable workspace is disabled and identified as unavailable;
+it must not silently reuse another target's interpretation.
 
 ## Validation and reference policy
 

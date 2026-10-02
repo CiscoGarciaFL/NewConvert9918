@@ -126,8 +126,32 @@ ScrollView {
                 }
                 GridLayout {
                     visible: root.editorKind === 1
+                             || editorProject.activeTargetInfo.characterPaletteBankCount > 1
                     columns: 2
                     Layout.fillWidth: true
+                    Label {
+                        visible: root.editorKind === 0
+                                 && editorProject.activeTargetInfo.characterPaletteBankCount > 1
+                        text: qsTr("Tile palette")
+                    }
+                    ComboBox {
+                        objectName: root.objectName + "CharacterPaletteBankComboBox"
+                        visible: root.editorKind === 0
+                                 && editorProject.activeTargetInfo.characterPaletteBankCount > 1
+                        model: editorProject.activeTargetInfo.characterPaletteBankCount
+                        currentIndex: editorProject.characterPaletteBank
+                        delegate: ItemDelegate {
+                            required property int index
+                            width: parent ? parent.width : implicitWidth
+                            text: qsTr("Palette %1").arg(index)
+                        }
+                        contentItem: Label {
+                            text: qsTr("Palette %1").arg(
+                                      editorProject.characterPaletteBank)
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onActivated: index => editorProject.characterPaletteBank = index
+                    }
                     Label {
                         visible: editorProject.activeTargetInfo.spriteUsesGlobalSize
                         text: qsTr("Global pattern size")
@@ -140,10 +164,16 @@ ScrollView {
                         delegate: ItemDelegate {
                             required property var modelData
                             width: parent ? parent.width : implicitWidth
-                            text: qsTr("%1×%1").arg(modelData)
+                            text: qsTr("%1×%2")
+                                  .arg(editorProject.spritePatternWidth(modelData))
+                                  .arg(editorProject.spritePatternHeight(modelData))
                         }
                         contentItem: Label {
-                            text: qsTr("%1×%1").arg(editorProject.spriteGlobalSize)
+                            text: qsTr("%1×%2")
+                                  .arg(editorProject.spritePatternWidth(
+                                           editorProject.spriteGlobalSize))
+                                  .arg(editorProject.spritePatternHeight(
+                                           editorProject.spriteGlobalSize))
                             verticalAlignment: Text.AlignVCenter
                         }
                         onActivated: editorProject.spriteGlobalSize = currentValue
@@ -160,21 +190,31 @@ ScrollView {
                         delegate: ItemDelegate {
                             required property var modelData
                             width: parent ? parent.width : implicitWidth
-                            text: qsTr("%1×%1").arg(modelData)
+                            text: qsTr("%1×%2")
+                                  .arg(editorProject.spritePatternWidth(modelData))
+                                  .arg(editorProject.spritePatternHeight(modelData))
                         }
                         contentItem: Label {
-                            text: qsTr("%1×%1").arg(editorProject.activeSpriteSize)
+                            text: qsTr("%1×%2")
+                                  .arg(editorProject.spritePatternWidth(
+                                           editorProject.activeSpriteSize))
+                                  .arg(editorProject.spritePatternHeight(
+                                           editorProject.activeSpriteSize))
                             verticalAlignment: Text.AlignVCenter
                         }
                         onActivated: editorProject.activeSpriteSize = currentValue
                     }
                     Label {
                         visible: editorProject.activeTargetInfo.spriteMaximumColorDepth > 1
+                        enabled: editorProject.activeTargetInfo.id !== "sega-sms-vdp"
+                                 && editorProject.activeTargetInfo.id !== "sega-genesis-vdp"
                         text: qsTr("Active sprite color depth")
                     }
                     ComboBox {
                         objectName: root.objectName + "SpriteColorDepthComboBox"
                         visible: editorProject.activeTargetInfo.spriteMaximumColorDepth > 1
+                        enabled: editorProject.activeTargetInfo.id !== "sega-sms-vdp"
+                                 && editorProject.activeTargetInfo.id !== "sega-genesis-vdp"
                         model: editorProject.activeTargetInfo.spriteMaximumColorDepth
                         delegate: ItemDelegate {
                             required property int index
@@ -191,6 +231,27 @@ ScrollView {
                         currentIndex: editorProject.activeSpriteColorDepth - 1
                         onActivated: index =>
                             editorProject.activeSpriteColorDepth = index + 1
+                    }
+                    Label {
+                        visible: editorProject.activeTargetInfo.spritePaletteBankCount > 1
+                        text: qsTr("Active sprite palette")
+                    }
+                    ComboBox {
+                        objectName: root.objectName + "SpritePaletteBankComboBox"
+                        visible: editorProject.activeTargetInfo.spritePaletteBankCount > 1
+                        model: editorProject.activeTargetInfo.spritePaletteBankCount
+                        currentIndex: editorProject.activeSpritePaletteBank
+                        delegate: ItemDelegate {
+                            required property int index
+                            width: parent ? parent.width : implicitWidth
+                            text: qsTr("Palette %1").arg(index)
+                        }
+                        contentItem: Label {
+                            text: qsTr("Palette %1").arg(
+                                      editorProject.activeSpritePaletteBank)
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onActivated: index => editorProject.activeSpritePaletteBank = index
                     }
                     Label { text: qsTr("Placement width") }
                     SpinBox {
@@ -216,6 +277,8 @@ ScrollView {
                     Layout.fillWidth: true
                     text: editorProject.activeTargetInfo.spritePerItemSize
                           ? qsTr("This target stores size and color depth per sprite. Target-specific edits are kept separate from compatible base data.")
+                          : editorProject.activeTargetInfo.id === "sega-sms-vdp"
+                            ? qsTr("Mode 4 uses one global 8×8 or 8×16 size, 4bpp pixels, the dedicated 16-color sprite palette, 64 sprite entries, and an 8-sprites-per-scanline limit.")
                           : qsTr("This target applies one global sprite size. Each sprite uses one opaque hardware color plus transparency.")
                     wrapMode: Text.WordWrap
                     color: palette.placeholderText

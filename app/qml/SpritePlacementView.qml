@@ -12,7 +12,7 @@ Item {
     readonly property bool pixelGridVisible: zoomScale >= 5.0
 
     function paletteColor(index) {
-        const colors = editorProject.characterPaletteColors
+        const colors = editorProject.spritePaletteColors
         if (index < 0 || index >= colors.length)
             return "#000000"
         return index === 0 ? "transparent" : colors[index]
@@ -33,8 +33,8 @@ Item {
             objectName: "spritePlacementBox"
             x: 4
             y: 4
-            width: 256 * root.zoomScale
-            height: 192 * root.zoomScale
+            width: editorProject.placementWidth * root.zoomScale
+            height: editorProject.placementHeight * root.zoomScale
             color: "#111820"
             border.width: 1
             border.color: "#73808c"
@@ -49,7 +49,7 @@ Item {
             }
 
             Repeater {
-                model: 33
+                model: Math.floor(editorProject.placementWidth / 8) + 1
                 Rectangle {
                     required property int index
                     x: Math.min(placementBox.width - 1,
@@ -60,7 +60,7 @@ Item {
                 }
             }
             Repeater {
-                model: 25
+                model: Math.floor(editorProject.placementHeight / 8) + 1
                 Rectangle {
                     required property int index
                     y: Math.min(placementBox.height - 1,
@@ -73,10 +73,11 @@ Item {
 
             Repeater {
                 objectName: "spritePixelGridVerticalLines"
-                model: 257
+                model: editorProject.placementWidth + 1
                 Rectangle {
                     required property int index
-                    visible: root.pixelGridVisible && index > 0 && index < 256
+                    visible: root.pixelGridVisible && index > 0
+                             && index < editorProject.placementWidth
                              && index % 8 !== 0
                     x: index * root.zoomScale
                     width: 1
@@ -86,10 +87,11 @@ Item {
             }
             Repeater {
                 objectName: "spritePixelGridHorizontalLines"
-                model: 193
+                model: editorProject.placementHeight + 1
                 Rectangle {
                     required property int index
-                    visible: root.pixelGridVisible && index > 0 && index < 192
+                    visible: root.pixelGridVisible && index > 0
+                             && index < editorProject.placementHeight
                              && index % 8 !== 0
                     y: index * root.zoomScale
                     width: placementBox.width
@@ -121,6 +123,10 @@ Item {
                     required property int index
                     readonly property var slotData: root.slots[index]
                     readonly property int spriteSize: slotData.size
+                    readonly property int spriteWidth:
+                        editorProject.spritePatternWidth(spriteSize)
+                    readonly property int spriteHeight:
+                        editorProject.spritePatternHeight(spriteSize)
                     readonly property var pixels: {
                         const revision = editorProject.spriteRevision
                         if (!spriteMarker.slotData.loaded)
@@ -134,21 +140,21 @@ Item {
                         === editorProject.activeSpriteEditor
                     x: slotData.x * root.zoomScale
                     y: slotData.y * root.zoomScale
-                    width: spriteSize * root.zoomScale
-                    height: spriteSize * root.zoomScale
+                    width: spriteWidth * root.zoomScale
+                    height: spriteHeight * root.zoomScale
                     z: active ? 1000 : slotData.index + 10
                     visible: slotData.loaded && slotData.visible
                              && slotData.activeForPlacement
 
                     Repeater {
-                        model: spriteMarker.spriteSize * spriteMarker.spriteSize
+                        model: spriteMarker.spriteWidth * spriteMarker.spriteHeight
                         Rectangle {
                             required property int index
                             readonly property int value:
                                 spriteMarker.pixels.length > index
                                 ? spriteMarker.pixels[index] : 0
-                            x: (index % spriteMarker.spriteSize) * root.zoomScale
-                            y: Math.floor(index / spriteMarker.spriteSize)
+                            x: (index % spriteMarker.spriteWidth) * root.zoomScale
+                            y: Math.floor(index / spriteMarker.spriteWidth)
                                * root.zoomScale
                             width: root.zoomScale
                             height: root.zoomScale
@@ -180,9 +186,10 @@ Item {
                         Label {
                             id: spriteLabel
                             anchors.centerIn: parent
-                            text: qsTr("Sprite %1 · %2×%2 · %3,%4")
+                            text: qsTr("Sprite %1 · %2×%3 · %4,%5")
                                   .arg(spriteMarker.slotData.spriteIndex)
-                                  .arg(spriteMarker.spriteSize)
+                                  .arg(spriteMarker.spriteWidth)
+                                  .arg(spriteMarker.spriteHeight)
                                   .arg(spriteMarker.slotData.x)
                                   .arg(spriteMarker.slotData.y)
                             font.pixelSize: 10

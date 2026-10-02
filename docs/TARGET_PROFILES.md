@@ -20,13 +20,24 @@ source library
                 -> target-compatible exports
 ```
 
-TMS9918A and F18A are the implemented target profiles. V9938 is the next
-planned profile. Additional profiles must be registered through the same core
-contract rather than added as unrelated UI modes.
+TMS9918A, F18A, V9938, V9958, Sega Master System, and Sega Genesis/Mega Drive are implemented target
+profiles. The Yamaha profiles expose their native bitmap modes through the
+same registered target contract. The Master System profile exposes native
+Mode 4 at 256×192, 256×224, and PAL 256×240, with RGB222 CRAM, planar tile,
+name-table attribute, and VDP-register regions. The Genesis profile exposes
+native non-interlaced Mode V in H32/H40 and 224/PAL-240-line geometries, with
+packed 4bpp tiles, Plane A map attributes, four RGB333 palette banks, and
+VDP-register regions. Additional profiles must use
+that contract rather than adding unrelated UI modes.
 
 The complete planned hardware catalog, reusable compiler families,
 implementation waves, and per-target acceptance gates are maintained in
 [VDP_SUPPORT_ROADMAP.md](VDP_SUPPORT_ROADMAP.md).
+
+The workspace-by-workspace completion checklist is maintained in
+[TARGET_IMPLEMENTATION_GUIDE.md](TARGET_IMPLEMENTATION_GUIDE.md). Every target
+must explicitly account for Screen Image, Character, and Sprite behavior as
+native, compatible, approximated, unavailable, or not applicable.
 
 ## Source formats are target-independent
 
