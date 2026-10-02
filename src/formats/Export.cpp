@@ -79,6 +79,29 @@ std::string withExtension(std::string baseName, std::string_view extension)
     return baseName;
 }
 
+bool isYamahaBitmapMode(ConversionMode mode)
+{
+    return mode == ConversionMode::Screen5V9938 || mode == ConversionMode::Screen6V9938
+        || mode == ConversionMode::Screen7V9938 || mode == ConversionMode::Screen8V9938
+        || mode == ConversionMode::Screen10V9958 || mode == ConversionMode::Screen11V9958
+        || mode == ConversionMode::Screen12V9958;
+}
+
+bool isSegaSmsMode(ConversionMode mode)
+{
+    return mode == ConversionMode::Mode4Sms192
+        || mode == ConversionMode::Mode4Sms224
+        || mode == ConversionMode::Mode4Sms240;
+}
+
+bool isSegaGenesisMode(ConversionMode mode)
+{
+    return mode == ConversionMode::Mode5GenesisH32
+        || mode == ConversionMode::Mode5GenesisH40
+        || mode == ConversionMode::Mode5GenesisH32Pal
+        || mode == ConversionMode::Mode5GenesisH40Pal;
+}
+
 const TargetMemoryTable* table(const TargetMemoryImage& image, TargetTableRole role)
 {
     const auto found = std::ranges::find(image.tables, role, &TargetMemoryTable::role);
@@ -118,6 +141,9 @@ char tableSuffix(TargetTableRole role, ConversionMode mode)
     case TargetTableRole::MulticolorFrame2: return 'C';
     case TargetTableRole::Palette:
     case TargetTableRole::ScanlinePalettes: return 'M';
+    case TargetTableRole::Framebuffer: return 'V';
+    case TargetTableRole::TileMap: return 'N';
+    case TargetTableRole::DisplayRegisters: return 'R';
     }
     return 'M';
 }
@@ -208,7 +234,26 @@ GeneratedFileManifest tableFiles(const ExportRequest& request)
     for (const auto& source : tables) {
         const char suffix = tableSuffix(source.role, request.target->mode);
         const std::string upperBase = asciiUpper(fileBase);
-        GeneratedFile file{upperBase + ".TIA" + suffix, {}};
+        std::string fileName = upperBase + ".TIA" + suffix;
+        if (request.format == ExportFormat::Raw
+            && isYamahaBitmapMode(request.target->mode)) {
+            if (source.role == TargetTableRole::Framebuffer) fileName = upperBase + ".VRAM";
+            else if (source.role == TargetTableRole::Palette) fileName = upperBase + ".PAL";
+            else if (source.role == TargetTableRole::DisplayRegisters)
+                fileName = upperBase + ".REG";
+        } else if (request.format == ExportFormat::Raw
+                   && (isSegaSmsMode(request.target->mode)
+                       || isSegaGenesisMode(request.target->mode))) {
+            if (source.role == TargetTableRole::Pattern)
+                fileName = upperBase + ".TILES";
+            else if (source.role == TargetTableRole::TileMap)
+                fileName = upperBase + ".MAP";
+            else if (source.role == TargetTableRole::Palette)
+                fileName = upperBase + ".PAL";
+            else if (source.role == TargetTableRole::DisplayRegisters)
+                fileName = upperBase + ".REG";
+        }
+        GeneratedFile file{std::move(fileName), {}};
         rawTotal += source.bytes.size();
 
         if (request.format == ExportFormat::TiFiles) {

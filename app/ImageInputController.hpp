@@ -117,6 +117,9 @@ class ImageInputController final : public QObject {
     Q_PROPERTY(QVariantList sourceUsedColors READ sourceUsedColors NOTIFY sourceColorsChanged)
 
     Q_PROPERTY(int targetProfile READ targetProfile WRITE setTargetProfile NOTIFY settingsChanged)
+    Q_PROPERTY(int targetWidth READ targetWidth NOTIFY settingsChanged)
+    Q_PROPERTY(int targetHeight READ targetHeight NOTIFY settingsChanged)
+    Q_PROPERTY(double targetPixelAspectRatio READ targetPixelAspectRatio NOTIFY settingsChanged)
     Q_PROPERTY(QVariantList targetProfileNames READ targetProfileNames CONSTANT)
     Q_PROPERTY(QVariantList availableConversionModeNames READ availableConversionModeNames NOTIFY
                    settingsChanged)
@@ -296,6 +299,9 @@ public:
     [[nodiscard]] QVariantList sourceUsedColors() const { return sourceUsedColors_; }
 
     [[nodiscard]] int targetProfile() const;
+    [[nodiscard]] int targetWidth() const;
+    [[nodiscard]] int targetHeight() const;
+    [[nodiscard]] double targetPixelAspectRatio() const;
     [[nodiscard]] QVariantList targetProfileNames() const;
     [[nodiscard]] QVariantList availableConversionModeNames() const;
     [[nodiscard]] QVariantList availableConversionModeValues() const;

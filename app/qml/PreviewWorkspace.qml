@@ -24,6 +24,7 @@ Item {
         objectName: "sourcePreview"
         title: qsTr("Source")
         imageSource: imageInput.sourcePreview
+        pixelAspectRatio: imageInput.targetPixelAspectRatio
         details: imageInput.hasImage ? imageInput.sourceDetails : ""
         emptyText: qsTr("Drop an image here or choose Open")
         acceptDrops: true
@@ -39,6 +40,7 @@ Item {
         objectName: "convertedPreview"
         title: qsTr("Screen Image")
         imageSource: imageInput.convertedPreview
+        pixelAspectRatio: imageInput.targetPixelAspectRatio
         details: imageInput.conversionDetails
         emptyText: imageInput.hasImage
                    ? qsTr("The screen image will appear here")

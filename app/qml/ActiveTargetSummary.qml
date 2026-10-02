@@ -88,7 +88,9 @@ ColumnLayout {
         Label {
             visible: root.detailKind === 2
             Layout.fillWidth: true
-            text: root.info.spriteMinimumSize === root.info.spriteMaximumSize
+            text: root.info.id === "sega-sms-vdp"
+                  ? qsTr("8×8 and 8×16")
+                  : root.info.spriteMinimumSize === root.info.spriteMaximumSize
                   ? qsTr("%1×%1").arg(root.info.spriteMinimumSize || 0)
                   : qsTr("%1×%1 and %2×%2")
                         .arg(root.info.spriteMinimumSize || 0)

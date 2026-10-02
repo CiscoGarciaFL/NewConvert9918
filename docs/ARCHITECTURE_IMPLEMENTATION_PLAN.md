@@ -2,6 +2,19 @@
 
 Status: active migration plan, 2026-10-01.
 
+Implementation checkpoint (2026-10-01): the Stage 8 proving slice now
+registers implemented V9938 and V9958 profiles, native SCREEN 5–8 and
+SCREEN 10–12 descriptors, Yamaha framebuffer/palette regions, and a portable
+registered compiler path. Sprite asset compilation and command/register-state
+export remain subsequent Stage 8 work.
+
+Implementation checkpoint (2026-10-01): the planar-target seam now registers
+the Sega Master System VDP and native 192-, 224-, and PAL 240-line Mode 4
+descriptors. Its portable compiler emits bounded 4-plane tile data, flip-aware
+name-table attributes, two RGB222 CRAM banks, and initial VDP register state;
+the GUI, CLI, project schema, preview, validation, and RAW exporter all consume
+the same registration.
+
 Implementation checkpoint (2026-09-30): the first compatibility seam is now
 implemented. The repository has validated stable ID value types, TMS9918A and
 F18A display-mode, character-pattern, sprite, and mode-option descriptors,

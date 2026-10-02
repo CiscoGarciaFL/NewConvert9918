@@ -22,6 +22,11 @@ foreach ($requiredTool in @($cmake, $deployQt)) {
 }
 
 if (-not $SkipBuild) {
+    & $cmake --preset $preset
+    if ($LASTEXITCODE -ne 0) {
+        throw "The Windows preview configure failed with exit code $LASTEXITCODE."
+    }
+
     & $cmake --build --preset $preset --target RetroVDPStudio
     if ($LASTEXITCODE -ne 0) {
         throw "The Windows preview build failed with exit code $LASTEXITCODE."

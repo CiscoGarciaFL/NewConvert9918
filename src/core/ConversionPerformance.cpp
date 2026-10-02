@@ -3,13 +3,16 @@
 #include "retrovdp/core/ColorMath.hpp"
 #include "retrovdp/core/Dithering.hpp"
 #include "retrovdp/core/TargetData.hpp"
+#include "retrovdp/core/TargetProfile.hpp"
 
 namespace retrovdp::core {
 
 ConversionMemoryEstimate estimateConversionMemory(const ConversionSettings& settings)
 {
-    constexpr std::size_t pixelCount = 256U * 192U;
-    constexpr std::size_t rgbImageBytes = pixelCount * 3U;
+    const auto& mode = displayMode(settings.mode);
+    const std::size_t pixelCount = static_cast<std::size_t>(mode.geometry.width)
+        * mode.geometry.height;
+    const std::size_t rgbImageBytes = pixelCount * 3U;
 
     ConversionMemoryEstimate estimate{
         .sourceImageBytes = rgbImageBytes,
@@ -25,10 +28,12 @@ ConversionMemoryEstimate estimateConversionMemory(const ConversionSettings& sett
     for (const TargetTableLayout layout : expectedTargetTables(settings.mode)) {
         estimate.targetTableBytes += layout.byteSize;
     }
-    if (settings.mode == ConversionMode::PalettedBitmapF18A) {
-        estimate.paletteBytes = 15U * sizeof(RgbColor);
-    } else if (settings.mode == ConversionMode::ScanlinePaletteBitmapF18A) {
+    if (settings.mode == ConversionMode::ScanlinePaletteBitmapF18A) {
         estimate.paletteBytes = 192U * 15U * sizeof(RgbColor);
+    } else if (mode.palette.model == PaletteModel::ProgrammableRgb
+               || mode.palette.model == PaletteModel::YjkWithPalette) {
+        estimate.paletteBytes = static_cast<std::size_t>(mode.palette.workingColorCount)
+            * sizeof(RgbColor);
     }
     return estimate;
 }

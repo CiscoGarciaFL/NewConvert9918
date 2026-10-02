@@ -17,14 +17,17 @@ Rectangle {
     required property int drawingTool
     required property bool active
     readonly property real cellSize: 16
-    readonly property real gridSize: cellSize * spriteSize
+    readonly property int pixelWidth: editorProject.spritePatternWidth(spriteSize)
+    readonly property int pixelHeight: editorProject.spritePatternHeight(spriteSize)
+    readonly property real gridWidth: cellSize * pixelWidth
+    readonly property real gridHeight: cellSize * pixelHeight
     readonly property var pixels: {
         const revision = editorProject.spriteRevision
         if (!loaded)
             return []
         return editorProject.spritePatternPixels(setIndex, spriteIndex, spriteSize)
     }
-    readonly property var paletteColors: editorProject.characterPaletteColors
+    readonly property var paletteColors: editorProject.spritePaletteColors
     readonly property bool pixelEditingEnabled:
         loaded && !editorProject.spritePanActive
     property bool kLineActive: false
@@ -39,8 +42,8 @@ Rectangle {
     signal moveRequested(int targetIndex)
     signal removeRequested()
 
-    implicitWidth: gridSize + 96
-    implicitHeight: gridSize + 60
+    implicitWidth: gridWidth + 96
+    implicitHeight: gridHeight + 60
     color: "#13191f"
     border.width: active ? 2 : 1
     border.color: active ? palette.highlight : "#46515d"
@@ -48,12 +51,12 @@ Rectangle {
 
     function hexRow(row) {
         let value = 0
-        for (let column = 0; column < spriteSize; ++column) {
-            if (loaded && pixels.length > row * spriteSize + column
-                    && pixels[row * spriteSize + column] !== 0)
-                value += Math.pow(2, spriteSize - 1 - column)
+        for (let column = 0; column < pixelWidth; ++column) {
+            if (loaded && pixels.length > row * pixelWidth + column
+                    && pixels[row * pixelWidth + column] !== 0)
+                value += Math.pow(2, pixelWidth - 1 - column)
         }
-        return value.toString(16).toUpperCase().padStart(spriteSize / 4, "0")
+        return value.toString(16).toUpperCase().padStart(pixelWidth / 4, "0")
     }
 
     function pixelColor(value) {
@@ -68,9 +71,9 @@ Rectangle {
         root.selected()
         if (!pixelEditingEnabled)
             return
-        const column = Math.max(0, Math.min(spriteSize - 1,
+        const column = Math.max(0, Math.min(pixelWidth - 1,
                                             Math.floor(localX / cellSize)))
-        const row = Math.max(0, Math.min(spriteSize - 1,
+        const row = Math.max(0, Math.min(pixelHeight - 1,
                                          Math.floor(localY / cellSize)))
         editorProject.paintSpritePixel(setIndex, spriteIndex, spriteSize,
                                        row, column, drawingTool === 1)
@@ -78,9 +81,9 @@ Rectangle {
 
     function cellAt(localX, localY) {
         return Qt.point(
-            Math.max(0, Math.min(spriteSize - 1,
+            Math.max(0, Math.min(pixelWidth - 1,
                                  Math.floor(localX / cellSize))),
-            Math.max(0, Math.min(spriteSize - 1,
+            Math.max(0, Math.min(pixelHeight - 1,
                                  Math.floor(localY / cellSize))))
     }
 
@@ -102,7 +105,7 @@ Rectangle {
         const stepY = fromRow < toRow ? 1 : -1
         let error = deltaX + deltaY
         while (true) {
-            result.push(y * spriteSize + x)
+            result.push(y * pixelWidth + x)
             if (x === toColumn && y === toRow)
                 break
             const twiceError = error * 2
@@ -188,12 +191,12 @@ Rectangle {
         anchors.leftMargin: 8
         anchors.top: parent.top
         anchors.topMargin: 8
-        height: root.gridSize
+        height: root.gridHeight
         spacing: 2
 
         Item {
             width: 10
-            height: root.gridSize
+            height: root.gridHeight
             Label {
                 anchors.centerIn: parent
                 text: qsTr("Mask")
@@ -206,7 +209,7 @@ Rectangle {
         Column {
             width: 38
             Repeater {
-                model: root.spriteSize
+                model: root.pixelHeight
                 Label {
                     required property int index
                     width: 38
@@ -224,15 +227,15 @@ Rectangle {
         Item {
             id: pixelGrid
             objectName: "spritePatternPixelGrid"
-            width: root.gridSize
-            height: root.gridSize
+            width: root.gridWidth
+            height: root.gridHeight
 
             Repeater {
-                model: root.spriteSize * root.spriteSize
+                model: root.pixelWidth * root.pixelHeight
                 Rectangle {
                     required property int index
-                    readonly property int pixelRow: Math.floor(index / root.spriteSize)
-                    readonly property int pixelColumn: index % root.spriteSize
+                    readonly property int pixelRow: Math.floor(index / root.pixelWidth)
+                    readonly property int pixelColumn: index % root.pixelWidth
                     x: pixelColumn * root.cellSize
                     y: pixelRow * root.cellSize
                     width: root.cellSize
@@ -243,25 +246,25 @@ Rectangle {
             }
 
             Repeater {
-                model: root.spriteSize + 1
+                model: root.pixelWidth + 1
                 Rectangle {
                     required property int index
                     x: Math.max(0, Math.min(pixelGrid.width - width,
                                            index * root.cellSize - width / 2))
-                    width: index > 0 && index < root.spriteSize
+                    width: index > 0 && index < root.pixelWidth
                            && index % 8 === 0 ? 3 : 1
                     height: pixelGrid.height
                     color: width > 1 ? "#d8dde3" : "#68737f"
                 }
             }
             Repeater {
-                model: root.spriteSize + 1
+                model: root.pixelHeight + 1
                 Rectangle {
                     required property int index
                     y: Math.max(0, Math.min(pixelGrid.height - height,
                                            index * root.cellSize - height / 2))
                     width: pixelGrid.width
-                    height: index > 0 && index < root.spriteSize
+                    height: index > 0 && index < root.pixelHeight
                             && index % 8 === 0 ? 3 : 1
                     color: height > 1 ? "#d8dde3" : "#68737f"
                 }
@@ -271,8 +274,8 @@ Rectangle {
                 model: root.linePreviewCells
                 Rectangle {
                     required property int modelData
-                    x: (modelData % root.spriteSize) * root.cellSize + 2
-                    y: Math.floor(modelData / root.spriteSize) * root.cellSize + 2
+                    x: (modelData % root.pixelWidth) * root.cellSize + 2
+                    y: Math.floor(modelData / root.pixelWidth) * root.cellSize + 2
                     width: root.cellSize - 4
                     height: root.cellSize - 4
                     color: "#55ffffff"
@@ -413,13 +416,15 @@ Rectangle {
         checkable: true
         checked: root.active
         text: root.loaded
-              ? qsTr("%1x%1 Sprite %2")
-                    .arg(root.spriteSize)
+              ? qsTr("%1x%2 Sprite %3")
+                    .arg(root.pixelWidth)
+                    .arg(root.pixelHeight)
                     .arg(root.spriteIndex.toString().padStart(2, "0"))
               : qsTr("Empty")
         Accessible.name: root.loaded
-                         ? qsTr("Select %1 by %1 sprite %2")
-                               .arg(root.spriteSize).arg(root.spriteIndex)
+                         ? qsTr("Select %1 by %2 sprite %3")
+                               .arg(root.pixelWidth).arg(root.pixelHeight)
+                               .arg(root.spriteIndex)
                          : qsTr("Select empty sprite editor")
         ToolTip.visible: hovered
         ToolTip.text: qsTr("Select this editor; right-click or hold for ordering options")
@@ -469,14 +474,14 @@ Rectangle {
 
         Item {
             anchors.centerIn: parent
-            width: root.spriteSize
-            height: root.spriteSize
+            width: root.pixelWidth
+            height: root.pixelHeight
             Repeater {
-                model: root.spriteSize * root.spriteSize
+                model: root.pixelWidth * root.pixelHeight
                 Rectangle {
                     required property int index
-                    x: index % root.spriteSize
-                    y: Math.floor(index / root.spriteSize)
+                    x: index % root.pixelWidth
+                    y: Math.floor(index / root.pixelWidth)
                     width: 1
                     height: 1
                     color: !root.loaded || root.pixels.length <= index

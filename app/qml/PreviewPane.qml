@@ -35,6 +35,7 @@ ThemedFrame {
     property Component lowerToolbarContent
     property bool zoomInteractive: true
     property bool zoomContentAvailable: imageSource.toString().length > 0
+    property real pixelAspectRatio: 1.0
     readonly property bool editingTools: sourceTools || screenImageTools
     readonly property bool editableContentAvailable: screenImageTools
                                                      ? imageInput.hasConversion
@@ -91,7 +92,8 @@ ThemedFrame {
     readonly property real fitZoom: {
         if (preview.sourceSize.width <= 0 || preview.sourceSize.height <= 0)
             return 1.0
-        return Math.min(viewport.width / preview.sourceSize.width,
+        return Math.min(viewport.width
+                            / (preview.sourceSize.width * root.pixelAspectRatio),
                         viewport.height / preview.sourceSize.height)
     }
     readonly property real effectiveZoom: zoomInteractive && zoomContentAvailable
@@ -380,7 +382,7 @@ ThemedFrame {
                     id: typeSize
                     objectName: root.objectName + "TypeSizeSpinBox"
                     from: 1
-                    to: 192
+                    to: imageInput.targetHeight
                     value: 16
                     editable: true
                     Accessible.name: qsTr("Font pixel size")
@@ -473,8 +475,10 @@ ThemedFrame {
             if (imageInput.screenImageClipArtSourceWidth <= 0)
                 return
             changingSize = true
-            clipWidth.value = Math.min(256, imageInput.screenImageClipArtSourceWidth)
-            clipHeight.value = Math.min(192, imageInput.screenImageClipArtSourceHeight)
+            clipWidth.value = Math.min(imageInput.targetWidth,
+                                       imageInput.screenImageClipArtSourceWidth)
+            clipHeight.value = Math.min(imageInput.targetHeight,
+                                        imageInput.screenImageClipArtSourceHeight)
             changingSize = false
             refreshPreview()
         }
@@ -576,14 +580,14 @@ ThemedFrame {
                     id: clipWidth
                     objectName: root.objectName + "ClipArtWidthSpinBox"
                     from: 1
-                    to: 256
+                    to: imageInput.targetWidth
                     value: 64
                     editable: true
                     onValueModified: {
                         if (clipKeepAspect.checked && !clipArtDialog.changingSize) {
                             clipArtDialog.changingSize = true
                             clipHeight.value = Math.max(
-                                1, Math.min(192, Math.round(value
+                                1, Math.min(imageInput.targetHeight, Math.round(value
                                     / clipArtDialog.sourceAspect)))
                             clipArtDialog.changingSize = false
                         }
@@ -595,14 +599,14 @@ ThemedFrame {
                     id: clipHeight
                     objectName: root.objectName + "ClipArtHeightSpinBox"
                     from: 1
-                    to: 192
+                    to: imageInput.targetHeight
                     value: 64
                     editable: true
                     onValueModified: {
                         if (clipKeepAspect.checked && !clipArtDialog.changingSize) {
                             clipArtDialog.changingSize = true
                             clipWidth.value = Math.max(
-                                1, Math.min(256, Math.round(value
+                                1, Math.min(imageInput.targetWidth, Math.round(value
                                     * clipArtDialog.sourceAspect)))
                             clipArtDialog.changingSize = false
                         }
@@ -1778,7 +1782,8 @@ ThemedFrame {
                     asynchronous: !root.editingTools
                     retainWhileLoading: true
                     cache: false
-                    width: Math.max(1, sourceSize.width * root.effectiveZoom)
+                    width: Math.max(1, sourceSize.width * root.pixelAspectRatio
+                                       * root.effectiveZoom)
                     height: Math.max(1, sourceSize.height * root.effectiveZoom)
                     x: Math.max(0, (flick.width - width) / 2)
                     y: Math.max(0, (flick.height - height) / 2)
@@ -1862,7 +1867,7 @@ ThemedFrame {
                             }
 
                             // Pattern boundaries remain visible at every zoom and
-                            // include all four outer edges of the 256x192 screen.
+                            // include all four outer edges of the target screen.
                             context.strokeStyle = "#9effd35a"
                             context.beginPath()
                             for (let sourceX = 0;

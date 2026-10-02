@@ -8,6 +8,9 @@ enum class TargetProfileId : std::uint8_t {
     Tms9918A,
     F18A,
     V9938,
+    V9958,
+    SegaMasterSystem,
+    SegaGenesis,
 };
 
 enum class ConversionMode : std::uint8_t {
@@ -20,6 +23,20 @@ enum class ConversionMode : std::uint8_t {
     BitmapColorOnly9918,
     PalettedBitmapF18A,
     ScanlinePaletteBitmapF18A,
+    Screen5V9938,
+    Screen6V9938,
+    Screen7V9938,
+    Screen8V9938,
+    Screen10V9958,
+    Screen11V9958,
+    Screen12V9958,
+    Mode4Sms192,
+    Mode4Sms224,
+    Mode4Sms240,
+    Mode5GenesisH32,
+    Mode5GenesisH40,
+    Mode5GenesisH32Pal,
+    Mode5GenesisH40Pal,
 };
 
 enum class DitherMode : std::uint8_t {

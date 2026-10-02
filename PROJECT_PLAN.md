@@ -42,8 +42,8 @@ deterministic deployment manifest.
 
 The following program is implemented and maintained rather than planned again:
 
-- a portable C++20 conversion core for the audited TMS9918A and F18A
-  conversion modes;
+- a portable C++20 conversion core for the audited TMS9918A, F18A, Yamaha
+  V9938/V9958, Sega Master System, and Sega Genesis/Mega Drive conversion modes;
 - bounded common-raster, PCX, and supported retro-format input;
 - deterministic target-table generation and golden fixtures;
 - RAW, RLE, TIFILES, V9T9, MSX, Coleco, Adam, Extended BASIC, ROM, and PNG
@@ -90,7 +90,7 @@ vertical product slices:
 | Program | Authority | Current state |
 | --- | --- | --- |
 | Target/project model | [docs/TARGET_PROFILES.md](docs/TARGET_PROFILES.md) | Model agreed; managed multi-target output not implemented |
-| Hardware target catalog | [docs/VDP_SUPPORT_ROADMAP.md](docs/VDP_SUPPORT_ROADMAP.md) | TMS9918A/F18A implemented; V9938 next after framework gates |
+| Hardware target catalog | [docs/VDP_SUPPORT_ROADMAP.md](docs/VDP_SUPPORT_ROADMAP.md) | TMS9918A/F18A, V9938/V9958 bitmap and YJK/YAE, Master System Mode 4, and Genesis Mode V profiles implemented |
 | Character and sprite authoring | [docs/VDP_DESIGN_TOOLS.md](docs/VDP_DESIGN_TOOLS.md) | Editor foundations implemented; portable project model, allocation, validation, and full export remain |
 | Batch/frame sequences | [docs/BATCH_MODE.md](docs/BATCH_MODE.md) | Deferred until single-asset project/output contracts are stable |
 | Release program | [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) | Beta pipeline active; stable-release gates remain |

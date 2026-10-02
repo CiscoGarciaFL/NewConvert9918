@@ -46,7 +46,10 @@ QString previewName(int target)
 {
     switch (target) {
     case 1: return QStringLiteral("f18a");
-    case 2: return QStringLiteral("compare");
+    case 2: return QStringLiteral("v9938");
+    case 3: return QStringLiteral("v9958");
+    case 4: return QStringLiteral("sega-sms-vdp");
+    case 5: return QStringLiteral("sega-genesis-vdp");
     default: return QStringLiteral("tms9918a");
     }
 }
@@ -58,7 +61,9 @@ int snapCharacterTileCoordinate(int value, int maximum)
 
 bool sameCharacterPattern(const auto& left, const auto& right)
 {
-    return left.bitmap == right.bitmap && left.colors == right.colors;
+    return left.bitmap == right.bitmap && left.colors == right.colors
+        && left.indexedPixels == right.indexedPixels
+        && left.indexedOverride == right.indexedOverride;
 }
 
 std::uint8_t reverseCharacterBits(std::uint8_t value)
@@ -128,6 +133,10 @@ QVariantList EditorProjectController::supportedTargets() const
     };
     if (tms9918aEnabled_) append(retrovdp::core::TargetProfileId::Tms9918A);
     if (f18aEnabled_) append(retrovdp::core::TargetProfileId::F18A);
+    if (v9938Enabled_) append(retrovdp::core::TargetProfileId::V9938);
+    if (v9958Enabled_) append(retrovdp::core::TargetProfileId::V9958);
+    if (segaSmsEnabled_) append(retrovdp::core::TargetProfileId::SegaMasterSystem);
+    if (segaGenesisEnabled_) append(retrovdp::core::TargetProfileId::SegaGenesis);
     return result;
 }
 
@@ -151,9 +160,16 @@ QVariantMap EditorProjectController::activeTargetInfo() const
 
     QVariantList spriteSizes;
     if (has(retrovdp::core::TargetCapability::Sprites)) {
-        spriteSizes.push_back(static_cast<int>(profile.sprites.minimumPixelSize));
-        if (profile.sprites.maximumPixelSize != profile.sprites.minimumPixelSize)
-            spriteSizes.push_back(static_cast<int>(profile.sprites.maximumPixelSize));
+        if (usesGenesisMode5Editor()) {
+            for (int height = 8; height <= 32; height += 8) {
+                for (int width = 8; width <= 32; width += 8)
+                    spriteSizes.push_back(width * 100 + height);
+            }
+        } else {
+            spriteSizes.push_back(static_cast<int>(profile.sprites.minimumPixelSize));
+            if (profile.sprites.maximumPixelSize != profile.sprites.minimumPixelSize)
+                spriteSizes.push_back(static_cast<int>(profile.sprites.maximumPixelSize));
+        }
     }
 
     return {
@@ -179,9 +195,17 @@ QVariantMap EditorProjectController::activeTargetInfo() const
         {QStringLiteral("characterSetCount"),
          static_cast<int>(profile.characterPatterns.setCount)},
         {QStringLiteral("characterMapColumns"),
-         static_cast<int>(profile.characterPatterns.mapColumns)},
+         characterMapColumns()},
         {QStringLiteral("characterMapRows"),
-         static_cast<int>(profile.characterPatterns.mapRows)},
+         characterMapRows()},
+        {QStringLiteral("characterColorDepth"), usesIndexed4BppEditor() ? 4 : 1},
+        {QStringLiteral("characterInterpretation"),
+         usesSmsMode4Editor() ? QStringLiteral("Mode 4 planar tiles")
+                              : usesGenesisMode5Editor()
+                                  ? QStringLiteral("Mode V packed 4bpp tiles")
+                              : QStringLiteral("Target-compatible patterns")},
+        {QStringLiteral("characterPaletteBankCount"),
+         usesGenesisMode5Editor() ? 4 : 1},
         {QStringLiteral("sprites"),
          has(retrovdp::core::TargetCapability::Sprites)},
         {QStringLiteral("spriteSizes"), spriteSizes},
@@ -190,13 +214,25 @@ QVariantMap EditorProjectController::activeTargetInfo() const
         {QStringLiteral("spriteMaximumSize"),
          static_cast<int>(profile.sprites.maximumPixelSize)},
         {QStringLiteral("spritePatternsPerSet"),
-         static_cast<int>(profile.sprites.patternsPerSet)},
+         spritePatternsPerSet()},
         {QStringLiteral("spriteMaximumVisible"),
-         static_cast<int>(profile.sprites.maximumVisibleSprites)},
+         spritePatternsPerSet()},
         {QStringLiteral("spriteMaximumColorDepth"),
          static_cast<int>(profile.sprites.maximumColorDepth)},
         {QStringLiteral("spriteUsesGlobalSize"), profile.sprites.usesGlobalSize},
-        {QStringLiteral("spritePerItemSize"), profile.sprites.supportsPerSpriteSize},
+        {QStringLiteral("spritePerItemSize"), usesPerSpriteSizeEditor()},
+        {QStringLiteral("spriteInterpretation"),
+         usesSmsMode4Editor()
+             ? QStringLiteral("Mode 4 sprites; 8x8 or 8x16, 4bpp sprite palette")
+             : usesGenesisMode5Editor()
+                 ? QStringLiteral("Mode V sprites; 8x8 through 32x32, 4bpp palette")
+             : QStringLiteral("Target-compatible sprites")},
+        {QStringLiteral("spriteMaximumPerScanline"),
+         usesSmsMode4Editor() ? 8 : (usesGenesisMode5Editor()
+             ? (imageInput_->targetWidth() == 320 ? 20 : 16) : 0)},
+        {QStringLiteral("spriteSupportsFlipAttributes"), !usesSmsMode4Editor()},
+        {QStringLiteral("spritePaletteBankCount"),
+         usesGenesisMode5Editor() ? 4 : 1},
     };
 }
 
@@ -229,7 +265,9 @@ bool EditorProjectController::spriteModeAvailable() const
 
 bool EditorProjectController::targetEnabled(int value) const
 {
-    return (value == 0 && tms9918aEnabled_) || (value == 1 && f18aEnabled_);
+    return (value == 0 && tms9918aEnabled_) || (value == 1 && f18aEnabled_)
+        || (value == 2 && v9938Enabled_) || (value == 3 && v9958Enabled_)
+        || (value == 4 && segaSmsEnabled_) || (value == 5 && segaGenesisEnabled_);
 }
 
 void EditorProjectController::setProjectName(const QString& value)
@@ -253,12 +291,65 @@ void EditorProjectController::setTms9918aEnabled(bool value)
 QVariantList EditorProjectController::characterSetNames() const
 {
     QVariantList result;
-    for (const auto& set : characterSets_) result.push_back(set.name);
+    const int count = std::min(characterSetCount(),
+                               static_cast<int>(characterSets_.size()));
+    for (int index = 0; index < count; ++index)
+        result.push_back(characterSets_[static_cast<std::size_t>(index)].name);
     return result;
+}
+
+bool EditorProjectController::usesSmsMode4Editor() const
+{
+    return activeTarget()
+        == static_cast<int>(retrovdp::core::TargetProfileId::SegaMasterSystem);
+}
+
+bool EditorProjectController::usesGenesisMode5Editor() const
+{
+    return activeTarget()
+        == static_cast<int>(retrovdp::core::TargetProfileId::SegaGenesis);
+}
+
+bool EditorProjectController::usesIndexed4BppEditor() const
+{
+    return usesSmsMode4Editor() || usesGenesisMode5Editor();
+}
+
+bool EditorProjectController::usesPerSpriteSizeEditor() const
+{
+    return editScope_ == 1
+        && retrovdp::core::targetProfile(
+            static_cast<retrovdp::core::TargetProfileId>(activeTarget()))
+               .sprites.supportsPerSpriteSize;
 }
 
 QVariantList EditorProjectController::characterPaletteColors() const
 {
+    if (usesGenesisMode5Editor()) {
+        const QVariantList palette = imageInput_->paletteColors();
+        const int start = characterPaletteBank_ * 16;
+        if (palette.size() >= start + 16) return palette.mid(start, 16);
+        QVariantList fallback;
+        fallback.reserve(16);
+        fallback.push_back(QColor(0, 0, 0, 0));
+        for (int index = 1; index < 16; ++index) {
+            const int level = index * 255 / 15;
+            fallback.push_back(QColor(level, level, level));
+        }
+        return fallback;
+    }
+    if (usesSmsMode4Editor()) {
+        const QVariantList palette = imageInput_->paletteColors();
+        if (palette.size() >= 16) return palette.mid(0, 16);
+        return {
+            QColor(0, 0, 0), QColor(170, 0, 0), QColor(0, 170, 0),
+            QColor(170, 170, 0), QColor(0, 0, 170), QColor(170, 0, 170),
+            QColor(0, 170, 170), QColor(170, 170, 170), QColor(85, 85, 85),
+            QColor(255, 85, 85), QColor(85, 255, 85), QColor(255, 255, 85),
+            QColor(85, 85, 255), QColor(255, 85, 255), QColor(85, 255, 255),
+            QColor(255, 255, 255),
+        };
+    }
     // Hardware color order, including transparent color zero. The baseline
     // palette is fixed; an F18A edit scope uses the current programmable
     // working palette mapped back to hardware color indexes.
@@ -286,6 +377,49 @@ QVariantList EditorProjectController::characterPaletteColors() const
         QColor(32, 176, 56), QColor(200, 88, 184), QColor(200, 200, 200),
         QColor(248, 248, 248),
     };
+}
+
+QVariantList EditorProjectController::spritePaletteColors() const
+{
+    if (usesGenesisMode5Editor()) {
+        const QVariantList palette = imageInput_->paletteColors();
+        const int start = activeSpritePaletteBank() * 16;
+        if (palette.size() >= start + 16) return palette.mid(start, 16);
+        return characterPaletteColors();
+    }
+    if (usesSmsMode4Editor()) {
+        const QVariantList palette = imageInput_->paletteColors();
+        if (palette.size() >= 32) return palette.mid(16, 16);
+        return characterPaletteColors();
+    }
+    return characterPaletteColors();
+}
+
+void EditorProjectController::ensureIndexedCharacterOverride(
+    CharacterPattern& pattern) const
+{
+    if (pattern.indexedOverride) return;
+    for (int row = 0; row < 8; ++row) {
+        const int foreground = (pattern.colors[static_cast<std::size_t>(row)] >> 4U)
+            & 0x0f;
+        const int background = pattern.colors[static_cast<std::size_t>(row)] & 0x0f;
+        for (int column = 0; column < 8; ++column) {
+            const bool set = (pattern.bitmap[static_cast<std::size_t>(row)]
+                              & (0x80U >> column)) != 0;
+            pattern.indexedPixels[static_cast<std::size_t>(row * 8 + column)] =
+                static_cast<std::uint8_t>(set ? foreground : background);
+        }
+    }
+    pattern.indexedOverride = true;
+}
+
+void EditorProjectController::setCharacterPaletteBank(int value)
+{
+    value = std::clamp(value, 0, usesGenesisMode5Editor() ? 3 : 0);
+    if (characterPaletteBank_ == value) return;
+    characterPaletteBank_ = value;
+    ++characterRevision_;
+    emit projectChanged();
 }
 
 QVariantList EditorProjectController::characterEditorSlots() const
@@ -339,6 +473,14 @@ int EditorProjectController::characterSetCount() const
 
 int EditorProjectController::characterMapColumns() const
 {
+    if (usesGenesisMode5Editor()) {
+        const auto mode = static_cast<retrovdp::core::ConversionMode>(
+            imageInput_->conversionMode());
+        if (retrovdp::core::primaryTargetProfile(mode)
+            == retrovdp::core::TargetProfileId::SegaGenesis) {
+            return static_cast<int>(retrovdp::core::displayMode(mode).geometry.width / 8U);
+        }
+    }
     return retrovdp::core::targetProfile(
                static_cast<retrovdp::core::TargetProfileId>(activeTarget()))
         .characterPatterns.mapColumns;
@@ -346,6 +488,14 @@ int EditorProjectController::characterMapColumns() const
 
 int EditorProjectController::characterMapRows() const
 {
+    if (usesSmsMode4Editor() || usesGenesisMode5Editor()) {
+        const auto mode = static_cast<retrovdp::core::ConversionMode>(
+            imageInput_->conversionMode());
+        if (retrovdp::core::primaryTargetProfile(mode)
+            == static_cast<retrovdp::core::TargetProfileId>(activeTarget())) {
+            return static_cast<int>(retrovdp::core::displayMode(mode).geometry.height / 8U);
+        }
+    }
     return retrovdp::core::targetProfile(
                static_cast<retrovdp::core::TargetProfileId>(activeTarget()))
         .characterPatterns.mapRows;
@@ -375,9 +525,10 @@ QVariantList EditorProjectController::activeSpritePlacements() const
     QVariantList result;
     if (spriteSets_.empty()) return result;
     const auto& placements = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)].placements;
-    for (int index = 0; index < static_cast<int>(placements.size()); ++index) {
+    for (int index = 0; index < spritePatternsPerSet(); ++index) {
         const auto& placement = placements[static_cast<std::size_t>(index)];
-        const int effectiveSize = editScope_ == 1 ? placement.size : spriteGlobalSize_;
+        const int effectiveSize = usesPerSpriteSizeEditor()
+            ? placement.size : spriteGlobalSize_;
         const int placementX = effectiveSize == 16 ? placement.x16 : placement.x;
         const int placementY = effectiveSize == 16 ? placement.y16 : placement.y;
         result.push_back(QVariantMap{{QStringLiteral("index"), index},
@@ -388,15 +539,22 @@ QVariantList EditorProjectController::activeSpritePlacements() const
                                      {QStringLiteral("storedSize"), placement.size},
                                      {QStringLiteral("color"), placement.color},
                                      {QStringLiteral("colorDepth"),
-                                      editScope_ == 1 ? placement.colorDepth : 1},
+                                      usesIndexed4BppEditor() ? 4
+                                      : (editScope_ == 1 ? placement.colorDepth : 1)},
                                      {QStringLiteral("palette"), placement.palette},
                                      {QStringLiteral("flipX"),
-                                      editScope_ == 1 && placement.flipX},
+                                      editScope_ == 1 && !usesSmsMode4Editor()
+                                          && placement.flipX},
                                      {QStringLiteral("flipY"),
-                                      editScope_ == 1 && placement.flipY},
+                                      editScope_ == 1 && !usesSmsMode4Editor()
+                                          && placement.flipY},
                                      {QStringLiteral("profile"),
-                                      editScope_ == 1 ? QStringLiteral("f18a")
-                                                      : QStringLiteral("tms9918a")}});
+                                      usesSmsMode4Editor()
+                                          ? QStringLiteral("sms-mode4")
+                                          : (usesGenesisMode5Editor()
+                                              ? QStringLiteral("genesis-mode5")
+                                          : (editScope_ == 1 ? QStringLiteral("f18a")
+                                                             : QStringLiteral("tms9918a")))}});
     }
     return result;
 }
@@ -413,7 +571,8 @@ QVariantList EditorProjectController::spriteEditorSlots() const
                            {QStringLiteral("spriteIndex"), slot.spriteIndex}};
         if (slot.loaded && slot.setIndex >= 0
             && slot.setIndex < static_cast<int>(spriteSets_.size())
-            && slot.spriteIndex >= 0 && slot.spriteIndex < 32) {
+            && slot.spriteIndex >= 0
+            && slot.spriteIndex < spritePatternsPerSet()) {
             const auto& placement = spriteSets_[static_cast<std::size_t>(slot.setIndex)]
                                         .placements[static_cast<std::size_t>(slot.spriteIndex)];
             values.insert(QStringLiteral("size"), slot.size);
@@ -423,11 +582,12 @@ QVariantList EditorProjectController::spriteEditorSlots() const
                           slot.size == 16 ? placement.y16 : placement.y);
             values.insert(QStringLiteral("visible"), placement.visible);
             values.insert(QStringLiteral("activeForPlacement"),
-                          slot.size == (editScope_ == 1
+                          slot.size == (usesPerSpriteSizeEditor()
                                             ? placement.size : spriteGlobalSize_));
             values.insert(QStringLiteral("color"), placement.color);
             values.insert(QStringLiteral("colorDepth"),
-                          editScope_ == 1 ? placement.colorDepth : 1);
+                          usesIndexed4BppEditor() ? 4
+                          : (editScope_ == 1 ? placement.colorDepth : 1));
         } else {
             values.insert(QStringLiteral("size"), slot.size);
             values.insert(QStringLiteral("x"), 0);
@@ -475,9 +635,35 @@ void EditorProjectController::setActiveTarget(int value)
     if (targetChanged) imageInput_->setTargetProfile(value);
     const auto& profile = retrovdp::core::targetProfile(
         static_cast<retrovdp::core::TargetProfileId>(value));
+    activeCharacterSet_ = std::clamp(
+        activeCharacterSet_, 0, static_cast<int>(profile.characterPatterns.setCount) - 1);
+    activeCharacterPattern_ = std::clamp(
+        activeCharacterPattern_, 0,
+        static_cast<int>(profile.characterPatterns.patternsPerSet) - 1);
+    if (!characterEditorSlots_.empty()) {
+        auto& editor = characterEditorSlots_[static_cast<std::size_t>(
+            activeCharacterEditor_)];
+        editor.setIndex = activeCharacterSet_;
+        editor.patternIndex = activeCharacterPattern_;
+    }
+    activeSprite_ = std::clamp(
+        activeSprite_, 0, static_cast<int>(profile.sprites.patternsPerSet) - 1);
+    if (!spriteEditorSlots_.empty()) {
+        auto& editor = spriteEditorSlots_[static_cast<std::size_t>(activeSpriteEditor_)];
+        editor.spriteIndex = activeSprite_;
+    }
     const int targetScope = retrovdp::core::hasCapability(
         profile.capabilities, retrovdp::core::TargetCapability::EnhancedColor) ? 1 : 0;
     setEditScope(targetScope);
+    if (usesGenesisMode5Editor() && !spriteSets_.empty()) {
+        auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
+                              .placements[static_cast<std::size_t>(activeSprite_)];
+        placement.size = normalizedSpriteSize(placement.size);
+        activeSpriteSize_ = placement.size;
+        if (!spriteEditorSlots_.empty())
+            spriteEditorSlots_[static_cast<std::size_t>(activeSpriteEditor_)].size
+                = activeSpriteSize_;
+    }
     const bool previewChanged = previewTarget_ != value;
     previewTarget_ = value;
     if (workspaceMode_ == 0 && !screenImageModeAvailable()) setWorkspaceMode(1);
@@ -500,16 +686,27 @@ void EditorProjectController::configureProjectWithTargets(
     bool f18aEnabled,
     const QStringList& plannedTargetIds)
 {
-    if (!tms9918aEnabled && !f18aEnabled) tms9918aEnabled = true;
     projectName_ = name.trimmed().isEmpty()
         ? QStringLiteral("Untitled Project") : name.trimmed();
     tms9918aEnabled_ = tms9918aEnabled;
     f18aEnabled_ = f18aEnabled;
+    v9938Enabled_ = plannedTargetIds.contains(QStringLiteral("v9938"));
+    v9958Enabled_ = plannedTargetIds.contains(QStringLiteral("v9958"));
+    segaSmsEnabled_ = plannedTargetIds.contains(QStringLiteral("sega-sms-vdp"));
+    segaGenesisEnabled_ = plannedTargetIds.contains(QStringLiteral("sega-genesis-vdp"));
+    if (!tms9918aEnabled_ && !f18aEnabled_ && !v9938Enabled_ && !v9958Enabled_
+        && !segaSmsEnabled_ && !segaGenesisEnabled_) {
+        tms9918aEnabled_ = true;
+    }
     plannedTargetIds_.clear();
     for (const QString& value : plannedTargetIds) {
         const QString id = value.trimmed();
         if (!id.isEmpty() && id != QStringLiteral("tms9918a")
             && id != QStringLiteral("f18a")
+            && id != QStringLiteral("v9938")
+            && id != QStringLiteral("v9958")
+            && id != QStringLiteral("sega-sms-vdp")
+            && id != QStringLiteral("sega-genesis-vdp")
             && !plannedTargetIds_.contains(id)) {
             plannedTargetIds_.push_back(id);
         }
@@ -519,7 +716,11 @@ void EditorProjectController::configureProjectWithTargets(
         editScope_ = 0;
     }
     if (!targetEnabled(activeTarget()))
-        setActiveTarget(tms9918aEnabled_ ? 0 : 1);
+        setActiveTarget(tms9918aEnabled_ ? 0
+                        : (f18aEnabled_ ? 1
+                           : (v9938Enabled_ ? 2
+                              : (v9958Enabled_ ? 3
+                                 : (segaSmsEnabled_ ? 4 : 5)))));
     else
         setActiveTarget(activeTarget());
     emit projectChanged();
@@ -536,6 +737,7 @@ void EditorProjectController::resetProjectData()
     activeCharacterPattern_ = 0;
     characterForegroundColorIndex_ = 15;
     characterBackgroundColorIndex_ = 1;
+    characterPaletteBank_ = 0;
     characterEditorSlots_ = {{true, 0, 0, 0, 0}};
     activeCharacterEditor_ = 0;
     characterTilingMode_ = false;
@@ -587,7 +789,8 @@ void EditorProjectController::createProjectWithTargets(
 
 void EditorProjectController::setPreviewTarget(int value)
 {
-    value = std::clamp(value, 0, f18aEnabled_ ? 2 : 0);
+    value = std::clamp(value, 0,
+                       static_cast<int>(retrovdp::core::TargetProfileId::SegaGenesis));
     if (previewTarget_ == value) return;
     previewTarget_ = value;
     emit projectChanged();
@@ -595,7 +798,9 @@ void EditorProjectController::setPreviewTarget(int value)
 
 void EditorProjectController::setEditScope(int value)
 {
-    value = std::clamp(value, 0, f18aEnabled_ ? 1 : 0);
+    const int maximumScope = activeTargetHasCapability(static_cast<std::uint32_t>(
+        retrovdp::core::TargetCapability::EnhancedColor)) ? 1 : 0;
+    value = std::clamp(value, 0, maximumScope);
     if (editScope_ == value) return;
     if (spritePanActive_) finishSpritePan();
     editScope_ = value;
@@ -604,10 +809,11 @@ void EditorProjectController::setEditScope(int value)
             static_cast<std::size_t>(activeSpriteEditor_)];
         const auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
                                     .placements[static_cast<std::size_t>(activeSprite_)];
-        activeSpriteSize_ = value == 1
+        const bool perItemSize = usesPerSpriteSizeEditor();
+        activeSpriteSize_ = perItemSize
             ? (activeEditor.loaded ? placement.size : activeEditor.size)
             : spriteGlobalSize_;
-        if (value == 0) activateSpriteEditorBank(spriteGlobalSize_);
+        if (!perItemSize) activateSpriteEditorBank(spriteGlobalSize_);
         syncSpriteDrawingColor();
     }
     emit projectChanged();
@@ -615,7 +821,7 @@ void EditorProjectController::setEditScope(int value)
 
 void EditorProjectController::setActiveCharacterSet(int value)
 {
-    value = std::clamp(value, 0, 2);
+    value = std::clamp(value, 0, characterSetCount() - 1);
     if (characterPanActive_ && value != activeCharacterSet_) finishCharacterPan();
     bool changed = activeCharacterSet_ != value;
     activeCharacterSet_ = value;
@@ -632,7 +838,7 @@ void EditorProjectController::setActiveCharacterSet(int value)
 
 void EditorProjectController::setActiveCharacterPattern(int value)
 {
-    value = std::clamp(value, 0, 255);
+    value = std::clamp(value, 0, characterPatternsPerSet() - 1);
     if (characterPanActive_ && value != activeCharacterPattern_) finishCharacterPan();
     bool changed = activeCharacterPattern_ != value;
     activeCharacterPattern_ = value;
@@ -720,7 +926,8 @@ void EditorProjectController::setActiveSpriteSet(int value)
     activeSpriteSet_ = value;
     const auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
                                 .placements[static_cast<std::size_t>(activeSprite_)];
-    activeSpriteSize_ = editScope_ == 1 ? placement.size : spriteGlobalSize_;
+    activeSpriteSize_ = usesPerSpriteSizeEditor()
+        ? placement.size : spriteGlobalSize_;
     changed = assignActiveSpriteToEditor() || changed;
     syncSpriteDrawingColor();
     if (!changed) return;
@@ -729,14 +936,15 @@ void EditorProjectController::setActiveSpriteSet(int value)
 
 void EditorProjectController::setActiveSprite(int value)
 {
-    value = std::clamp(value, 0, 31);
+    value = std::clamp(value, 0, spritePatternsPerSet() - 1);
     if (spritePanActive_ && value != activeSprite_) finishSpritePan();
     bool changed = activeSprite_ != value;
     activeSprite_ = value;
     if (!spriteSets_.empty()) {
         const auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
                                     .placements[static_cast<std::size_t>(activeSprite_)];
-        activeSpriteSize_ = editScope_ == 1 ? placement.size : spriteGlobalSize_;
+        activeSpriteSize_ = usesPerSpriteSizeEditor()
+            ? placement.size : spriteGlobalSize_;
         changed = assignActiveSpriteToEditor() || changed;
         syncSpriteDrawingColor();
     }
@@ -753,7 +961,9 @@ void EditorProjectController::setActiveSpriteEditor(int value)
     activeSpriteEditor_ = value;
     const auto& slot = spriteEditorSlots_[static_cast<std::size_t>(value)];
     activeSpriteSize_ = slot.size;
-    if (editScope_ == 0) spriteGlobalSize_ = slot.size;
+    if (!usesPerSpriteSizeEditor()) {
+        spriteGlobalSize_ = slot.size;
+    }
     if (slot.loaded) {
         activeSpriteSet_ = slot.setIndex;
         activeSprite_ = slot.spriteIndex;
@@ -795,7 +1005,7 @@ void EditorProjectController::addSpriteSet()
     spriteSets_.push_back(makeSpriteSet(static_cast<int>(spriteSets_.size()) + 1));
     activeSpriteSet_ = static_cast<int>(spriteSets_.size()) - 1;
     activeSprite_ = 0;
-    activeSpriteSize_ = editScope_ == 1 ? 8 : spriteGlobalSize_;
+    activeSpriteSize_ = usesPerSpriteSizeEditor() ? 8 : spriteGlobalSize_;
     assignActiveSpriteToEditor();
     syncSpriteDrawingColor();
     emit projectChanged();
@@ -818,19 +1028,22 @@ void EditorProjectController::removeActiveSpriteSet()
     }
     const auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
                                 .placements[static_cast<std::size_t>(activeSprite_)];
-    activeSpriteSize_ = editScope_ == 1 ? placement.size : spriteGlobalSize_;
+    activeSpriteSize_ = usesPerSpriteSizeEditor()
+        ? placement.size : spriteGlobalSize_;
     syncSpriteDrawingColor();
     emit projectChanged();
 }
 
 void EditorProjectController::moveSprite(int spriteIndex, int x, int y)
 {
-    if (spriteSets_.empty() || spriteIndex < 0 || spriteIndex >= 32) return;
+    if (spriteSets_.empty() || spriteIndex < 0
+        || spriteIndex >= spritePatternsPerSet()) return;
     auto& placement = spriteSets_[static_cast<std::size_t>(activeSpriteSet_)]
                           .placements[static_cast<std::size_t>(spriteIndex)];
-    const int effectiveSize = editScope_ == 1 ? placement.size : spriteGlobalSize_;
-    x = std::clamp(x, -effectiveSize, placementWidth_ - 1);
-    y = std::clamp(y, -effectiveSize, placementHeight_ - 1);
+    const int effectiveSize = usesPerSpriteSizeEditor()
+        ? placement.size : spriteGlobalSize_;
+    x = std::clamp(x, -spritePatternWidth(effectiveSize), placementWidth_ - 1);
+    y = std::clamp(y, -spritePatternHeight(effectiveSize), placementHeight_ - 1);
     int& placementX = effectiveSize == 16 ? placement.x16 : placement.x;
     int& placementY = effectiveSize == 16 ? placement.y16 : placement.y;
     if (placementX == x && placementY == y) return;
@@ -841,12 +1054,15 @@ void EditorProjectController::moveSprite(int spriteIndex, int x, int y)
 
 void EditorProjectController::addSpriteEditor()
 {
-    constexpr std::size_t maximumEditors = 32;
+    const std::size_t maximumEditors = static_cast<std::size_t>(
+        spritePatternsPerSet());
     if (spriteEditorSlots_.size() >= maximumEditors) {
-        setStatus({}, QStringLiteral("A sprite tray can contain up to 32 unique sprite editors."));
+        setStatus({}, QStringLiteral("A sprite tray can contain up to %1 unique sprite editors.")
+                          .arg(spritePatternsPerSet()));
         return;
     }
-    const int editorSize = editScope_ == 0 ? spriteGlobalSize_ : activeSpriteSize_;
+    const bool perItemSize = usesPerSpriteSizeEditor();
+    const int editorSize = perItemSize ? activeSpriteSize_ : spriteGlobalSize_;
     spriteEditorSlots_.push_back(
         {false, activeSpriteSet_, activeSprite_, editorSize});
     activeSpriteEditor_ = static_cast<int>(spriteEditorSlots_.size()) - 1;
@@ -856,9 +1072,9 @@ void EditorProjectController::addSpriteEditor()
 void EditorProjectController::removeActiveSpriteEditor()
 {
     if (spriteEditorSlots_.size() <= 1U) return;
-    const int activeBankSize = editScope_ == 0
-        ? spriteGlobalSize_ : activeSpriteSize_;
-    if (editScope_ == 0) {
+    const bool perItemSize = usesPerSpriteSizeEditor();
+    const int activeBankSize = perItemSize ? activeSpriteSize_ : spriteGlobalSize_;
+    if (!perItemSize) {
         const int bankEditorCount = static_cast<int>(std::count_if(
             spriteEditorSlots_.cbegin(), spriteEditorSlots_.cend(),
             [activeBankSize](const SpriteEditorSlot& editor) {
@@ -871,7 +1087,7 @@ void EditorProjectController::removeActiveSpriteEditor()
     spriteEditorSlots_.erase(spriteEditorSlots_.begin() + activeSpriteEditor_);
     activeSpriteEditor_ = std::min(
         activeSpriteEditor_, static_cast<int>(spriteEditorSlots_.size()) - 1);
-    if (editScope_ == 0) {
+    if (!perItemSize) {
         activateSpriteEditorBank(activeBankSize);
         emit projectChanged();
         return;
@@ -881,7 +1097,7 @@ void EditorProjectController::removeActiveSpriteEditor()
         activeSpriteSet_ = slot.setIndex;
         activeSprite_ = slot.spriteIndex;
         activeSpriteSize_ = slot.size;
-        if (editScope_ == 0) spriteGlobalSize_ = slot.size;
+        if (!perItemSize) spriteGlobalSize_ = slot.size;
         syncSpriteDrawingColor();
     }
     emit projectChanged();
@@ -915,14 +1131,14 @@ void EditorProjectController::moveSpriteEditorTile(int editorIndex, int x, int y
     const auto& slot = spriteEditorSlots_[static_cast<std::size_t>(editorIndex)];
     if (!slot.loaded || slot.setIndex < 0
         || slot.setIndex >= static_cast<int>(spriteSets_.size())
-        || slot.spriteIndex < 0 || slot.spriteIndex >= 32) {
+        || slot.spriteIndex < 0 || slot.spriteIndex >= spritePatternsPerSet()) {
         return;
     }
     auto& placement = spriteSets_[static_cast<std::size_t>(slot.setIndex)]
                           .placements[static_cast<std::size_t>(slot.spriteIndex)];
     const int effectiveSize = slot.size;
-    x = std::clamp(x, -effectiveSize, 255);
-    y = std::clamp(y, -effectiveSize, 191);
+    x = std::clamp(x, -spritePatternWidth(effectiveSize), placementWidth_ - 1);
+    y = std::clamp(y, -spritePatternHeight(effectiveSize), placementHeight_ - 1);
     int& placementX = effectiveSize == 16 ? placement.x16 : placement.x;
     int& placementY = effectiveSize == 16 ? placement.y16 : placement.y;
     if (placementX == x && placementY == y) return;
@@ -936,7 +1152,7 @@ QVariantList EditorProjectController::characterPatternRows(int setIndex,
 {
     QVariantList result;
     if (setIndex < 0 || setIndex >= static_cast<int>(characterSets_.size())
-        || patternIndex < 0 || patternIndex >= 256) {
+        || patternIndex < 0 || patternIndex >= characterPatternsPerSet()) {
         return result;
     }
     CharacterPattern panPattern;
@@ -951,11 +1167,25 @@ QVariantList EditorProjectController::characterPatternRows(int setIndex,
     for (int row = 0; row < 8; ++row) {
         const int bitmap = pattern->bitmap[static_cast<std::size_t>(row)];
         const int color = pattern->colors[static_cast<std::size_t>(row)];
-        result.push_back(QVariantMap{{QStringLiteral("row"), row},
-                                     {QStringLiteral("pattern"), bitmap},
-                                     {QStringLiteral("color"), color},
-                                     {QStringLiteral("foreground"), color >> 4},
-                                     {QStringLiteral("background"), color & 0x0f}});
+        QVariantMap values{{QStringLiteral("row"), row},
+                           {QStringLiteral("pattern"), bitmap},
+                           {QStringLiteral("color"), color},
+                           {QStringLiteral("foreground"), color >> 4},
+                           {QStringLiteral("background"), color & 0x0f},
+                           {QStringLiteral("indexed"), usesIndexed4BppEditor()}};
+        if (usesIndexed4BppEditor()) {
+            QVariantList pixels;
+            pixels.reserve(8);
+            for (int column = 0; column < 8; ++column) {
+                pixels.push_back(pattern->indexedOverride
+                    ? pattern->indexedPixels[
+                          static_cast<std::size_t>(row * 8 + column)]
+                    : ((bitmap & (0x80U >> column)) != 0 ? color >> 4
+                                                         : color & 0x0f));
+            }
+            values.insert(QStringLiteral("pixels"), pixels);
+        }
+        result.push_back(values);
     }
     return result;
 }
@@ -967,7 +1197,7 @@ void EditorProjectController::paintCharacterPixel(int setIndex,
                                                    bool foreground)
 {
     if (setIndex < 0 || setIndex >= static_cast<int>(characterSets_.size())
-        || patternIndex < 0 || patternIndex >= 256
+        || patternIndex < 0 || patternIndex >= characterPatternsPerSet()
         || row < 0 || row >= 8 || column < 0 || column >= 8) {
         return;
     }
@@ -981,6 +1211,20 @@ void EditorProjectController::paintCharacterPixel(int setIndex,
     if (standaloneEdit) beginCharacterEdit(setIndex, patternIndex);
     auto& pattern = characterSets_[static_cast<std::size_t>(setIndex)]
                         .patterns[static_cast<std::size_t>(patternIndex)];
+    if (usesIndexed4BppEditor()) {
+        ensureIndexedCharacterOverride(pattern);
+        auto& pixel = pattern.indexedPixels[
+            static_cast<std::size_t>(row * 8 + column)];
+        const auto value = static_cast<std::uint8_t>(foreground
+            ? characterForegroundColorIndex_ : characterBackgroundColorIndex_);
+        if (pixel != value) {
+            pixel = value;
+            ++characterRevision_;
+            emit projectChanged();
+        }
+        if (standaloneEdit) endCharacterEdit();
+        return;
+    }
     auto& bitmap = pattern.bitmap[static_cast<std::size_t>(row)];
     auto& color = pattern.colors[static_cast<std::size_t>(row)];
     const auto mask = static_cast<std::uint8_t>(0x80U >> column);
@@ -1007,7 +1251,8 @@ void EditorProjectController::drawCharacterLine(int setIndex,
                                                 bool foreground)
 {
     if (setIndex < 0 || setIndex >= static_cast<int>(characterSets_.size())
-        || patternIndex < 0 || patternIndex >= 256 || characterPanActive_) {
+        || patternIndex < 0 || patternIndex >= characterPatternsPerSet()
+        || characterPanActive_) {
         return;
     }
     fromRow = std::clamp(fromRow, 0, 7);
@@ -1045,7 +1290,8 @@ void EditorProjectController::drawCharacterLine(int setIndex,
 void EditorProjectController::beginCharacterEdit(int setIndex, int patternIndex)
 {
     if (setIndex < 0 || setIndex >= static_cast<int>(characterSets_.size())
-        || patternIndex < 0 || patternIndex >= 256 || characterPanActive_) {
+        || patternIndex < 0 || patternIndex >= characterPatternsPerSet()
+        || characterPanActive_) {
         return;
     }
     if (characterEditActive_) {
@@ -1084,13 +1330,24 @@ void EditorProjectController::rotateActiveCharacterPattern()
     auto& pattern = characterSets_[static_cast<std::size_t>(slot.setIndex)]
                         .patterns[static_cast<std::size_t>(slot.patternIndex)];
     const CharacterPattern before = pattern;
-    pattern.bitmap.fill(0);
-    for (int row = 0; row < 8; ++row) {
-        for (int column = 0; column < 8; ++column) {
-            if ((before.bitmap[static_cast<std::size_t>(row)]
-                 & (0x80U >> column)) != 0) {
-                pattern.bitmap[static_cast<std::size_t>(column)] |=
-                    static_cast<std::uint8_t>(0x80U >> (7 - row));
+    if (usesIndexed4BppEditor()) {
+        ensureIndexedCharacterOverride(pattern);
+        const auto source = pattern.indexedPixels;
+        for (int row = 0; row < 8; ++row) {
+            for (int column = 0; column < 8; ++column) {
+                pattern.indexedPixels[static_cast<std::size_t>(column * 8 + 7 - row)] =
+                    source[static_cast<std::size_t>(row * 8 + column)];
+            }
+        }
+    } else {
+        pattern.bitmap.fill(0);
+        for (int row = 0; row < 8; ++row) {
+            for (int column = 0; column < 8; ++column) {
+                if ((before.bitmap[static_cast<std::size_t>(row)]
+                     & (0x80U >> column)) != 0) {
+                    pattern.bitmap[static_cast<std::size_t>(column)] |=
+                        static_cast<std::uint8_t>(0x80U >> (7 - row));
+                }
             }
         }
     }
@@ -1110,7 +1367,15 @@ void EditorProjectController::mirrorActiveCharacterPattern()
     auto& pattern = characterSets_[static_cast<std::size_t>(slot.setIndex)]
                         .patterns[static_cast<std::size_t>(slot.patternIndex)];
     const CharacterPattern before = pattern;
-    for (auto& row : pattern.bitmap) row = reverseCharacterBits(row);
+    if (usesIndexed4BppEditor()) {
+        ensureIndexedCharacterOverride(pattern);
+        for (int row = 0; row < 8; ++row)
+            for (int column = 0; column < 4; ++column)
+                std::swap(pattern.indexedPixels[static_cast<std::size_t>(row * 8 + column)],
+                          pattern.indexedPixels[static_cast<std::size_t>(row * 8 + 7 - column)]);
+    } else {
+        for (auto& row : pattern.bitmap) row = reverseCharacterBits(row);
+    }
     if (sameCharacterPattern(before, pattern)) return;
     recordCharacterEdit(slot.setIndex, slot.patternIndex, before, pattern);
     ++characterRevision_;
@@ -1127,8 +1392,16 @@ void EditorProjectController::flipActiveCharacterPattern()
     auto& pattern = characterSets_[static_cast<std::size_t>(slot.setIndex)]
                         .patterns[static_cast<std::size_t>(slot.patternIndex)];
     const CharacterPattern before = pattern;
-    std::reverse(pattern.bitmap.begin(), pattern.bitmap.end());
-    std::reverse(pattern.colors.begin(), pattern.colors.end());
+    if (usesIndexed4BppEditor()) {
+        ensureIndexedCharacterOverride(pattern);
+        for (int row = 0; row < 4; ++row)
+            for (int column = 0; column < 8; ++column)
+                std::swap(pattern.indexedPixels[static_cast<std::size_t>(row * 8 + column)],
+                          pattern.indexedPixels[static_cast<std::size_t>((7 - row) * 8 + column)]);
+    } else {
+        std::reverse(pattern.bitmap.begin(), pattern.bitmap.end());
+        std::reverse(pattern.colors.begin(), pattern.colors.end());
+    }
     if (sameCharacterPattern(before, pattern)) return;
     recordCharacterEdit(slot.setIndex, slot.patternIndex, before, pattern);
     ++characterRevision_;
@@ -1145,7 +1418,12 @@ void EditorProjectController::blankActiveCharacterPattern()
     auto& pattern = characterSets_[static_cast<std::size_t>(slot.setIndex)]
                         .patterns[static_cast<std::size_t>(slot.patternIndex)];
     const CharacterPattern before = pattern;
-    pattern.bitmap.fill(0);
+    if (usesIndexed4BppEditor()) {
+        ensureIndexedCharacterOverride(pattern);
+        pattern.indexedPixels.fill(0);
+    } else {
+        pattern.bitmap.fill(0);
+    }
     if (sameCharacterPattern(before, pattern)) return;
     recordCharacterEdit(slot.setIndex, slot.patternIndex, before, pattern);
     ++characterRevision_;
@@ -1219,6 +1497,7 @@ bool EditorProjectController::copyActiveCharacterPattern()
                               .patterns[static_cast<std::size_t>(slot.patternIndex)];
     QJsonArray bitmap;
     QJsonArray colors;
+    QJsonArray indexedPixels;
     for (int row = 0; row < 8; ++row) {
         bitmap.push_back(QStringLiteral("%1")
                              .arg(pattern.bitmap[static_cast<std::size_t>(row)],
@@ -1228,6 +1507,10 @@ bool EditorProjectController::copyActiveCharacterPattern()
                              .arg(pattern.colors[static_cast<std::size_t>(row)],
                                   2, 16, QLatin1Char('0'))
                              .toUpper());
+    }
+    if (pattern.indexedOverride) {
+        for (const std::uint8_t value : pattern.indexedPixels)
+            indexedPixels.push_back(value);
     }
     const QJsonObject root{
         {QStringLiteral("format"), QStringLiteral("retrovdp.character-pattern")},
@@ -1240,6 +1523,8 @@ bool EditorProjectController::copyActiveCharacterPattern()
                      {QStringLiteral("pattern"), slot.patternIndex}}},
         {QStringLiteral("bitmap"), bitmap},
         {QStringLiteral("colors"), colors},
+        {QStringLiteral("indexedOverride"), pattern.indexedOverride},
+        {QStringLiteral("indexedPixels"), indexedPixels},
     };
     QClipboard* clipboard = QGuiApplication::clipboard();
     if (clipboard == nullptr) {
@@ -1298,7 +1583,8 @@ bool EditorProjectController::extractScreenImagePatterns(
 
     const int patternWidth = characterPatternWidth();
     const int patternHeight = characterPatternHeight();
-    const int patternCapacity = std::min(characterPatternsPerSet(), 256);
+    const int patternCapacity = std::min(
+        characterPatternsPerSet(), static_cast<int>(characterSets_[0].patterns.size()));
     const int setCount = std::min(characterSetCount(),
                                   static_cast<int>(characterSets_.size()));
     if (patternWidth != 8 || patternHeight != 8 || setCount <= 0) {
@@ -1347,6 +1633,29 @@ bool EditorProjectController::extractScreenImagePatterns(
                 : sourceRow * regionWidth + sourceColumn;
             const int patternIndex = destinationPattern + sequence;
             CharacterPattern extracted;
+            if (usesIndexed4BppEditor()) {
+                extracted.indexedOverride = true;
+                for (int pixelRow = 0; pixelRow < patternHeight; ++pixelRow) {
+                    for (int pixelColumn = 0; pixelColumn < patternWidth; ++pixelColumn) {
+                        const QColor color = source.pixelColor(
+                            (characterX + sourceColumn) * patternWidth + pixelColumn,
+                            (characterY + sourceRow) * patternHeight + pixelRow);
+                        int nearest = 0;
+                        int nearestDistance = colorDistanceSquared(color, palette[0]);
+                        for (int paletteIndex = 1; paletteIndex < 16; ++paletteIndex) {
+                            const int distance = colorDistanceSquared(
+                                color, palette[static_cast<std::size_t>(paletteIndex)]);
+                            if (distance < nearestDistance) {
+                                nearest = paletteIndex;
+                                nearestDistance = distance;
+                            }
+                        }
+                        extracted.indexedPixels[static_cast<std::size_t>(
+                            pixelRow * patternWidth + pixelColumn)] =
+                                static_cast<std::uint8_t>(nearest);
+                    }
+                }
+            } else {
             for (int pixelRow = 0; pixelRow < patternHeight; ++pixelRow) {
                 std::array<int, 16> counts{};
                 std::array<QColor, 8> sourceColors{};
@@ -1397,6 +1706,7 @@ bool EditorProjectController::extractScreenImagePatterns(
                 extracted.colors[static_cast<std::size_t>(pixelRow)] =
                     static_cast<std::uint8_t>((foreground << 4) | background);
             }
+            }
 
             auto& destination = set.patterns[static_cast<std::size_t>(patternIndex)];
             if (!sameCharacterPattern(destination, extracted)) {
@@ -1435,7 +1745,8 @@ QString EditorProjectController::characterPatternPreview(
 {
     const int tileWidth = characterPatternWidth();
     const int tileHeight = characterPatternHeight();
-    const int capacity = std::min(characterPatternsPerSet(), 256);
+    const int capacity = std::min(
+        characterPatternsPerSet(), static_cast<int>(characterSets_[0].patterns.size()));
     if (tileWidth != 8 || tileHeight != 8 || setIndex < 0
         || setIndex >= static_cast<int>(characterSets_.size()) || capacity <= 0) {
         return {};
@@ -1461,9 +1772,20 @@ QString EditorProjectController::characterPatternPreview(
                 const int foreground = color >> 4U;
                 const int background = color & 0x0fU;
                 for (int pixelColumn = 0; pixelColumn < tileWidth; ++pixelColumn) {
-                    const bool ink = (pattern.bitmap[static_cast<std::size_t>(pixelRow)]
-                                      & (0x80U >> pixelColumn)) != 0;
-                    const int paletteIndex = ink ? foreground : background;
+                    int paletteIndex{};
+                    if (usesIndexed4BppEditor()) {
+                        paletteIndex = pattern.indexedOverride
+                            ? pattern.indexedPixels[static_cast<std::size_t>(
+                                  pixelRow * tileWidth + pixelColumn)]
+                            : ((pattern.bitmap[static_cast<std::size_t>(pixelRow)]
+                                & (0x80U >> pixelColumn)) != 0
+                                  ? foreground : background);
+                    } else {
+                        const bool ink =
+                            (pattern.bitmap[static_cast<std::size_t>(pixelRow)]
+                             & (0x80U >> pixelColumn)) != 0;
+                        paletteIndex = ink ? foreground : background;
+                    }
                     QColor pixel = paletteIndex < paletteValues.size()
                         ? paletteValues.at(paletteIndex).value<QColor>()
                         : QColor(Qt::black);
@@ -1544,8 +1866,10 @@ void EditorProjectController::moveCharacterTile(int editorIndex, int x, int y)
         return;
     }
     auto& slot = characterEditorSlots_[static_cast<std::size_t>(editorIndex)];
-    const int snappedX = snapCharacterTileCoordinate(x, 248);
-    const int snappedY = snapCharacterTileCoordinate(y, 184);
+    const int snappedX = snapCharacterTileCoordinate(
+        x, (characterMapColumns() - 1) * characterPatternWidth());
+    const int snappedY = snapCharacterTileCoordinate(
+        y, (characterMapRows() - 1) * characterPatternHeight());
     if (slot.tileX == snappedX && slot.tileY == snappedY) return;
     slot.tileX = snappedX;
     slot.tileY = snappedY;
@@ -1568,25 +1892,33 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
     QJsonArray characterSets;
     for (const auto& set : characterSets_) {
         QJsonArray savedPatterns;
-        for (int patternIndex = 0; patternIndex < 256; ++patternIndex) {
+        for (int patternIndex = 0;
+             patternIndex < static_cast<int>(set.patterns.size()); ++patternIndex) {
             const auto& pattern = set.patterns[static_cast<std::size_t>(patternIndex)];
             const bool hasBitmap = std::any_of(pattern.bitmap.begin(), pattern.bitmap.end(),
                                                [](std::uint8_t value) { return value != 0; });
             const bool hasCustomColors = std::any_of(
                 pattern.colors.begin(), pattern.colors.end(),
                 [](std::uint8_t value) { return value != defaultCharacterColor; });
-            if (!hasBitmap && !hasCustomColors) continue;
+            if (!hasBitmap && !hasCustomColors && !pattern.indexedOverride) continue;
             QJsonArray bitmap;
             QJsonArray colors;
             for (const std::uint8_t value : pattern.bitmap) bitmap.push_back(value);
             for (const std::uint8_t value : pattern.colors) colors.push_back(value);
-            savedPatterns.push_back(
-                QJsonObject{{QStringLiteral("index"), patternIndex},
-                            {QStringLiteral("bitmap"), bitmap},
-                            {QStringLiteral("colors"), colors}});
+            QJsonArray indexedPixels;
+            if (pattern.indexedOverride) {
+                for (const std::uint8_t value : pattern.indexedPixels)
+                    indexedPixels.push_back(value);
+            }
+            savedPatterns.push_back(QJsonObject{
+                {QStringLiteral("index"), patternIndex},
+                {QStringLiteral("bitmap"), bitmap},
+                {QStringLiteral("colors"), colors},
+                {QStringLiteral("indexedOverride"), pattern.indexedOverride},
+                {QStringLiteral("indexedPixels"), indexedPixels}});
         }
         characterSets.push_back(QJsonObject{{QStringLiteral("name"), set.name},
-                                             {QStringLiteral("capacity"), 256},
+                                             {QStringLiteral("capacity"), 2048},
                                              {QStringLiteral("patterns"), savedPatterns}});
     }
     QJsonArray characterEditors;
@@ -1646,11 +1978,13 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
                                               {QStringLiteral("flipY"), placement.flipY}});
         }
         spriteSets.push_back(QJsonObject{{QStringLiteral("name"), set.name},
-                                          {QStringLiteral("capacity"), 32},
+                                          {QStringLiteral("capacity"), 80},
                                           {QStringLiteral("patterns8"),
                                            saveSpriteBank(set.patterns8, 8)},
                                           {QStringLiteral("patterns16"),
                                            saveSpriteBank(set.patterns16, 16)},
+                                          {QStringLiteral("patternsGenesis"),
+                                           saveSpriteBank(set.patternsGenesis, 32)},
                                           {QStringLiteral("placements"), placements}});
     }
     QJsonArray spriteEditors;
@@ -1665,6 +1999,11 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
     QJsonArray projectTargets;
     if (tms9918aEnabled_) projectTargets.push_back(QStringLiteral("tms9918a"));
     if (f18aEnabled_) projectTargets.push_back(QStringLiteral("f18a"));
+    if (v9938Enabled_) projectTargets.push_back(QStringLiteral("v9938"));
+    if (v9958Enabled_) projectTargets.push_back(QStringLiteral("v9958"));
+    if (segaSmsEnabled_) projectTargets.push_back(QStringLiteral("sega-sms-vdp"));
+    if (segaGenesisEnabled_)
+        projectTargets.push_back(QStringLiteral("sega-genesis-vdp"));
     for (const QString& targetId : plannedTargetIds_)
         projectTargets.push_back(targetId);
 
@@ -1683,7 +2022,17 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
                      {QStringLiteral("f18a"),
                       QJsonObject{{QStringLiteral("enabled"), f18aEnabled_},
                                   {QStringLiteral("inherits"),
-                                   QStringLiteral("tms9918a")}}}}},
+                                   QStringLiteral("tms9918a")}}},
+                     {QStringLiteral("v9938"),
+                      QJsonObject{{QStringLiteral("enabled"), v9938Enabled_},
+                                  {QStringLiteral("inherits"), QStringLiteral("tms9918a")}}},
+                     {QStringLiteral("v9958"),
+                      QJsonObject{{QStringLiteral("enabled"), v9958Enabled_},
+                                  {QStringLiteral("inherits"), QStringLiteral("v9938")}}},
+                     {QStringLiteral("sega-sms-vdp"),
+                      QJsonObject{{QStringLiteral("enabled"), segaSmsEnabled_}}},
+                     {QStringLiteral("sega-genesis-vdp"),
+                      QJsonObject{{QStringLiteral("enabled"), segaGenesisEnabled_}}}}},
         {QStringLiteral("preview"), previewName(previewTarget_)},
         {QStringLiteral("editScope"), editScope_ == 1
                                              ? QStringLiteral("f18a-enhancements")
@@ -1697,6 +2046,7 @@ bool EditorProjectController::saveRecipe(const QUrl& fileUrl)
                       characterForegroundColorIndex_},
                      {QStringLiteral("backgroundColor"),
                       characterBackgroundColorIndex_},
+                     {QStringLiteral("paletteBank"), characterPaletteBank_},
                      {QStringLiteral("editors"), characterEditors},
                      {QStringLiteral("sets"), characterSets}}},
         {QStringLiteral("spriteEditor"),
@@ -1784,11 +2134,20 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
                            .toString(QStringLiteral("Untitled Project")).trimmed();
         if (projectName_.isEmpty()) projectName_ = QStringLiteral("Untitled Project");
         tms9918aEnabled_ = configuredTargets.contains(QStringLiteral("tms9918a"));
+        v9938Enabled_ = configuredTargets.contains(QStringLiteral("v9938"));
+        v9958Enabled_ = configuredTargets.contains(QStringLiteral("v9958"));
+        segaSmsEnabled_ = configuredTargets.contains(QStringLiteral("sega-sms-vdp"));
+        segaGenesisEnabled_ = configuredTargets.contains(
+            QStringLiteral("sega-genesis-vdp"));
         plannedTargetIds_.clear();
         for (const QJsonValue& targetValue : configuredTargets) {
             const QString targetId = targetValue.toString().trimmed();
             if (!targetId.isEmpty() && targetId != QStringLiteral("tms9918a")
                 && targetId != QStringLiteral("f18a")
+                && targetId != QStringLiteral("v9938")
+                && targetId != QStringLiteral("v9958")
+                && targetId != QStringLiteral("sega-sms-vdp")
+                && targetId != QStringLiteral("sega-genesis-vdp")
                 && !plannedTargetIds_.contains(targetId)) {
                 plannedTargetIds_.push_back(targetId);
             }
@@ -1801,9 +2160,29 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
                         .value(QStringLiteral("enabled")).toBool(true);
     if (!project.isEmpty())
         f18aEnabled_ = configuredTargets.contains(QStringLiteral("f18a"));
-    if (!tms9918aEnabled_ && !f18aEnabled_) tms9918aEnabled_ = true;
-    if (!targetEnabled(activeTarget()))
-        imageInput_->setTargetProfile(tms9918aEnabled_ ? 0 : 1);
+    if (project.isEmpty()) {
+        const auto profiles = root.value(QStringLiteral("profiles")).toObject();
+        v9938Enabled_ = profiles.value(QStringLiteral("v9938")).toObject()
+                            .value(QStringLiteral("enabled")).toBool(false);
+        v9958Enabled_ = profiles.value(QStringLiteral("v9958")).toObject()
+                            .value(QStringLiteral("enabled")).toBool(false);
+        segaSmsEnabled_ = profiles.value(QStringLiteral("sega-sms-vdp")).toObject()
+                              .value(QStringLiteral("enabled")).toBool(false);
+        segaGenesisEnabled_ = profiles.value(
+            QStringLiteral("sega-genesis-vdp")).toObject()
+                                  .value(QStringLiteral("enabled")).toBool(false);
+    }
+    if (!tms9918aEnabled_ && !f18aEnabled_ && !v9938Enabled_ && !v9958Enabled_
+        && !segaSmsEnabled_ && !segaGenesisEnabled_)
+        tms9918aEnabled_ = true;
+    if (!targetEnabled(activeTarget())) {
+        const int fallbackTarget = tms9918aEnabled_ ? 0
+                                                   : (f18aEnabled_ ? 1
+                                                                  : (v9938Enabled_ ? 2
+                                                                     : (v9958Enabled_ ? 3
+                                                                        : (segaSmsEnabled_ ? 4 : 5))));
+        imageInput_->setTargetProfile(fallbackTarget);
+    }
     previewTarget_ = activeTarget();
     const auto& activeProfile = retrovdp::core::targetProfile(
         static_cast<retrovdp::core::TargetProfileId>(activeTarget()));
@@ -1815,11 +2194,15 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
     activeCharacterSet_ = std::clamp(character.value(QStringLiteral("activeSet")).toInt(),
                                      0, 2);
     activeCharacterPattern_ = std::clamp(
-        character.value(QStringLiteral("activePattern")).toInt(), 0, 255);
+        character.value(QStringLiteral("activePattern")).toInt(), 0,
+        characterPatternsPerSet() - 1);
     characterForegroundColorIndex_ = std::clamp(
         character.value(QStringLiteral("foregroundColor")).toInt(15), 0, 15);
     characterBackgroundColorIndex_ = std::clamp(
         character.value(QStringLiteral("backgroundColor")).toInt(1), 0, 15);
+    characterPaletteBank_ = std::clamp(
+        character.value(QStringLiteral("paletteBank")).toInt(), 0,
+        usesGenesisMode5Editor() ? 3 : 0);
     characterTilingMode_ = character.value(QStringLiteral("tilingMode")).toBool();
     for (int index = 0; index < static_cast<int>(characterSets_.size()); ++index) {
         characterSets_[static_cast<std::size_t>(index)] = makeCharacterSet(index + 1);
@@ -1834,7 +2217,8 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
         for (const QJsonValue& patternValue : savedPatterns) {
             const QJsonObject savedPattern = patternValue.toObject();
             const int patternIndex = savedPattern.value(QStringLiteral("index")).toInt(-1);
-            if (patternIndex < 0 || patternIndex >= 256) continue;
+            if (patternIndex < 0
+                || patternIndex >= static_cast<int>(set.patterns.size())) continue;
             auto& pattern = set.patterns[static_cast<std::size_t>(patternIndex)];
             const QJsonArray bitmap = savedPattern.value(QStringLiteral("bitmap")).toArray();
             const QJsonArray colors = savedPattern.value(QStringLiteral("colors")).toArray();
@@ -1845,6 +2229,16 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
             for (int row = 0; row < std::min(8, static_cast<int>(colors.size())); ++row) {
                 pattern.colors[static_cast<std::size_t>(row)] = static_cast<std::uint8_t>(
                     std::clamp(colors[row].toInt(defaultCharacterColor), 0, 255));
+            }
+            const QJsonArray indexed = savedPattern.value(
+                QStringLiteral("indexedPixels")).toArray();
+            if (savedPattern.value(QStringLiteral("indexedOverride")).toBool()
+                && indexed.size() == 64) {
+                pattern.indexedOverride = true;
+                for (int pixel = 0; pixel < 64; ++pixel) {
+                    pattern.indexedPixels[static_cast<std::size_t>(pixel)] =
+                        static_cast<std::uint8_t>(std::clamp(indexed[pixel].toInt(), 0, 15));
+                }
             }
         }
     }
@@ -1859,7 +2253,8 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
         characterEditorSlots_.push_back(
             {savedEditor.value(QStringLiteral("loaded")).toBool(),
              std::clamp(savedEditor.value(QStringLiteral("set")).toInt(), 0, 2),
-             std::clamp(savedEditor.value(QStringLiteral("pattern")).toInt(), 0, 255),
+             std::clamp(savedEditor.value(QStringLiteral("pattern")).toInt(), 0,
+                        characterPatternsPerSet() - 1),
              snapCharacterTileCoordinate(
                  savedEditor.value(QStringLiteral("tileX")).toInt(defaultX), 248),
              snapCharacterTileCoordinate(
@@ -1880,10 +2275,10 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
     }
 
     const QJsonObject sprite = root.value(QStringLiteral("spriteEditor")).toObject();
-    spriteGlobalSize_ = sprite.value(QStringLiteral("globalSize")).toInt(8) >= 16
-        ? 16 : 8;
-    activeSpriteSize_ = sprite.value(QStringLiteral("activeSize"))
-                                .toInt(spriteGlobalSize_) >= 16 ? 16 : 8;
+    spriteGlobalSize_ = normalizedSpriteSize(
+        sprite.value(QStringLiteral("globalSize")).toInt(8));
+    activeSpriteSize_ = normalizedSpriteSize(
+        sprite.value(QStringLiteral("activeSize")).toInt(spriteGlobalSize_));
     spriteDrawingColorIndex_ = std::clamp(
         sprite.value(QStringLiteral("drawingColor")).toInt(1), 1, 15);
     placementWidth_ = std::clamp(sprite.value(QStringLiteral("placementWidth")).toInt(256),
@@ -1899,9 +2294,9 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
         SpriteSet set = makeSpriteSet(setIndex + 1);
         const QString name = savedSet.value(QStringLiteral("name")).toString();
         if (!name.isEmpty()) set.name = name;
-        const auto loadSpriteBank = [](const QJsonArray& saved,
-                                       auto& patterns,
-                                       int size) {
+        const auto loadSpriteBank = [this](const QJsonArray& saved,
+                                           auto& patterns,
+                                           int size) {
             const int count = size * size;
             for (const QJsonValue& value : saved) {
                 const QJsonObject object = value.toObject();
@@ -1926,7 +2321,8 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
                              static_cast<int>(enhanced.size())); ++pixel) {
                         pattern.f18aPixels[static_cast<std::size_t>(pixel)] =
                             static_cast<std::uint8_t>(std::clamp(
-                                enhanced[pixel].toInt(), 0, 7));
+                            enhanced[pixel].toInt(), 0,
+                            usesIndexed4BppEditor() ? 15 : 7));
                     }
                 }
             }
@@ -1935,8 +2331,11 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
                        set.patterns8, 8);
         loadSpriteBank(savedSet.value(QStringLiteral("patterns16")).toArray(),
                        set.patterns16, 16);
+        loadSpriteBank(savedSet.value(QStringLiteral("patternsGenesis")).toArray(),
+                       set.patternsGenesis, 32);
         const QJsonArray placements = savedSet.value(QStringLiteral("placements")).toArray();
-        for (int index = 0; index < std::min(32, static_cast<int>(placements.size())); ++index) {
+        for (int index = 0;
+             index < std::min(80, static_cast<int>(placements.size())); ++index) {
             const QJsonObject savedPlacement = placements[index].toObject();
             auto& placement = set.placements[static_cast<std::size_t>(index)];
             placement.x = std::clamp(savedPlacement.value(QStringLiteral("x")).toInt(),
@@ -1950,11 +2349,11 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
                 savedPlacement.value(QStringLiteral("y16")).toInt(placement.y),
                 -32, placementHeight_ - 1);
             placement.visible = savedPlacement.value(QStringLiteral("visible")).toBool(true);
-            placement.size = savedPlacement.value(QStringLiteral("size")).toInt(8) >= 16
-                ? 16 : 8;
+            placement.size = normalizedSpriteSize(
+                savedPlacement.value(QStringLiteral("size")).toInt(8));
             placement.color = std::clamp(
                 savedPlacement.value(QStringLiteral("color")).toInt(15), 1, 15);
-            placement.colorDepth = std::clamp(
+            placement.colorDepth = usesIndexed4BppEditor() ? 4 : std::clamp(
                 savedPlacement.value(QStringLiteral("colorDepth")).toInt(1), 1, 3);
             placement.palette = std::clamp(
                 savedPlacement.value(QStringLiteral("palette")).toInt(), 0, 7);
@@ -1966,24 +2365,27 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
     if (spriteSets_.empty()) spriteSets_.push_back(makeSpriteSet(1));
     activeSpriteSet_ = std::clamp(sprite.value(QStringLiteral("activeSet")).toInt(), 0,
                                   static_cast<int>(spriteSets_.size()) - 1);
-    activeSprite_ = std::clamp(sprite.value(QStringLiteral("activeSprite")).toInt(), 0, 31);
+    activeSprite_ = std::clamp(sprite.value(QStringLiteral("activeSprite")).toInt(),
+                               0, spritePatternsPerSet() - 1);
     spriteEditorSlots_.clear();
     const QJsonArray savedSpriteEditors = sprite.value(QStringLiteral("editors")).toArray();
     for (int index = 0;
-         index < std::min(32, static_cast<int>(savedSpriteEditors.size())); ++index) {
+         index < std::min(spritePatternsPerSet(),
+                          static_cast<int>(savedSpriteEditors.size())); ++index) {
         const QJsonObject savedEditor = savedSpriteEditors[index].toObject();
         const bool loaded = savedEditor.value(QStringLiteral("loaded")).toBool();
         const int setIndex = std::clamp(
             savedEditor.value(QStringLiteral("set")).toInt(), 0,
             static_cast<int>(spriteSets_.size()) - 1);
         const int spriteIndex = std::clamp(
-            savedEditor.value(QStringLiteral("sprite")).toInt(), 0, 31);
+            savedEditor.value(QStringLiteral("sprite")).toInt(), 0,
+            spritePatternsPerSet() - 1);
         const auto& savedPlacement = spriteSets_[static_cast<std::size_t>(setIndex)]
                                          .placements[static_cast<std::size_t>(spriteIndex)];
-        const int fallbackSize = editScope_ == 1
+        const int fallbackSize = usesPerSpriteSizeEditor()
             ? savedPlacement.size : spriteGlobalSize_;
-        const int editorSize = savedEditor.value(QStringLiteral("size"))
-                                       .toInt(fallbackSize) >= 16 ? 16 : 8;
+        const int editorSize = normalizedSpriteSize(
+            savedEditor.value(QStringLiteral("size")).toInt(fallbackSize));
         const bool duplicate = loaded && std::any_of(
             spriteEditorSlots_.begin(), spriteEditorSlots_.end(),
             [setIndex, spriteIndex, editorSize](const SpriteEditorSlot& editor) {
@@ -2009,7 +2411,9 @@ bool EditorProjectController::loadRecipe(const QUrl& fileUrl)
         activeSpriteSet_ = activeSpriteEditor.setIndex;
         activeSprite_ = activeSpriteEditor.spriteIndex;
         activeSpriteSize_ = activeSpriteEditor.size;
-        if (editScope_ == 0) spriteGlobalSize_ = activeSpriteEditor.size;
+        if (!usesPerSpriteSizeEditor()) {
+            spriteGlobalSize_ = activeSpriteEditor.size;
+        }
     }
     syncSpriteDrawingColor();
     ++spriteRevision_;
@@ -2047,9 +2451,10 @@ EditorProjectController::characterPatternFromClipboard() const
         return std::nullopt;
     }
     const QJsonObject root = document.object();
+    const int version = root.value(QStringLiteral("version")).toInt();
     if (root.value(QStringLiteral("format")).toString()
             != QStringLiteral("retrovdp.character-pattern")
-        || root.value(QStringLiteral("version")).toInt() != 1) {
+        || (version != 1 && version != 2)) {
         return std::nullopt;
     }
     const QJsonObject size = root.value(QStringLiteral("size")).toObject();
@@ -2087,6 +2492,17 @@ EditorProjectController::characterPatternFromClipboard() const
         || !parseBytes(root.value(QStringLiteral("colors")), pattern.colors)) {
         return std::nullopt;
     }
+    if (root.value(QStringLiteral("indexedOverride")).toBool()) {
+        const QJsonArray pixels = root.value(QStringLiteral("indexedPixels")).toArray();
+        if (pixels.size() != 64) return std::nullopt;
+        pattern.indexedOverride = true;
+        for (int index = 0; index < 64; ++index) {
+            const int value = pixels[index].toInt(-1);
+            if (value < 0 || value > 15) return std::nullopt;
+            pattern.indexedPixels[static_cast<std::size_t>(index)] =
+                static_cast<std::uint8_t>(value);
+        }
+    }
     return pattern;
 }
 
@@ -2094,6 +2510,27 @@ EditorProjectController::CharacterPattern
 EditorProjectController::pannedCharacterPattern() const
 {
     CharacterPattern result = characterPanOriginal_;
+    if (usesIndexed4BppEditor()) {
+        result.indexedOverride = true;
+        result.indexedPixels.fill(0);
+        for (int row = 0; row < 8; ++row) {
+            const int sourceRow = row - characterPanY_;
+            if (sourceRow < 0 || sourceRow >= 8) continue;
+            for (int column = 0; column < 8; ++column) {
+                const int sourceColumn = column - characterPanX_;
+                if (sourceColumn < 0 || sourceColumn >= 8) continue;
+                result.indexedPixels[static_cast<std::size_t>(row * 8 + column)] =
+                    characterPanOriginal_.indexedOverride
+                    ? characterPanOriginal_.indexedPixels[static_cast<std::size_t>(
+                          sourceRow * 8 + sourceColumn)]
+                    : ((characterPanOriginal_.bitmap[static_cast<std::size_t>(sourceRow)]
+                        & (0x80U >> sourceColumn)) != 0
+                           ? characterPanOriginal_.colors[static_cast<std::size_t>(sourceRow)] >> 4U
+                           : characterPanOriginal_.colors[static_cast<std::size_t>(sourceRow)] & 0x0fU);
+            }
+        }
+        return result;
+    }
     for (int row = 0; row < 8; ++row) {
         const int sourceRow = row - characterPanY_;
         result.bitmap[static_cast<std::size_t>(row)] = 0;
@@ -2155,12 +2592,13 @@ EditorProjectController::SpriteSet EditorProjectController::makeSpriteSet(int or
 {
     SpriteSet set;
     set.name = QStringLiteral("Set %1").arg(ordinal);
-    for (int index = 0; index < 32; ++index) {
+    for (int index = 0; index < static_cast<int>(set.placements.size()); ++index) {
         auto& placement = set.placements[static_cast<std::size_t>(index)];
         placement.x = 8 + (index % 8) * 30;
         placement.y = 8 + (index / 8) * 42;
         placement.x16 = placement.x;
         placement.y16 = placement.y;
+        if (usesIndexed4BppEditor()) placement.colorDepth = 4;
     }
     return set;
 }

@@ -33,7 +33,8 @@ Item {
         const colors = editorProject.characterPaletteColors
         if (index < 0 || index >= colors.length)
             return "#000000"
-        if (index === 0)
+        if (index === 0
+                && editorProject.activeTargetInfo.id !== "sega-sms-vdp")
             return "#303842"
         return colors[index]
     }
@@ -54,15 +55,15 @@ Item {
             objectName: "characterTilingScreenGrid"
             x: 4
             y: 4
-            width: 256 * root.zoomScale
-            height: 192 * root.zoomScale
+            width: editorProject.characterMapColumns * 8 * root.zoomScale
+            height: editorProject.characterMapRows * 8 * root.zoomScale
             color: "#111820"
             border.width: 1
             border.color: "#73808c"
             clip: true
 
             Repeater {
-                model: 33
+                model: editorProject.characterMapColumns + 1
                 Rectangle {
                     required property int index
                     x: Math.min(screenCanvas.width - 1,
@@ -73,7 +74,7 @@ Item {
                 }
             }
             Repeater {
-                model: 25
+                model: editorProject.characterMapRows + 1
                 Rectangle {
                     required property int index
                     y: Math.min(screenCanvas.height - 1,
@@ -134,19 +135,22 @@ Item {
                             required property int index
                             readonly property int patternRow: Math.floor(index / 8)
                             readonly property int patternColumn: index % 8
-                            readonly property bool foregroundPixel:
-                                tile.slotData.loaded && tile.patternRows.length === 8
-                                && (tile.patternRows[patternRow].pattern
-                                    & (0x80 >> patternColumn)) !== 0
+                            readonly property int colorIndex:
+                                !tile.slotData.loaded || tile.patternRows.length !== 8
+                                ? 0
+                                : tile.patternRows[patternRow].indexed
+                                  ? tile.patternRows[patternRow].pixels[patternColumn]
+                                  : ((tile.patternRows[patternRow].pattern
+                                      & (0x80 >> patternColumn)) !== 0
+                                     ? tile.patternRows[patternRow].foreground
+                                     : tile.patternRows[patternRow].background)
                             x: patternColumn * root.zoomScale
                             y: patternRow * root.zoomScale
                             width: root.zoomScale
                             height: root.zoomScale
                             color: !tile.slotData.loaded
                                    || tile.patternRows.length !== 8 ? "#20272e"
-                                   : root.paletteColor(foregroundPixel
-                                                       ? tile.patternRows[patternRow].foreground
-                                                       : tile.patternRows[patternRow].background)
+                                   : root.paletteColor(colorIndex)
                         }
                     }
 

@@ -47,6 +47,52 @@ constexpr std::array scanlinePaletteBitmapF18ATables{
     TargetTableLayout{TargetTableRole::Color, 6144},
     TargetTableLayout{TargetTableRole::ScanlinePalettes, 6144},
 };
+constexpr std::array screen5V9938Tables{
+    TargetTableLayout{TargetTableRole::Framebuffer, 256U * 212U / 2U},
+    TargetTableLayout{TargetTableRole::Palette, 32},
+};
+constexpr std::array screen6V9938Tables{
+    TargetTableLayout{TargetTableRole::Framebuffer, 512U * 212U / 4U},
+    TargetTableLayout{TargetTableRole::Palette, 8},
+};
+constexpr std::array screen7V9938Tables{
+    TargetTableLayout{TargetTableRole::Framebuffer, 512U * 212U / 2U},
+    TargetTableLayout{TargetTableRole::Palette, 32},
+};
+constexpr std::array screen8V9938Tables{
+    TargetTableLayout{TargetTableRole::Framebuffer, 256U * 212U},
+};
+constexpr std::array screenYjkV9958Tables{
+    TargetTableLayout{TargetTableRole::Framebuffer, 256U * 212U},
+};
+constexpr std::array screenYaeV9958Tables{
+    TargetTableLayout{TargetTableRole::Framebuffer, 256U * 212U},
+    TargetTableLayout{TargetTableRole::Palette, 32},
+};
+constexpr std::array mode4Sms192Tables{
+    TargetTableLayout{TargetTableRole::Pattern, 0x3800U},
+    TargetTableLayout{TargetTableRole::TileMap, 2048U},
+    TargetTableLayout{TargetTableRole::Palette, 32U},
+    TargetTableLayout{TargetTableRole::DisplayRegisters, 11U},
+};
+constexpr std::array mode4SmsExtendedTables{
+    TargetTableLayout{TargetTableRole::Pattern, 0x3700U},
+    TargetTableLayout{TargetTableRole::TileMap, 2048U},
+    TargetTableLayout{TargetTableRole::Palette, 32U},
+    TargetTableLayout{TargetTableRole::DisplayRegisters, 11U},
+};
+constexpr std::array mode5GenesisH32Tables{
+    TargetTableLayout{TargetTableRole::Pattern, 0xb000U},
+    TargetTableLayout{TargetTableRole::TileMap, 2048U},
+    TargetTableLayout{TargetTableRole::Palette, 128U},
+    TargetTableLayout{TargetTableRole::DisplayRegisters, 24U},
+};
+constexpr std::array mode5GenesisH40Tables{
+    TargetTableLayout{TargetTableRole::Pattern, 0xa800U},
+    TargetTableLayout{TargetTableRole::TileMap, 4096U},
+    TargetTableLayout{TargetTableRole::Palette, 128U},
+    TargetTableLayout{TargetTableRole::DisplayRegisters, 24U},
+};
 
 void setPaletteError(PaletteError* destination, PaletteError error)
 {
@@ -68,6 +114,9 @@ RegionRoleId targetTableRoleId(TargetTableRole role)
     case TargetTableRole::FixedPattern: return makeRegionRoleId("fixed-pattern");
     case TargetTableRole::Palette: return makeRegionRoleId("palette");
     case TargetTableRole::ScanlinePalettes: return makeRegionRoleId("scanline-palettes");
+    case TargetTableRole::Framebuffer: return makeRegionRoleId("framebuffer");
+    case TargetTableRole::TileMap: return makeRegionRoleId("tile-map");
+    case TargetTableRole::DisplayRegisters: return makeRegionRoleId("display-registers");
     }
     throw std::out_of_range("unknown target table role");
 }
@@ -84,6 +133,8 @@ std::optional<TargetTableRole> targetTableRole(std::string_view id)
         TargetTableRole::MulticolorFrame1, TargetTableRole::MulticolorFrame2,
         TargetTableRole::FixedPattern, TargetTableRole::Palette,
         TargetTableRole::ScanlinePalettes,
+        TargetTableRole::Framebuffer, TargetTableRole::TileMap,
+        TargetTableRole::DisplayRegisters,
     };
     for (const auto role : roles) {
         if (targetTableRoleId(role) == id) return role;
@@ -136,6 +187,20 @@ std::span<const TargetTableLayout> expectedTargetTables(ConversionMode mode)
         return palettedBitmapF18ATables;
     case ConversionMode::ScanlinePaletteBitmapF18A:
         return scanlinePaletteBitmapF18ATables;
+    case ConversionMode::Screen5V9938: return screen5V9938Tables;
+    case ConversionMode::Screen6V9938: return screen6V9938Tables;
+    case ConversionMode::Screen7V9938: return screen7V9938Tables;
+    case ConversionMode::Screen8V9938:
+    case ConversionMode::Screen12V9958: return screen8V9938Tables;
+    case ConversionMode::Screen10V9958:
+    case ConversionMode::Screen11V9958: return screenYaeV9958Tables;
+    case ConversionMode::Mode4Sms192: return mode4Sms192Tables;
+    case ConversionMode::Mode4Sms224:
+    case ConversionMode::Mode4Sms240: return mode4SmsExtendedTables;
+    case ConversionMode::Mode5GenesisH32:
+    case ConversionMode::Mode5GenesisH32Pal: return mode5GenesisH32Tables;
+    case ConversionMode::Mode5GenesisH40:
+    case ConversionMode::Mode5GenesisH40Pal: return mode5GenesisH40Tables;
     }
     return {};
 }

@@ -23,10 +23,34 @@ profile rather than permanently tied to two chipsets. The initial tools cover:
 - character allocation and reservation for image construction; and
 - an accurate TMS9918A Multicolor display simulation.
 
-V9938 is the next planned target. Later profiles may add different modes,
-memory maps, palettes, layers, and native file formats without changing the
-application identity. See `TARGET_PROFILES.md` for the source/target/output
-contract.
+V9938 and V9958 are registered bitmap targets. Sega Master System is a
+registered planar-tile target with all three documented Mode 4 display heights,
+dual 16-color CRAM banks, tile-map attributes, and native RAW region export.
+Sega Genesis/Mega Drive is a registered packed-tile target with H32/H40,
+224/PAL-240-line Mode V screens, four RGB333 palette banks, a Plane A map, and
+native RAW region export.
+Later profiles may add different modes, memory maps, palettes, layers, and
+native file formats without changing the application identity. See
+`TARGET_PROFILES.md` for the source/target/output contract.
+
+The Master System Character workspace uses native Mode 4 8×8 4bpp indexed
+tiles and the background CRAM bank. Its Sprite workspace uses 64 authored
+entries, the dedicated sprite CRAM bank, transparent index zero, and one global
+8×8 or 8×16 size. The 8×16 editor is rectangular; clockwise rotation is
+disabled because that transform cannot remain in the hardware's selected
+geometry. Mirror and flip commands modify pattern pixels and do not imply
+unsupported per-sprite SAT flags. See
+[TARGET_IMPLEMENTATION_GUIDE.md](TARGET_IMPLEMENTATION_GUIDE.md) for the full
+workspace disposition and current serialization constraint.
+
+The Genesis Character workspace uses native 8×8 packed 4bpp tiles, all 2,048
+hardware tile indexes, and an explicit palette bank. Its Sprite workspace uses
+80 authored entries, transparent index zero, four palette banks, and independent
+width and height in 8-pixel steps from 8×8 through 32×32. Rectangular sprite
+rotation is disabled because it cannot preserve the selected dimensions.
+Screen Image conversion emits one opaque Scroll A plane; Scroll B, Window,
+interlaced Mode 2, and structured-editor map/SAT serialization are explicitly
+outside the current slice rather than approximated.
 
 ## Source-image preparation tools
 

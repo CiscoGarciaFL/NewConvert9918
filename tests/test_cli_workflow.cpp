@@ -81,8 +81,12 @@ int main(int argc, char* argv[])
                     && help.standardOutput.contains("--input")
                     && help.standardOutput.contains("--recipe")
                     && help.standardOutput.contains("--target")
-                    && help.standardOutput.contains("--format"),
-                "CLI help should describe its stable input and export options");
+                    && help.standardOutput.contains("--format")
+                    && help.standardOutput.contains("sega-sms-vdp")
+                    && help.standardOutput.contains("mode-4-sms-240-pal")
+                    && help.standardOutput.contains("sega-genesis-vdp")
+                    && help.standardOutput.contains("mode-5-genesis-h40"),
+                "CLI help should describe its stable input, target, and export options");
 
     const QStringList validArguments{
         QStringLiteral("--input"), source,
@@ -131,6 +135,70 @@ int main(int argc, char* argv[])
                     && jsonResult(overwrite).value(QStringLiteral("status"))
                         == QStringLiteral("ok"),
                 "CLI should replace files only when --overwrite is explicit");
+
+    const QStringList smsModes{
+        QStringLiteral("mode-4-sms-192"),
+        QStringLiteral("mode-4-sms-224"),
+        QStringLiteral("mode-4-sms-240-pal"),
+    };
+    for (const QString& mode : smsModes) {
+        const QString smsOutput = output.filePath(mode);
+        const RunResult smsRun = runCli({
+            QStringLiteral("--input"), source,
+            QStringLiteral("--output"), smsOutput,
+            QStringLiteral("--target"), QStringLiteral("sega-sms-vdp"),
+            QStringLiteral("--mode"), mode,
+            QStringLiteral("--preset"), QStringLiteral("crisp-pixel-art"),
+            QStringLiteral("--format"), QStringLiteral("raw"),
+            QStringLiteral("--json"),
+        });
+        const QJsonObject smsJson = jsonResult(smsRun);
+        const QJsonArray smsFiles = smsJson.value(QStringLiteral("files")).toArray();
+        bool smsFilesValid = smsFiles.size() == 4;
+        for (const auto& entry : smsFiles) {
+            const QJsonObject file = entry.toObject();
+            smsFilesValid &= QFileInfo::exists(
+                file.value(QStringLiteral("path")).toString())
+                && file.value(QStringLiteral("bytes")).toInteger() > 0;
+        }
+        test.expect(smsRun.completed && smsRun.exitCode == 0
+                        && smsJson.value(QStringLiteral("status"))
+                            == QStringLiteral("ok")
+                        && smsJson.value(QStringLiteral("target"))
+                            == QStringLiteral("sega-sms-vdp")
+                        && smsJson.value(QStringLiteral("mode")) == mode
+                        && smsFilesValid,
+                    "CLI should convert and export every Master System Mode 4 height");
+    }
+
+    const QString genesisOutput = output.filePath(QStringLiteral("genesis-h40"));
+    const RunResult genesisRun = runCli({
+        QStringLiteral("--input"), source,
+        QStringLiteral("--output"), genesisOutput,
+        QStringLiteral("--target"), QStringLiteral("sega-genesis-vdp"),
+        QStringLiteral("--mode"), QStringLiteral("mode-5-genesis-h40"),
+        QStringLiteral("--preset"), QStringLiteral("crisp-pixel-art"),
+        QStringLiteral("--format"), QStringLiteral("raw"),
+        QStringLiteral("--json"),
+    });
+    const QJsonObject genesisJson = jsonResult(genesisRun);
+    const QJsonArray genesisFiles = genesisJson.value(QStringLiteral("files")).toArray();
+    bool genesisFilesValid = genesisFiles.size() == 4;
+    for (const auto& entry : genesisFiles) {
+        const QJsonObject file = entry.toObject();
+        genesisFilesValid &= QFileInfo::exists(
+            file.value(QStringLiteral("path")).toString())
+            && file.value(QStringLiteral("bytes")).toInteger() > 0;
+    }
+    test.expect(genesisRun.completed && genesisRun.exitCode == 0
+                    && genesisJson.value(QStringLiteral("status"))
+                        == QStringLiteral("ok")
+                    && genesisJson.value(QStringLiteral("target"))
+                        == QStringLiteral("sega-genesis-vdp")
+                    && genesisJson.value(QStringLiteral("mode"))
+                        == QStringLiteral("mode-5-genesis-h40")
+                    && genesisFilesValid,
+                "CLI should convert and export a Genesis Mode V H40 screen");
 
     const QString recipePath = output.filePath(QStringLiteral("batch.rvdp.json"));
     QFile recipeFile(recipePath);

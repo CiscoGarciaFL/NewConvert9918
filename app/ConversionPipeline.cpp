@@ -1,10 +1,9 @@
 #include "ConversionPipeline.hpp"
 
+#include "retrovdp/core/ConversionRegistry.hpp"
 #include "retrovdp/core/Bitmap9918Converter.hpp"
-#include "retrovdp/core/F18AConverter.hpp"
 #include "retrovdp/core/ImageAdjustments.hpp"
-#include "retrovdp/core/Multicolor9918Converter.hpp"
-#include "retrovdp/core/PaletteSelection.hpp"
+#include "retrovdp/core/TargetProfile.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -47,17 +46,21 @@ core::ConversionResult runConversion(const core::ConversionRequest& request,
     }
     if (request.cancellation.isCancellationRequested()) return cancelledResult();
 
+    const auto& modeDescriptor = core::displayMode(request.settings.mode);
+    const std::uint32_t modeWidth = modeDescriptor.geometry.width;
+    const std::uint32_t modeHeight = modeDescriptor.geometry.height;
+
     core::ImageTransformResult transformed;
     if (options.sourceAlreadyFramed) {
-        if (request.source->width() != 256U || request.source->height() != 192U) {
+        if (request.source->width() != modeWidth || request.source->height() != modeHeight) {
             return failedResult("preview-framed-source-size",
-                                "The prepared source image must be 256x192.");
+                                "The prepared source image does not match the selected mode.");
         }
         transformed.image = *request.source;
     } else {
         const core::ImageTransformOptions transformOptions{
-            .targetWidth = options.powerPaintFraming ? 240U : 256U,
-            .targetHeight = options.powerPaintFraming ? 160U : 192U,
+            .targetWidth = options.powerPaintFraming ? 240U : modeWidth,
+            .targetHeight = options.powerPaintFraming ? 160U : modeHeight,
             .filter = options.scalingFilter,
             .fillMode = options.fillMode,
             .horizontalOffset = options.horizontalOffset,
@@ -69,14 +72,14 @@ core::ConversionResult runConversion(const core::ConversionRequest& request,
         transformed = core::transformImage(*request.source, transformOptions);
         if (!transformed) {
             return failedResult("preview-transform-failed",
-                                "The source image could not be scaled to 256x192.");
+                                "The source image could not be scaled to the selected mode geometry.");
         }
     }
     if (request.cancellation.isCancellationRequested()) return cancelledResult();
 
     if (options.powerPaintFraming && !options.sourceAlreadyFramed) {
         auto padded = core::RgbImage::createTightlyPacked(
-            256, 192, transformed.image->pixelFormat());
+            modeWidth, modeHeight, transformed.image->pixelFormat());
         if (!padded) {
             return failedResult("preview-powerpaint-padding-failed",
                                 "The 240x160 PowerPaint frame could not be padded.");
@@ -106,64 +109,9 @@ core::ConversionResult runConversion(const core::ConversionRequest& request,
     if (options.workingPalette.empty()) {
         options.workingPalette = defaultWorkingPalette();
     }
-    auto colorPaletteValue = core::Palette::create(std::move(options.workingPalette));
-    if (!colorPaletteValue || colorPaletteValue->size() != 15U) {
-        return failedResult("preview-working-palette-invalid",
-                            "The working palette must contain fifteen colors.");
-    }
-    const core::Palette& colorPalette = *colorPaletteValue;
-    switch (request.settings.mode) {
-    case core::ConversionMode::Bitmap9918:
-        return core::convertBitmap9918(
-            *adjusted.image, colorPalette, request.settings, request.cancellation,
-            options.progress);
-    case core::ConversionMode::GreyscaleBitmap9918:
-        return core::convertGreyscaleBitmap9918(
-            *adjusted.image,
-            core::greyscaleBitmap9918Palette(colorPalette),
-            request.settings,
-            request.cancellation,
-            options.progress);
-    case core::ConversionMode::BlackAndWhiteBitmap9918:
-        return core::convertBlackAndWhiteBitmap9918(
-            *adjusted.image, colorPalette, request.settings, request.cancellation,
-            options.progress);
-    case core::ConversionMode::Multicolor9918:
-        return core::convertMulticolor9918(
-            *adjusted.image, colorPalette, request.settings, request.cancellation,
-            options.progress);
-    case core::ConversionMode::DualMulticolor9918:
-        return core::convertDualMulticolor9918(
-            *adjusted.image, colorPalette, request.settings, request.cancellation,
-            options.progress);
-    case core::ConversionMode::HalfMulticolor9918:
-        return core::convertHalfMulticolor9918(
-            *adjusted.image, colorPalette, request.settings, request.cancellation,
-            options.progress);
-    case core::ConversionMode::BitmapColorOnly9918:
-        return core::convertBitmapColorOnly9918(
-            *adjusted.image, colorPalette, request.settings, request.cancellation,
-            options.progress);
-    case core::ConversionMode::PalettedBitmapF18A: {
-        auto selected = request.settings.paletteSelection
-                == core::PaletteSelectionMode::Popularity
-            ? core::selectPopularPalette(
-                  *adjusted.image, 15, core::PopularityWeighting::HorizontalCenter)
-            : core::selectMedianCutPalette(
-                  *adjusted.image, 15, core::MedianCutColorDepth::Rgb444);
-        if (!selected) {
-            return failedResult("preview-palette-failed",
-                                "A 15-color F18A palette could not be selected.");
-        }
-        return core::convertPalettedBitmapF18A(
-            *adjusted.image, *selected.palette, request.settings, request.cancellation,
-            options.progress);
-    }
-    case core::ConversionMode::ScanlinePaletteBitmapF18A:
-        return core::convertScanlinePaletteBitmapF18A(
-            *adjusted.image, request.settings, request.cancellation, options.progress);
-    }
-    return failedResult("preview-unsupported-mode", "The conversion mode is unsupported.");
+    return core::compileRegisteredConversion(
+        *adjusted.image, request.settings, options.workingPalette,
+        request.cancellation, std::move(options.progress));
 }
 
 } // namespace retrovdp::appsupport

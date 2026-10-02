@@ -276,6 +276,20 @@ void testAllTargetLayouts(TestContext& test)
         core::ConversionMode::BitmapColorOnly9918,
         core::ConversionMode::PalettedBitmapF18A,
         core::ConversionMode::ScanlinePaletteBitmapF18A,
+        core::ConversionMode::Screen5V9938,
+        core::ConversionMode::Screen6V9938,
+        core::ConversionMode::Screen7V9938,
+        core::ConversionMode::Screen8V9938,
+        core::ConversionMode::Screen10V9958,
+        core::ConversionMode::Screen11V9958,
+        core::ConversionMode::Screen12V9958,
+        core::ConversionMode::Mode4Sms192,
+        core::ConversionMode::Mode4Sms224,
+        core::ConversionMode::Mode4Sms240,
+        core::ConversionMode::Mode5GenesisH32,
+        core::ConversionMode::Mode5GenesisH40,
+        core::ConversionMode::Mode5GenesisH32Pal,
+        core::ConversionMode::Mode5GenesisH40Pal,
     };
     const std::vector<formats::ExportFormat> tableFormats{
         formats::ExportFormat::Raw,
@@ -315,6 +329,20 @@ void testAllTargetLayouts(TestContext& test)
             std::ranges::sort(names);
             test.expect(std::ranges::adjacent_find(names) == names.end(),
                         "table export file names should be unique for every target layout");
+            const bool nativeSegaAssets = mode == core::ConversionMode::Mode4Sms192
+                || mode == core::ConversionMode::Mode4Sms224
+                || mode == core::ConversionMode::Mode4Sms240
+                || mode == core::ConversionMode::Mode5GenesisH32
+                || mode == core::ConversionMode::Mode5GenesisH40
+                || mode == core::ConversionMode::Mode5GenesisH32Pal
+                || mode == core::ConversionMode::Mode5GenesisH40Pal;
+            if (format == formats::ExportFormat::Raw && nativeSegaAssets) {
+                test.expect(findFile(manifest, "LAYOUT.TILES") != nullptr
+                                && findFile(manifest, "LAYOUT.MAP") != nullptr
+                                && findFile(manifest, "LAYOUT.PAL") != nullptr
+                                && findFile(manifest, "LAYOUT.REG") != nullptr,
+                            "raw Sega VDP exports should use native asset extensions");
+            }
         }
         test.expect(formats::isExportApplicable(formats::ExportFormat::Png, mode),
                     "PNG should apply to every preview-producing conversion mode");
